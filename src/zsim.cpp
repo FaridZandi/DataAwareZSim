@@ -65,20 +65,20 @@
 /* Command-line switches (used to pass info from harness that cannot be passed through the config file, most config is file-based) */
 
 KNOB<INT32> KnobProcIdx(KNOB_MODE_WRITEONCE, "pintool",
-        "procIdx", "0", "zsim process idx (internal)");
+                        "procIdx", "0", "zsim process idx (internal)");
 
 KNOB<INT32> KnobShmid(KNOB_MODE_WRITEONCE, "pintool",
-        "shmid", "0", "SysV IPC shared memory id used when running in multi-process mode");
+                      "shmid", "0", "SysV IPC shared memory id used when running in multi-process mode");
 
 KNOB<string> KnobConfigFile(KNOB_MODE_WRITEONCE, "pintool",
-        "config", "zsim.cfg", "config file name (only needed for the first simulated process)");
+                            "config", "zsim.cfg", "config file name (only needed for the first simulated process)");
 
 //We need to know these as soon as we start, otherwise we could not log anything until we attach and read the config
 KNOB<bool> KnobLogToFile(KNOB_MODE_WRITEONCE, "pintool",
-        "logToFile", "false", "true if all messages should be logged to a logfile instead of stdout/err");
+                         "logToFile", "false", "true if all messages should be logged to a logfile instead of stdout/err");
 
 KNOB<string> KnobOutputDir(KNOB_MODE_WRITEONCE, "pintool",
-        "outputDir", "./", "absolute path to write output files into");
+                           "outputDir", "./", "absolute path to write output files into");
 
 
 
@@ -566,7 +566,7 @@ VOID Instruction(INS ins) {
         // Instrument only conditional branches
         if (INS_Category(ins) == XED_CATEGORY_COND_BR) {
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) IndirectRecordBranch, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                    IARG_INST_PTR, IARG_BRANCH_TAKEN, IARG_BRANCH_TARGET_ADDR, IARG_FALLTHROUGH_ADDR, IARG_END);
+                           IARG_INST_PTR, IARG_BRANCH_TAKEN, IARG_BRANCH_TARGET_ADDR, IARG_FALLTHROUGH_ADDR, IARG_END);
         }
     }
 
@@ -581,9 +581,9 @@ VOID Instruction(INS ins) {
     }
 
     if (INS_Opcode(ins) == XED_ICLASS_CPUID) {
-       INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FakeCPUIDPre, IARG_THREAD_ID, IARG_REG_VALUE, REG_EAX, IARG_REG_VALUE, REG_ECX, IARG_END);
-       INS_InsertCall(ins, IPOINT_AFTER, (AFUNPTR) FakeCPUIDPost, IARG_THREAD_ID, IARG_REG_REFERENCE, REG_EAX,
-               IARG_REG_REFERENCE, REG_EBX, IARG_REG_REFERENCE, REG_ECX, IARG_REG_REFERENCE, REG_EDX, IARG_END);
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FakeCPUIDPre, IARG_THREAD_ID, IARG_REG_VALUE, REG_EAX, IARG_REG_VALUE, REG_ECX, IARG_END);
+        INS_InsertCall(ins, IPOINT_AFTER, (AFUNPTR) FakeCPUIDPost, IARG_THREAD_ID, IARG_REG_REFERENCE, REG_EAX,
+                       IARG_REG_REFERENCE, REG_EBX, IARG_REG_REFERENCE, REG_ECX, IARG_REG_REFERENCE, REG_EDX, IARG_END);
     }
 
     if (INS_IsRDTSC(ins)) {
@@ -602,7 +602,7 @@ VOID Trace(TRACE trace, VOID *v) {
         for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
             BblInfo* bblInfo = Decoder::decodeBbl(bbl, zinfo->oooDecode);
             BBL_InsertCall(bbl, IPOINT_BEFORE /*could do IPOINT_ANYWHERE if we redid load and store simulation in OOO*/, (AFUNPTR)IndirectBasicBlock, IARG_FAST_ANALYSIS_CALL,
-                 IARG_THREAD_ID, IARG_ADDRINT, BBL_Address(bbl), IARG_PTR, bblInfo, IARG_END);
+                           IARG_THREAD_ID, IARG_ADDRINT, BBL_Address(bbl), IARG_PTR, bblInfo, IARG_END);
         }
     }
 
@@ -661,14 +661,16 @@ static uintptr_t vsyscallStart;
 static uintptr_t vsyscallEnd;
 static bool vsyscallWarned = false;
 
-void VdsoInsertFunc(IMG vi, const char* fName, VdsoFunc func) {
-    ADDRINT baseAddr = IMG_LowAddress(vi);
-    RTN rtn = RTN_FindByName(vi, fName);
-    if (rtn == RTN_Invalid()) {
+// Helper function from parse_vsdo.cpp
+extern void vdso_init_from_sysinfo_ehdr(uintptr_t base);
+extern void *vdso_sym(const char *version, const char *name);
+
+void VdsoInsertFunc(const char* fName, VdsoFunc func) {
+    ADDRINT vdsoFuncAddr = (ADDRINT) vdso_sym("LINUX_2.6", fName);
+    if (vdsoFuncAddr == 0) {
         warn("Did not find %s in vDSO", fName);
     } else {
-        ADDRINT rtnAddr = RTN_Address(rtn) - baseAddr + vdsoStart;
-        vdsoEntryMap[rtnAddr] = func;
+        vdsoEntryMap[vdsoFuncAddr] = func;
     }
 }
 
@@ -683,33 +685,21 @@ void VdsoInit() {
         return;
     }
 
-    // Write it out
-    std::stringstream file_ss;
-    file_ss << zinfo->outputDir << "/vdso.dso." << procIdx;
-    const char* file = file_ss.str().c_str();
-    FILE* vf = fopen(file, "w");
-    fwrite(reinterpret_cast<void*>(vdso.start), 1, vdsoEnd-vdsoStart, vf);
-    fclose(vf);
+    vdso_init_from_sysinfo_ehdr(vdsoStart);
 
-    // Load it and analyze it
-    IMG vi = IMG_Open(file);
-    if (!IMG_Valid(vi)) panic("Loaded vDSO not valid");
+    VdsoInsertFunc("clock_gettime", VF_CLOCK_GETTIME);
+    VdsoInsertFunc("__vdso_clock_gettime", VF_CLOCK_GETTIME);
 
-    VdsoInsertFunc(vi, "clock_gettime", VF_CLOCK_GETTIME);
-    VdsoInsertFunc(vi, "__vdso_clock_gettime", VF_CLOCK_GETTIME);
+    VdsoInsertFunc("gettimeofday", VF_GETTIMEOFDAY);
+    VdsoInsertFunc("__vdso_gettimeofday", VF_GETTIMEOFDAY);
 
-    VdsoInsertFunc(vi, "gettimeofday", VF_GETTIMEOFDAY);
-    VdsoInsertFunc(vi, "__vdso_gettimeofday", VF_GETTIMEOFDAY);
+    VdsoInsertFunc("time", VF_TIME);
+    VdsoInsertFunc("__vdso_time", VF_TIME);
 
-    VdsoInsertFunc(vi, "time", VF_TIME);
-    VdsoInsertFunc(vi, "__vdso_time", VF_TIME);
-
-    VdsoInsertFunc(vi, "getcpu", VF_GETCPU);
-    VdsoInsertFunc(vi, "__vdso_getcpu", VF_GETCPU);
+    VdsoInsertFunc("getcpu", VF_GETCPU);
+    VdsoInsertFunc("__vdso_getcpu", VF_GETCPU);
 
     info("vDSO info initialized");
-    IMG_Close(vi);
-    remove(file);
 
     Section vsyscall = FindSection("vsyscall");
     vsyscallStart = vsyscall.start;
@@ -777,13 +767,13 @@ VOID VdsoRetPoint(THREADID tid, REG* raxPtr) {
                 VirtTime(tid, raxPtr, arg0);
                 break;
             case VF_GETCPU:
-                {
+            {
                 uint32_t cpu = cpuenumCpu(procIdx, getCid(tid));
                 VirtGetcpu(tid, cpu, arg0, arg1);
-                }
+            }
                 break;
             default:
-                panic("vDSO garbled func %d", vdsoPatchData[tid].func);
+            panic("vDSO garbled func %d", vdsoPatchData[tid].func);
         }
     }
 }
@@ -918,8 +908,8 @@ VOID SyscallEnter(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std, VOID *v) {
         clearCid(tid);
 
         zinfo->sched->syscallLeave(procIdx, tid, cid, PIN_GetContextReg(ctxt, REG_INST_PTR),
-                PIN_GetSyscallNumber(ctxt, std), PIN_GetSyscallArgument(ctxt, std, 0),
-                PIN_GetSyscallArgument(ctxt, std, 1));
+                                   PIN_GetSyscallNumber(ctxt, std), PIN_GetSyscallArgument(ctxt, std, 0),
+                                   PIN_GetSyscallArgument(ctxt, std, 1));
         //zinfo->sched->leave(procIdx, tid, cid);
         fPtrs[tid] = joinPtrs;  // will join at the next instr point
         //info("SyscallEnter %d", tid);
@@ -1201,7 +1191,7 @@ VOID HandleMagicOp(THREADID tid, ADDRINT op) {
             procTreeNode->heartbeat(); //heartbeats are per process for now
             return;
 
-        // HACK: Ubik magic ops
+            // HACK: Ubik magic ops
         case 1029:
         case 1030:
         case 1031:
@@ -1209,7 +1199,7 @@ VOID HandleMagicOp(THREADID tid, ADDRINT op) {
         case 1033:
             return;
         default:
-            panic("Thread %d issued unknown magic op %ld!", tid, op);
+        panic("Thread %d issued unknown magic op %ld!", tid, op);
     }
 }
 
@@ -1297,36 +1287,36 @@ VOID FakeRDTSCPost(THREADID tid, REG* eax, REG* edx) {
 
 // Helper class, enabled the FFControl thread to sync with the phase end code
 class SyncEvent: public Event {
-    private:
-        lock_t arrivalLock;
-        lock_t leaveLock;
+private:
+    lock_t arrivalLock;
+    lock_t leaveLock;
 
-    public:
-        SyncEvent() : Event(0 /*one-shot*/) {
-            futex_init(&arrivalLock);
-            futex_init(&leaveLock);
+public:
+    SyncEvent() : Event(0 /*one-shot*/) {
+        futex_init(&arrivalLock);
+        futex_init(&leaveLock);
 
-            futex_lock(&arrivalLock);
-            futex_lock(&leaveLock);
-        }
+        futex_lock(&arrivalLock);
+        futex_lock(&leaveLock);
+    }
 
-        // Blocks until callback()
-        void wait() {
-            futex_lock(&arrivalLock);
-        }
+    // Blocks until callback()
+    void wait() {
+        futex_lock(&arrivalLock);
+    }
 
-        // Unblocks thread that called wait(), blocks until signal() called
-        // Resilient against callback-wait races (wait does not block if it's
-        // called afteer callback)
-        void callback() {
-            futex_unlock(&arrivalLock);
-            futex_lock(&leaveLock);
-        }
+    // Unblocks thread that called wait(), blocks until signal() called
+    // Resilient against callback-wait races (wait does not block if it's
+    // called afteer callback)
+    void callback() {
+        futex_unlock(&arrivalLock);
+        futex_lock(&leaveLock);
+    }
 
-        // Unblocks thread waiting in callback()
-        void signal() {
-            futex_unlock(&leaveLock);
-        }
+    // Unblocks thread waiting in callback()
+    void signal() {
+        futex_unlock(&leaveLock);
+    }
 };
 
 VOID FFThread(VOID* arg) {
