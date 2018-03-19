@@ -38,7 +38,7 @@ void TimingEvent::parentDone(uint64_t startCycle) {
     if (!numParents) {
         assert(state == EV_NONE);
         state = EV_QUEUED;
-        zinfo->contentionSim->enqueue(this, cycle+preDelay);
+        zinfo->contentionSim->enqueue(this, cycle + preDelay);
     }
 }
 
@@ -55,29 +55,30 @@ void TimingEvent::requeue(uint64_t nextCycle) {
     zinfo->contentionSim->enqueue(this, nextCycle);
 }
 
-void TimingEvent::produceCrossings(EventRecorder* evRec) {
+void TimingEvent::produceCrossings(EventRecorder *evRec) {
     assert(domain != -1);
     //assert(dynamic_cast<CrossingEvent*>(this) == nullptr); //careful, expensive...
-    auto pcLambda = [this, evRec](TimingEvent** childPtr) {
-        TimingEvent* c = *childPtr;
+    auto pcLambda = [this, evRec](TimingEvent **childPtr) {
+        TimingEvent *c = *childPtr;
         if (c->domain != domain) *childPtr = handleCrossing(c, evRec, true);
         c->produceCrossings(evRec);
     };
-    visitChildren< decltype(pcLambda) > (pcLambda);
+    visitChildren<decltype(pcLambda)>(pcLambda);
 }
 
-TimingEvent* TimingEvent::handleCrossing(TimingEvent* childEv, EventRecorder* evRec, bool unlinkChild) {
+TimingEvent *TimingEvent::handleCrossing(TimingEvent *childEv, EventRecorder *evRec, bool unlinkChild) {
     if (unlinkChild) {
         assert_msg(childEv->numParents, "child has %d parents, nonzero expected", childEv->numParents);
         childEv->numParents--;
     }
-    assert_msg(minStartCycle != ((uint64_t)-1L), "Crossing domain (%d -> %d), but parent's minStartCycle is not set (my class: %s)",
-            domain, childEv->domain, typeid(*this).name()); //we can only handle a crossing if this has been set
-    CrossingEvent* xe = new (evRec) CrossingEvent(this, childEv, minStartCycle+postDelay, evRec);
+    assert_msg(minStartCycle != ((uint64_t) -1L),
+               "Crossing domain (%d -> %d), but parent's minStartCycle is not set (my class: %s)",
+               domain, childEv->domain, typeid(*this).name()); //we can only handle a crossing if this has been set
+    CrossingEvent *xe = new(evRec) CrossingEvent(this, childEv, minStartCycle + postDelay, evRec);
     return xe->getSrcDomainEvent();
 }
 
-void TimingEvent::checkDomain(TimingEvent* ch) {
+void TimingEvent::checkDomain(TimingEvent *ch) {
     //dynamic_cast takes a while, so let's just punt on this now that it's correct
     //assert(domain == ch->domain || dynamic_cast<CrossingEvent*>(ch));
 }
@@ -85,9 +86,8 @@ void TimingEvent::checkDomain(TimingEvent* ch) {
 
 /* CrossingEvent */
 
-CrossingEvent::CrossingEvent(TimingEvent* parent, TimingEvent* child, uint64_t _minStartCycle, EventRecorder* _evRec)
-    : TimingEvent(0, 0, child->domain), cpe(this, parent->domain)
-{
+CrossingEvent::CrossingEvent(TimingEvent *parent, TimingEvent *child, uint64_t _minStartCycle, EventRecorder *_evRec)
+        : TimingEvent(0, 0, child->domain), cpe(this, parent->domain) {
     assert(parent->domain != child->domain);
     parentEv = parent;
     evRec = _evRec;
@@ -113,7 +113,8 @@ CrossingEvent::CrossingEvent(TimingEvent* parent, TimingEvent* child, uint64_t _
     origStartCycle = minStartCycle - evRec->getGapCycles();
     //queue(MAX(zinfo->contentionSim->getLastLimit(), minStartCycle)); //this initial queue always works --- 0 parents
     //childCrossing = nullptr;
-    zinfo->contentionSim->enqueueCrossing(this, MAX(zinfo->contentionSim->getLastLimit(), minStartCycle), evRec->getSourceId(), srcDomain, child->domain, evRec);
+    zinfo->contentionSim->enqueueCrossing(this, MAX(zinfo->contentionSim->getLastLimit(), minStartCycle),
+                                          evRec->getSourceId(), srcDomain, child->domain, evRec);
 }
 
 void CrossingEvent::markSrcEventDone(uint64_t cycle) {
@@ -144,12 +145,13 @@ void CrossingEvent::simulate(uint64_t simCycle) {
     if (!called) {
         uint64_t curSrcCycle = zinfo->contentionSim->getCurCycle(srcDomain) + preSlack + postSlack;
         //uint64_t coreRelCycle = 0; //evRec->getSlack(origStartCycle) + postSlack; //note we do not add preDelay, because minStartCycle already has it
-        uint64_t coreRelCycle = evRec->getSlack(origStartCycle) + postSlack; //note we do not add preDelay, because minStartCycle already has it
+        uint64_t coreRelCycle = evRec->getSlack(origStartCycle) +
+                                postSlack; //note we do not add preDelay, because minStartCycle already has it
         uint64_t nextCycle = MAX(coreRelCycle, MAX(curSrcCycle, simCycle));
 
         __sync_synchronize(); //not needed --- these are all volatile, and by TSO, if we see a cycle > doneCycle, by force we must see doneCycle set
         if (!called) { //have to check again, AFTER reading the cycles! Otherwise, we have a race
-            zinfo->contentionSim->setPrio(domain, (nextCycle == simCycle)? 1 : 2);
+            zinfo->contentionSim->setPrio(domain, (nextCycle == simCycle) ? 1 : 2);
 
 #if PROFILE_CROSSINGS
             simCount++;

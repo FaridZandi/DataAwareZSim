@@ -31,68 +31,81 @@
 
 /* Follows interface of STL allocator, allocates and frees from the global heap */
 
-template <class T>
+template<class T>
 class StlGlobAlloc {
-    public:
-        typedef size_t size_type;
-        typedef ptrdiff_t difference_type;
-        typedef T* pointer;
-        typedef const T* const_pointer;
-        typedef T& reference;
-        typedef const T& const_reference;
-        typedef T value_type;
+public:
+    typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
+    typedef T *pointer;
+    typedef const T *const_pointer;
+    typedef T &reference;
+    typedef const T &const_reference;
+    typedef T value_type;
 
-        StlGlobAlloc() {}
-        StlGlobAlloc(const StlGlobAlloc&) {}
+    StlGlobAlloc() {}
 
-        pointer allocate(size_type n, const void * = 0) {
-            T* t = gm_calloc<T>(n);
-            return t;
-        }
+    StlGlobAlloc(const StlGlobAlloc &) {}
 
-        void deallocate(void* p, size_type) {
-            if (p) gm_free(p);
-        }
+    pointer allocate(size_type n, const void * = 0) {
+        T *t = gm_calloc<T>(n);
+        return t;
+    }
 
-        pointer address(reference x) const { return &x; }
-        const_pointer address(const_reference x) const { return &x; }
-        StlGlobAlloc<T>& operator=(const StlGlobAlloc&) { return *this; }
+    void deallocate(void *p, size_type) {
+        if (p) gm_free(p);
+    }
+
+    pointer address(reference x) const { return &x; }
+
+    const_pointer address(const_reference x) const { return &x; }
+
+    StlGlobAlloc<T> &operator=(const StlGlobAlloc &) { return *this; }
 
 
-        // Construct/destroy
-        // gcc keeps changing these interfaces. See /usr/include/c++/4.8/ext/new_allocator.h
+    // Construct/destroy
+    // gcc keeps changing these interfaces. See /usr/include/c++/4.8/ext/new_allocator.h
 #if __cplusplus >= 201103L // >= 4.8
-        template<typename _Up, typename... _Args>
-        void construct(_Up* __p, _Args&&... __args) { ::new((void *)__p) _Up(std::forward<_Args>(__args)...); }
 
-        template<typename _Up> void destroy(_Up* __p) { __p->~_Up(); }
+    template<typename _Up, typename... _Args>
+    void construct(_Up *__p, _Args &&... __args) { ::new((void *) __p) _Up(std::forward<_Args>(__args)...); }
+
+    template<typename _Up>
+    void destroy(_Up *__p) { __p->~_Up(); }
+
 #else // < 4.8
-        void construct(pointer p, const T& val) { new (static_cast<T*>(p)) T(val); }
-        void construct(pointer p) { construct(p, value_type()); } //required by gcc 4.6
-        void destroy(pointer p) { p->~T(); }
+    void construct(pointer p, const T& val) { new (static_cast<T*>(p)) T(val); }
+    void construct(pointer p) { construct(p, value_type()); } //required by gcc 4.6
+    void destroy(pointer p) { p->~T(); }
 #endif
 
-        size_type max_size() const { return size_t(-1); }
+    size_type max_size() const { return size_t(-1); }
 
-        template <class U> struct rebind { typedef StlGlobAlloc<U> other; };
+    template<class U>
+    struct rebind {
+        typedef StlGlobAlloc<U> other;
+    };
 
-        template <class U> StlGlobAlloc(const StlGlobAlloc<U>&) {}
+    template<class U>
+    StlGlobAlloc(const StlGlobAlloc<U> &) {}
 
-        template <class U> StlGlobAlloc& operator=(const StlGlobAlloc<U>&) { return *this; }
+    template<class U>
+    StlGlobAlloc &operator=(const StlGlobAlloc<U> &) { return *this; }
 
 
-        /* dsm: The == (and !=) operator in an allocator must be defined and,
-         * per http://download.oracle.com/docs/cd/E19422-01/819-3703/15_3.htm :
-         *
-         *   Returns true if allocators b and a can be safely interchanged. Safely
-         *   interchanged means that b could be used to deallocate storage obtained
-         *   through a, and vice versa.
-         *
-         * We can ALWAYS do this, as deallocate just calls gm_free()
-         */
-        template <class U> bool operator==(const StlGlobAlloc<U>&) const { return true; }
+    /* dsm: The == (and !=) operator in an allocator must be defined and,
+     * per http://download.oracle.com/docs/cd/E19422-01/819-3703/15_3.htm :
+     *
+     *   Returns true if allocators b and a can be safely interchanged. Safely
+     *   interchanged means that b could be used to deallocate storage obtained
+     *   through a, and vice versa.
+     *
+     * We can ALWAYS do this, as deallocate just calls gm_free()
+     */
+    template<class U>
+    bool operator==(const StlGlobAlloc<U> &) const { return true; }
 
-        template <class U> bool operator!=(const StlGlobAlloc<U>&) const { return false; }
+    template<class U>
+    bool operator!=(const StlGlobAlloc<U> &) const { return false; }
 };
 
 #endif  // STL_GALLOC_H_

@@ -33,7 +33,7 @@
 
 inline uint32_t cpuenumNumCpus(uint32_t pid) {
     if (zinfo->perProcessCpuEnum) {
-        const g_vector<bool>& mask = zinfo->procArray[pid]->getMask();
+        const g_vector<bool> &mask = zinfo->procArray[pid]->getMask();
         uint32_t count = 0;
         for (bool x : mask) count += x;
         assert(count);
@@ -49,7 +49,7 @@ inline std::vector<bool> cpuenumMask(uint32_t pid) {
         res.resize(cpuenumNumCpus(pid));
         for (uint32_t i = 0; i < res.size(); i++) res[i] = true;
     } else {
-        const g_vector<bool>& mask = zinfo->procArray[pid]->getMask();
+        const g_vector<bool> &mask = zinfo->procArray[pid]->getMask();
         res.resize(mask.size());
         for (uint32_t i = 0; i < res.size(); i++) res[i] = mask[i];
     }
@@ -62,7 +62,7 @@ inline std::vector<bool> cpuenumMask(uint32_t pid) {
 inline uint32_t cpuenumCpu(uint32_t pid, uint32_t cid) {
     if (zinfo->perProcessCpuEnum) {
         if (cid > zinfo->numCores) return 0;  // not scheduled; with perProcessCpuEnum, first cpu is always 0
-        const g_vector<bool>& mask = zinfo->procArray[pid]->getMask();
+        const g_vector<bool> &mask = zinfo->procArray[pid]->getMask();
         uint32_t count = 0;
         for (uint32_t i = 0; i < mask.size(); i++) {
             if (i == cid) return count;
@@ -72,7 +72,7 @@ inline uint32_t cpuenumCpu(uint32_t pid, uint32_t cid) {
         return -1;
     } else {
         if (cid > zinfo->numCores) {  // not scheduled
-            const g_vector<bool>& mask = zinfo->procArray[pid]->getMask();
+            const g_vector<bool> &mask = zinfo->procArray[pid]->getMask();
             for (uint32_t i = 0; i < mask.size(); i++) {
                 if (mask[i]) return i;  // first core that can run this pid
             }

@@ -52,11 +52,12 @@ static void TrueSleep(uint32_t usecs) {
     struct timespec req;
     struct timespec rem;
 
-    req.tv_sec = usecs/1000000;
-    req.tv_nsec = (usecs*1000) % 1000000000;
+    req.tv_sec = usecs / 1000000;
+    req.tv_nsec = (usecs * 1000) % 1000000000;
 
     while (req.tv_sec != 0 || req.tv_nsec != 0) {
-        int res = syscall(SYS_nanosleep, &req, &rem); //we don't call glibc's nanosleep because errno is not thread-safe in pintools.
+        int res = syscall(SYS_nanosleep, &req,
+                          &rem); //we don't call glibc's nanosleep because errno is not thread-safe in pintools.
         if (res == 0) break;
         req = rem;
         if (res != -EINTR && res != 0) panic("nanosleep() returned an unexpected error code %d", res);
@@ -84,8 +85,8 @@ bool IsSleepingInFutex(uint32_t linuxPid, uint32_t linuxTid, uintptr_t futexAddr
 
     std::vector<std::string> argList = ParseList<std::string>(ss.str());
     bool match = argList.size() >= 2 &&
-        strtoul(argList[0].c_str(), nullptr, 0) == SYS_futex &&
-        (uintptr_t)strtoul(argList[1].c_str(), nullptr, 0) == futexAddr;
+                 strtoul(argList[0].c_str(), nullptr, 0) == SYS_futex &&
+                 (uintptr_t) strtoul(argList[1].c_str(), nullptr, 0) == futexAddr;
     //info("%s | %s | SYS_futex = %d futexAddr = 0x%lx | match = %d ", ss.str().c_str(), Str(argList).c_str(), SYS_futex, futexAddr, match);
     return match;
 }
@@ -98,7 +99,7 @@ void Scheduler::watchdogThreadFunc() {
     uint64_t lastMs = 0;
     uint64_t fakeLeaveStalls = 0;
     while (true) {
-        TrueSleep(multiplier*WATCHDOG_INTERVAL_USEC);
+        TrueSleep(multiplier * WATCHDOG_INTERVAL_USEC);
 
         if (zinfo->terminationConditionMet) {
             // Synchronize to avoid racing with EndOfPhaseActions code
@@ -126,20 +127,21 @@ void Scheduler::watchdogThreadFunc() {
             if (++fakeLeaveStalls >= WATCHDOG_STALL_THRESHOLD) {
                 info("Detected possible stall due to fake leaves (%ld current)", fakeLeaves.size());
                 // Uncomment to print all leaves
-                FakeLeaveInfo* pfl = fakeLeaves.front();
+                FakeLeaveInfo *pfl = fakeLeaves.front();
                 while (pfl) {
-                    info(" [%d/%d] %s (%d) @ 0x%lx", getPid(pfl->th->gid), getTid(pfl->th->gid), GetSyscallName(pfl->syscallNumber), pfl->syscallNumber, pfl->pc);
+                    info(" [%d/%d] %s (%d) @ 0x%lx", getPid(pfl->th->gid), getTid(pfl->th->gid),
+                         GetSyscallName(pfl->syscallNumber), pfl->syscallNumber, pfl->pc);
                     pfl = pfl->next;
                 }
 
                 // Trigger a leave() on the first process, if the process's blacklist regex allows it
-                FakeLeaveInfo* fl = fakeLeaves.front();
-                ThreadInfo* th = fl->th;
+                FakeLeaveInfo *fl = fakeLeaves.front();
+                ThreadInfo *th = fl->th;
                 uint32_t pid = getPid(th->gid);
                 uint32_t tid = getTid(th->gid);
                 uint32_t cid = th->cid;
 
-                const g_string& sbRegexStr = zinfo->procArray[pid]->getSyscallBlacklistRegex();
+                const g_string &sbRegexStr = zinfo->procArray[pid]->getSyscallBlacklistRegex();
                 std::regex sbRegex(sbRegexStr.c_str());
                 if (std::regex_match(GetSyscallName(fl->syscallNumber), sbRegex)) {
                     // If this is the last leave we catch, it is the culprit for sure -> blacklist it
@@ -147,7 +149,8 @@ void Scheduler::watchdogThreadFunc() {
                     // The root reason for being conservative though is that we don't have a sure-fire
                     // way to distinguish IO waits from truly blocking syscalls (TODO)
                     if (fakeLeaves.size() == 1) {
-                        info("Blacklisting from future fake leaves: [%d] %s @ 0x%lx | arg0 0x%lx arg1 0x%lx", pid, GetSyscallName(fl->syscallNumber), fl->pc, fl->arg0, fl->arg1);
+                        info("Blacklisting from future fake leaves: [%d] %s @ 0x%lx | arg0 0x%lx arg1 0x%lx", pid,
+                             GetSyscallName(fl->syscallNumber), fl->pc, fl->arg0, fl->arg1);
                         blockingSyscalls[pid].insert(fl->pc);
                     }
 
@@ -170,7 +173,7 @@ void Scheduler::watchdogThreadFunc() {
                     } while (fakeLeaves.size() > 8);
                 } else {
                     info("Skipping, [%d] %s @ 0x%lx | arg0 0x%lx arg1 0x%lx does not match blacklist regex (%s)",
-                            pid, GetSyscallName(fl->syscallNumber), fl->pc, fl->arg0, fl->arg1, sbRegexStr.c_str());
+                         pid, GetSyscallName(fl->syscallNumber), fl->pc, fl->arg0, fl->arg1, sbRegexStr.c_str());
                 }
                 fakeLeaveStalls = 0;
             }
@@ -181,23 +184,26 @@ void Scheduler::watchdogThreadFunc() {
         if (lastPhase == curPhase && scheduledThreads == outQueue.size() && !sleepQueue.empty()) {
             //info("Watchdog Thread: Sleep dep detected...")
             int64_t wakeupPhase = sleepQueue.front()->wakeupPhase;
-            int64_t wakeupCycles = (wakeupPhase - curPhase)*zinfo->phaseLength;
-            int64_t wakeupUsec = (wakeupCycles > 0)? wakeupCycles/zinfo->freqMHz : 0;
+            int64_t wakeupCycles = (wakeupPhase - curPhase) * zinfo->phaseLength;
+            int64_t wakeupUsec = (wakeupCycles > 0) ? wakeupCycles / zinfo->freqMHz : 0;
 
             //info("Additional usecs of sleep %ld", wakeupUsec);
-            if (wakeupUsec > 10*1000*1000) warn("Watchdog sleeping for a long time due to long sleep, %ld secs", wakeupUsec/1000/1000);
+            if (wakeupUsec > 10 * 1000 * 1000) warn("Watchdog sleeping for a long time due to long sleep, %ld secs",
+                                                    wakeupUsec / 1000 / 1000);
 
             futex_unlock(&schedLock);
             TrueSleep(WATCHDOG_INTERVAL_USEC + wakeupUsec);
             futex_lock(&schedLock);
 
             if (lastPhase == curPhase && scheduledThreads == outQueue.size() && !sleepQueue.empty()) {
-                ThreadInfo* sth = sleepQueue.front();
-                uint64_t curMs = curPhase*zinfo->phaseLength/zinfo->freqMHz/1000;
-                uint64_t endMs = sth->wakeupPhase*zinfo->phaseLength/zinfo->freqMHz/1000;
-                (void)curMs; (void)endMs; //make gcc happy
+                ThreadInfo *sth = sleepQueue.front();
+                uint64_t curMs = curPhase * zinfo->phaseLength / zinfo->freqMHz / 1000;
+                uint64_t endMs = sth->wakeupPhase * zinfo->phaseLength / zinfo->freqMHz / 1000;
+                (void) curMs;
+                (void) endMs; //make gcc happy
                 if (curMs > lastMs + 1000) {
-                    info("Watchdog Thread: Driving time forward to avoid deadlock on sleep (%ld -> %ld ms)", curMs, endMs);
+                    info("Watchdog Thread: Driving time forward to avoid deadlock on sleep (%ld -> %ld ms)", curMs,
+                         endMs);
                     lastMs += 1000;
                 }
                 while (sth->state == SLEEPING) {
@@ -260,21 +266,22 @@ void Scheduler::watchdogThreadFunc() {
     info("Finished scheduler watchdog thread");
 }
 
-void Scheduler::threadTrampoline(void* arg) {
-    Scheduler* sched = static_cast<Scheduler*>(arg);
+void Scheduler::threadTrampoline(void *arg) {
+    Scheduler *sched = static_cast<Scheduler *>(arg);
     sched->watchdogThreadFunc();
 }
 
 void Scheduler::startWatchdogThread() {
-    PIN_SpawnInternalThread(threadTrampoline, this, 64*1024, nullptr);
+    PIN_SpawnInternalThread(threadTrampoline, this, 64 * 1024, nullptr);
 }
 
 
 // Accurate join-leave implementation
-void Scheduler::syscallLeave(uint32_t pid, uint32_t tid, uint32_t cid, uint64_t pc, int syscallNumber, uint64_t arg0, uint64_t arg1) {
+void Scheduler::syscallLeave(uint32_t pid, uint32_t tid, uint32_t cid, uint64_t pc, int syscallNumber, uint64_t arg0,
+                             uint64_t arg1) {
     futex_lock(&schedLock);
     uint32_t gid = getGid(pid, tid);
-    ThreadInfo* th = contexts[cid].curThread;
+    ThreadInfo *th = contexts[cid].curThread;
     assert(th->gid == gid);
     assert_msg(th->cid == cid, "%d != %d", th->cid, cid);
     assert(th->state == RUNNING);
@@ -282,12 +289,13 @@ void Scheduler::syscallLeave(uint32_t pid, uint32_t tid, uint32_t cid, uint64_t 
 
     bool blacklisted = blockingSyscalls[pid].find(pc) != blockingSyscalls[pid].end();
     if (blacklisted || th->markedForSleep) {
-        DEBUG_FL("%s @ 0x%lx calling leave(), reason: %s", GetSyscallName(syscallNumber), pc, blacklisted? "blacklist" : "sleep");
+        DEBUG_FL("%s @ 0x%lx calling leave(), reason: %s", GetSyscallName(syscallNumber), pc,
+                 blacklisted ? "blacklist" : "sleep");
         futex_unlock(&schedLock);
         leave(pid, tid, cid);
     } else {
         DEBUG_FL("%s @ 0x%lx skipping leave()", GetSyscallName(syscallNumber), pc);
-        FakeLeaveInfo* si = new FakeLeaveInfo(pc, th, syscallNumber, arg0, arg1);
+        FakeLeaveInfo *si = new FakeLeaveInfo(pc, th, syscallNumber, arg0, arg1);
         fakeLeaves.push_back(si);
         // FIXME(dsm): zsim.cpp's SyscallEnter may be checking whether we are in a syscall and not calling us.
         // If that's the case, this would be stale, which may lead to some false positives/negatives
@@ -300,14 +308,14 @@ void Scheduler::syscallLeave(uint32_t pid, uint32_t tid, uint32_t cid, uint64_t 
 // External interface, must be non-blocking
 void Scheduler::notifyFutexWakeStart(uint32_t pid, uint32_t tid, uint32_t maxWakes) {
     futex_lock(&schedLock);
-    ThreadInfo* th = gidMap[getGid(pid, tid)];
+    ThreadInfo *th = gidMap[getGid(pid, tid)];
     DEBUG_FUTEX("[%d/%d] wakeStart max %d", pid, tid, maxWakes);
     assert(th->futexJoin.action == FJA_NONE);
 
     // Programs sometimes call FUTEX_WAIT with maxWakes = UINT_MAX to wake
     // everyone waiting on it; we cap to a reasonably high number to avoid
     // overflows on maxAllowedFutexWakeups
-    maxWakes = MIN(maxWakes, 1<<24 /*16M wakes*/);
+    maxWakes = MIN(maxWakes, 1 << 24 /*16M wakes*/);
 
     maxAllowedFutexWakeups += maxWakes;
     th->futexJoin.maxWakes = maxWakes;
@@ -316,7 +324,7 @@ void Scheduler::notifyFutexWakeStart(uint32_t pid, uint32_t tid, uint32_t maxWak
 
 void Scheduler::notifyFutexWakeEnd(uint32_t pid, uint32_t tid, uint32_t wokenUp) {
     futex_lock(&schedLock);
-    ThreadInfo* th = gidMap[getGid(pid, tid)];
+    ThreadInfo *th = gidMap[getGid(pid, tid)];
     DEBUG_FUTEX("[%d/%d] wakeEnd woken %d", pid, tid, wokenUp);
     th->futexJoin.action = FJA_WAKE;
     th->futexJoin.wokenUp = wokenUp;
@@ -325,14 +333,14 @@ void Scheduler::notifyFutexWakeEnd(uint32_t pid, uint32_t tid, uint32_t wokenUp)
 
 void Scheduler::notifyFutexWaitWoken(uint32_t pid, uint32_t tid) {
     futex_lock(&schedLock);
-    ThreadInfo* th = gidMap[getGid(pid, tid)];
+    ThreadInfo *th = gidMap[getGid(pid, tid)];
     DEBUG_FUTEX("[%d/%d] waitWoken", pid, tid);
     th->futexJoin = {FJA_WAIT, 0, 0};
     futex_unlock(&schedLock);
 }
 
 // Internal, called with schedLock held
-void Scheduler::futexWakeJoin(ThreadInfo* th) {  // may release schedLock
+void Scheduler::futexWakeJoin(ThreadInfo *th) {  // may release schedLock
     assert(th->futexJoin.action == FJA_WAKE);
 
     uint32_t maxWakes = th->futexJoin.maxWakes;
@@ -352,10 +360,10 @@ void Scheduler::futexWakeJoin(ThreadInfo* th) {  // may release schedLock
         uint64_t startNs = getNs();
         uint32_t iters = 0;
         while (wokenUp > unmatchedFutexWakeups) {
-            TrueSleep(10*(1 + iters));  // linear backoff, start small but avoid overwhelming the OS with short sleeps
+            TrueSleep(10 * (1 + iters));  // linear backoff, start small but avoid overwhelming the OS with short sleeps
             iters++;
             uint64_t curNs = getNs();
-            if (curNs - startNs > (2L<<31L) /* ~2s */) {
+            if (curNs - startNs > (2L << 31L) /* ~2s */) {
                 futex_lock(&schedLock);
                 warn("Futex wake matching failed (%d/%d) (external/ff waiters?)", unmatchedFutexWakeups, wokenUp);
                 unmatchedFutexWakeups = 0;
@@ -377,7 +385,7 @@ void Scheduler::futexWakeJoin(ThreadInfo* th) {  // may release schedLock
     DEBUG_FUTEX("Finished futex wake matching");
 }
 
-void Scheduler::futexWaitJoin(ThreadInfo* th) {
+void Scheduler::futexWaitJoin(ThreadInfo *th) {
     assert(th->futexJoin.action == FJA_WAIT);
     if (unmatchedFutexWakeups >= maxAllowedFutexWakeups) {
         warn("External futex wakes? (%d/%d)", unmatchedFutexWakeups, maxAllowedFutexWakeups);
@@ -386,23 +394,24 @@ void Scheduler::futexWaitJoin(ThreadInfo* th) {
     }
 }
 
-void Scheduler::finishFakeLeave(ThreadInfo* th) {
+void Scheduler::finishFakeLeave(ThreadInfo *th) {
     assert(th->fakeLeave);
-    DEBUG_FL("%s (%d)  @ 0x%lx finishFakeLeave()", GetSyscallName(th->fakeLeave->syscallNumber), th->fakeLeave->syscallNumber, th->fakeLeave->pc);
+    DEBUG_FL("%s (%d)  @ 0x%lx finishFakeLeave()", GetSyscallName(th->fakeLeave->syscallNumber),
+             th->fakeLeave->syscallNumber, th->fakeLeave->pc);
     assert_msg(th->state == RUNNING, "gid 0x%x invalid state %d", th->gid, th->state);
-    FakeLeaveInfo* si = th->fakeLeave;
+    FakeLeaveInfo *si = th->fakeLeave;
     fakeLeaves.remove(si);
     delete si;
     assert(th->fakeLeave == nullptr);
 }
 
-void Scheduler::waitUntilQueued(ThreadInfo* th) {
+void Scheduler::waitUntilQueued(ThreadInfo *th) {
     uint64_t startNs = getNs();
     uint32_t sleepUs = 1;
-    while(!IsSleepingInFutex(th->linuxPid, th->linuxTid, (uintptr_t)&schedLock)) {
+    while (!IsSleepingInFutex(th->linuxPid, th->linuxTid, (uintptr_t) &schedLock)) {
         TrueSleep(sleepUs++); // linear backoff, start small but avoid overwhelming the OS with short sleeps
         uint64_t curNs = getNs();
-        if (curNs - startNs > (2L<<31L) /* ~2s */) {
+        if (curNs - startNs > (2L << 31L) /* ~2s */) {
             warn("waitUntilQueued for pid %d tid %d timed out", getPid(th->gid), getTid(th->gid));
             return;
         }

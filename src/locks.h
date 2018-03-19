@@ -36,7 +36,9 @@
 #ifdef WITH_MWAIT //careful with this define; most kernels don't allow mwait in userspace
 #include <pmmintrin.h>  // NOLINT
 #else
+
 #include <xmmintrin.h>  // NOLINT
+
 #endif
 
 #include "log.h"
@@ -45,15 +47,15 @@ typedef volatile uint32_t lock_t;
 
 /* SPINLOCK: A simple T&T&S spinlock. Lock can use monitor/mwait */
 
-static inline void spin_init(volatile uint32_t* lock) {
+static inline void spin_init(volatile uint32_t *lock) {
     *lock = 0;
     __sync_synchronize();
 }
 
-static inline void spin_destroy(volatile uint32_t* lock) {}
+static inline void spin_destroy(volatile uint32_t *lock) {}
 
 
-static inline void spin_lock(volatile uint32_t* lock) {
+static inline void spin_lock(volatile uint32_t *lock) {
     while (1) {
         if ((*lock) == 0 /*test (read)*/ && __sync_bool_compare_and_swap(lock, 0, 1) /*test&set*/) {
             break;
@@ -75,12 +77,12 @@ static inline void spin_lock(volatile uint32_t* lock) {
     }
 }
 
-static inline int spin_trylock(volatile uint32_t* lock) {
+static inline int spin_trylock(volatile uint32_t *lock) {
     return !((*lock) == 0 /*T*/ && __sync_bool_compare_and_swap(lock, 0, 1) /*T&S*/);
 }
 
 
-static inline void spin_unlock(volatile uint32_t* lock) {
+static inline void spin_unlock(volatile uint32_t *lock) {
     assert(*lock == 1); //should own lock if we're unlocking...
     *lock = 0;
     __sync_synchronize();
@@ -92,14 +94,14 @@ static inline void spin_unlock(volatile uint32_t* lock) {
 
 #define TICKET_MASK ((1<<16) - 1)
 
-static inline void ticket_init(volatile uint32_t* lock) {
+static inline void ticket_init(volatile uint32_t *lock) {
     *lock = 0;
     __sync_synchronize();
 }
 
-static inline void ticket_destroy(volatile uint32_t* lock) {}
+static inline void ticket_destroy(volatile uint32_t *lock) {}
 
-static inline void ticket_lock(volatile uint32_t* lock) {
+static inline void ticket_lock(volatile uint32_t *lock) {
     /* Technically, we want to do this, but I'm guessing the 64-bit
      * datapath is not very well optimized for 16-bit xadd...
      * volatile uint16_t* low = ((volatile uint16_t*) lock) + 1;
@@ -131,7 +133,7 @@ static inline void ticket_lock(volatile uint32_t* lock) {
     }
 }
 
-static inline int ticket_trylock(volatile uint32_t* lock) {
+static inline int ticket_trylock(volatile uint32_t *lock) {
     uint32_t val = *lock;
     uint32_t hi = (val >> 16) & TICKET_MASK;
     uint32_t lo = val & TICKET_MASK;
@@ -140,26 +142,27 @@ static inline int ticket_trylock(volatile uint32_t* lock) {
 }
 
 
-static inline void ticket_unlock(volatile uint32_t* lock) {
-    __sync_fetch_and_add(lock, 1<<16);
+static inline void ticket_unlock(volatile uint32_t *lock) {
+    __sync_fetch_and_add(lock, 1 << 16);
 }
 
 
-static inline void futex_init(volatile uint32_t* lock) {
+static inline void futex_init(volatile uint32_t *lock) {
     spin_init(lock);
 }
 
 /* NOTE: The current implementation of this lock is quite unfair. Not that we care for its current use. */
-static inline void futex_lock(volatile uint32_t* lock) {
+static inline void futex_lock(volatile uint32_t *lock) {
     uint32_t c;
     do {
-        for (uint32_t i = 0; i < 5; i++) { //this should be tuned to balance syscall/context-switch and user-level spinning costs
+        for (uint32_t i = 0;
+             i < 5; i++) { //this should be tuned to balance syscall/context-switch and user-level spinning costs
             if (*lock == 0 && __sync_bool_compare_and_swap(lock, 0, 1)) {
                 return;
             }
 
             // Do linear backoff instead of a single mm_pause; this reduces ping-ponging, and allows more time for the other hyperthread
-            for (uint32_t j = 1; j < i+2; j++) _mm_pause();
+            for (uint32_t j = 1; j < i + 2; j++) _mm_pause();
         }
 
         //At this point, we will block
@@ -170,7 +173,7 @@ static inline void futex_lock(volatile uint32_t* lock) {
     } while (c != 0);
 }
 
-static inline void futex_lock_nospin(volatile uint32_t* lock) {
+static inline void futex_lock_nospin(volatile uint32_t *lock) {
     uint32_t c;
     do {
         if (*lock == 0 && __sync_bool_compare_and_swap(lock, 0, 1)) {
@@ -186,7 +189,8 @@ static inline void futex_lock_nospin(volatile uint32_t* lock) {
 }
 
 #define BILLION (1000000000L)
-static inline bool futex_trylock_nospin_timeout(volatile uint32_t* lock, uint64_t timeoutNs) {
+
+static inline bool futex_trylock_nospin_timeout(volatile uint32_t *lock, uint64_t timeoutNs) {
     if (*lock == 0 && __sync_bool_compare_and_swap(lock, 0, 1)) {
         return true;
     }
@@ -194,14 +198,14 @@ static inline bool futex_trylock_nospin_timeout(volatile uint32_t* lock, uint64_
     //At this point, we will block
     uint32_t c = __sync_lock_test_and_set(lock, 2); //this is not exactly T&S, but atomic exchange; see GCC docs
     if (c == 0) return true;
-    const struct timespec timeout = {(time_t) timeoutNs/BILLION, (time_t) timeoutNs % BILLION};
+    const struct timespec timeout = {(time_t) timeoutNs / BILLION, (time_t) timeoutNs % BILLION};
     syscall(SYS_futex, lock, FUTEX_WAIT, 2, &timeout, nullptr, 0);
     c = __sync_lock_test_and_set(lock, 2); //atomic exchange
     if (c == 0) return true;
     return false;
 }
 
-static inline void futex_unlock(volatile uint32_t* lock) {
+static inline void futex_unlock(volatile uint32_t *lock) {
     if (__sync_fetch_and_add(lock, -1) != 1) {
         *lock = 0;
         /* This may result in additional wakeups, but avoids completely starving processes that are
@@ -216,7 +220,7 @@ static inline void futex_unlock(volatile uint32_t* lock) {
 // There may still be waiters spinning, but if you (a) acquire the lock, and (b) want
 // to see if someone is queued behind you, this will eventually return true
 // No false positives (if true, for sure there's someone)
-static inline bool futex_haswaiters(volatile uint32_t* lock) {
+static inline bool futex_haswaiters(volatile uint32_t *lock) {
     return *lock == 2;
 }
 

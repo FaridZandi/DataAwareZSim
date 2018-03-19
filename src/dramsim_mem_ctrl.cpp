@@ -93,7 +93,7 @@ void DRAMSimMemory::initStats(AggregateStat* parentStat) {
 }
 
 uint64_t DRAMSimMemory::access(MemReq& req) {
-	return access(req, 0, 1);
+    return access(req, 0, 1);
 }
 uint64_t DRAMSimMemory::access(MemReq& req, int type, uint32_t data_size) {
     switch (req.type) {
@@ -119,52 +119,52 @@ uint64_t DRAMSimMemory::access(MemReq& req, int type, uint32_t data_size) {
         Address addr = req.lineAddr << lineBits;
         bool isWrite = (req.type == PUTX);
         DRAMSimAccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr, domain);
-		if (type == 0) { // default. The only record. 
-	        memEv->setMinStartCycle(req.cycle);
-    	    TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
-			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
-    	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
-				tr.endEvent = ev;
-			}
-        	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-		} else if (type == 1) { // append the current event to the end of the previous one
-       	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
-           	memEv->setMinStartCycle(tr.reqCycle);
-			assert(tr.endEvent);
-			tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-			// XXX when to update respCycle 
-			//tr.respCycle = respCycle;
-			tr.type = req.type;
-			tr.endEvent = memEv;
-			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
-    	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
-				tr.endEvent = ev;
-			}	
-       	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-		} else if (type == 2) { 
-			// append the current event to the end of the previous one
-			// but the current event is not on the critical path
-       	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
-           	memEv->setMinStartCycle(tr.reqCycle);
-			assert(tr.endEvent);
-			tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-			DRAMSimAccEvent * last_ev = memEv;
-			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
-    	    	last_ev->addChild(ev, zinfo->eventRecorders[req.srcId]);
-				last_ev = ev;
+        if (type == 0) { // default. The only record.
+            memEv->setMinStartCycle(req.cycle);
+            TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+            for (uint32_t i = 1; data_size > i * 4; i++) {
+                DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
+                tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
+                tr.endEvent = ev;
+            }
+            zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+        } else if (type == 1) { // append the current event to the end of the previous one
+                TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
+               memEv->setMinStartCycle(tr.reqCycle);
+            assert(tr.endEvent);
+            tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
+            // XXX when to update respCycle
+            //tr.respCycle = respCycle;
+            tr.type = req.type;
+            tr.endEvent = memEv;
+            for (uint32_t i = 1; data_size > i * 4; i++) {
+                DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
+                tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
+                tr.endEvent = ev;
+            }
+                zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+        } else if (type == 2) {
+            // append the current event to the end of the previous one
+            // but the current event is not on the critical path
+                TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
+               memEv->setMinStartCycle(tr.reqCycle);
+            assert(tr.endEvent);
+            tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
+            DRAMSimAccEvent * last_ev = memEv;
+            for (uint32_t i = 1; data_size > i * 4; i++) {
+                DRAMSimAccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr + 64 * i, domain);
+                last_ev->addChild(ev, zinfo->eventRecorders[req.srcId]);
+                last_ev = ev;
 /*				static int k = 0;
-				k ++;
-				if (k % 10000 == 0)
-					printf("k=%d, i=%d. data_size=%d\n", k++, i, data_size);
-					*/
-			}
-			//tr.respCycle = respCycle;
-			tr.type = req.type;
-       	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-		}
+                k ++;
+                if (k % 10000 == 0)
+                    printf("k=%d, i=%d. data_size=%d\n", k++, i, data_size);
+                    */
+            }
+            //tr.respCycle = respCycle;
+            tr.type = req.type;
+                zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+        }
 
     }
 
@@ -213,19 +213,34 @@ void DRAMSimMemory::DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t me
 
 using std::string;
 
-DRAMSimMemory::DRAMSimMemory(string& dramTechIni, string& dramSystemIni, string& outputDir, string& traceName,
-        uint32_t capacityMB, uint64_t cpuFreqHz, uint32_t _minLatency, uint32_t _domain, const g_string& _name)
-{
+DRAMSimMemory::DRAMSimMemory(string &dramTechIni, string &dramSystemIni, string &outputDir, string &traceName,
+                             uint32_t capacityMB, uint64_t cpuFreqHz, uint32_t _minLatency, uint32_t _domain,
+                             const g_string &_name) {
     panic("Cannot use DRAMSimMemory, zsim was not compiled with DRAMSim");
 }
 
-void DRAMSimMemory::initStats(AggregateStat* parentStat) { panic("???"); }
-uint64_t DRAMSimMemory::access(MemReq& req) { panic("???"); return 0; }
-uint64_t DRAMSimMemory::access(MemReq& req, int type, uint32_t data_size) { panic("???"); return 0; }
-uint32_t DRAMSimMemory::tick(uint64_t cycle) { panic("???"); return 0; }
-void DRAMSimMemory::enqueue(DRAMSimAccEvent* ev, uint64_t cycle) { panic("???"); }
-void DRAMSimMemory::DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t memCycle) { panic("???"); }
-void DRAMSimMemory::DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t memCycle) { panic("???"); }
+void DRAMSimMemory::initStats(AggregateStat *parentStat) {panic("???"); }
+
+uint64_t DRAMSimMemory::access(MemReq &req) {
+    panic("???");
+    return 0;
+}
+
+uint64_t DRAMSimMemory::access(MemReq &req, int type, uint32_t data_size) {
+    panic("???");
+    return 0;
+}
+
+uint32_t DRAMSimMemory::tick(uint64_t cycle) {
+    panic("???");
+    return 0;
+}
+
+void DRAMSimMemory::enqueue(DRAMSimAccEvent *ev, uint64_t cycle) {panic("???"); }
+
+void DRAMSimMemory::DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t memCycle) {panic("???"); }
+
+void DRAMSimMemory::DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t memCycle) {panic("???"); }
 
 #endif
 

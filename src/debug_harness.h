@@ -33,6 +33,6 @@
  * to PID, copy the libzsim.so symbol file command, etc etc).
  * Returns PID of children. Must be called from harness, since we can't fork from a pintool.
  */
-int launchXtermDebugger(int targetPid, LibInfo* libzsimAddrs);
+int launchXtermDebugger(int targetPid, LibInfo *libzsimAddrs);
 
 #endif  // DEBUG_HARNESS_H_

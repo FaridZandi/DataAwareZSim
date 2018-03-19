@@ -27,12 +27,16 @@
 #include "trace_driver.h"
 #include "zsim.h"
 
-TraceDriver::TraceDriver(std::string filename, std::string retraceFilename, std::vector<TraceDriverProxyCache*>& proxies, bool _useSkews, bool _playPuts, bool _playAllGets)
-    : tr(filename), numChildren(proxies.size()), useSkews(_useSkews), playPuts(_playPuts), playAllGets(_playAllGets)
-{
+TraceDriver::TraceDriver(std::string filename, std::string retraceFilename,
+                         std::vector<TraceDriverProxyCache *> &proxies, bool _useSkews, bool _playPuts,
+                         bool _playAllGets)
+        : tr(filename), numChildren(proxies.size()), useSkews(_useSkews), playPuts(_playPuts),
+          playAllGets(_playAllGets) {
     assert(numChildren > 0);
     assert(!useSkews || numChildren == 1);
-    if (tr.getNumChildren() != numChildren) panic("Number of proxy caches (%d) does not match with streams in the trace file (%d)", numChildren, tr.getNumChildren());
+    if (tr.getNumChildren() != numChildren) panic(
+            "Number of proxy caches (%d) does not match with streams in the trace file (%d)", numChildren,
+            tr.getNumChildren());
     children = new ChildInfo[numChildren];
     futex_init(&lock);
     lastAcc.childId = -1;
@@ -48,35 +52,44 @@ TraceDriver::TraceDriver(std::string filename, std::string retraceFilename, std:
     }
 }
 
-void TraceDriver::initStats(AggregateStat* parentStat) {
-    AggregateStat* drvStat = new AggregateStat(false); //don't make it a regular aggregate... it gets compacted in periodic stats and becomes useless!
+void TraceDriver::initStats(AggregateStat *parentStat) {
+    AggregateStat *drvStat = new AggregateStat(
+            false); //don't make it a regular aggregate... it gets compacted in periodic stats and becomes useless!
     drvStat->init("driver", "Trace driver stats");
     for (uint32_t c = 0; c < numChildren; c++) {
         std::stringstream pss;
         pss << "child-" << c;
-        AggregateStat* cStat = new AggregateStat();
+        AggregateStat *cStat = new AggregateStat();
         cStat->init(gm_strdup(pss.str().c_str()), "Child stats");
-        ProxyStat* cycleStat = new ProxyStat();
-        cycleStat->init("cycles", "Cycles", &children[c].lastReqCycle);  cStat->append(cycleStat);
-        children[c].profLat.init("latGET", "GET request latency"); cStat->append(&children[c].profLat);
-        ProxyStat* skewStat = new ProxyStat();
-        skewStat->init("skew", "Latency skew", (uint64_t*)&children[c].skew);  cStat->append(skewStat);
+        ProxyStat *cycleStat = new ProxyStat();
+        cycleStat->init("cycles", "Cycles", &children[c].lastReqCycle);
+        cStat->append(cycleStat);
+        children[c].profLat.init("latGET", "GET request latency");
+        cStat->append(&children[c].profLat);
+        ProxyStat *skewStat = new ProxyStat();
+        skewStat->init("skew", "Latency skew", (uint64_t *) &children[c].skew);
+        cStat->append(skewStat);
 
-        children[c].profSelfInv.init("selfINV", "Self-invalidations"); cStat->append(&children[c].profSelfInv);
-        children[c].profCrossInv.init("crossINV", "Cross-invalidations"); cStat->append(&children[c].profCrossInv);
-        children[c].profInvx.init("INVX", "Downgrades"); cStat->append(&children[c].profInvx);
+        children[c].profSelfInv.init("selfINV", "Self-invalidations");
+        cStat->append(&children[c].profSelfInv);
+        children[c].profCrossInv.init("crossINV", "Cross-invalidations");
+        cStat->append(&children[c].profCrossInv);
+        children[c].profInvx.init("INVX", "Downgrades");
+        cStat->append(&children[c].profInvx);
         drvStat->append(cStat);
     }
     parentStat->append(drvStat);
 }
 
-void TraceDriver::setParent(MemObject* _parent) {
+void TraceDriver::setParent(MemObject *_parent) {
     parent = _parent;
 }
 
-uint64_t TraceDriver::invalidate(uint32_t childId, Address lineAddr, InvType type, bool* reqWriteback, uint64_t reqCycle, uint32_t srcId) {
+uint64_t
+TraceDriver::invalidate(uint32_t childId, Address lineAddr, InvType type, bool *reqWriteback, uint64_t reqCycle,
+                        uint32_t srcId) {
     assert(childId < numChildren);
-    std::unordered_map<Address, MESIState>& cStore = children[childId].cStore;
+    std::unordered_map<Address, MESIState> &cStore = children[childId].cStore;
     std::unordered_map<Address, MESIState>::iterator it = cStore.find(lineAddr);
     assert((it != cStore.end()));
     *reqWriteback = (it->second == M);
@@ -100,13 +113,13 @@ bool TraceDriver::executePhase() {
 
     //Load valid access
     AccessRecord acc;
-    if (lastAcc.childId == (uint32_t)-1) {
+    if (lastAcc.childId == (uint32_t) -1) {
         if (tr.empty()) return false;
         acc = tr.read();
         if (useSkews) acc.reqCycle += children[acc.childId].skew;
     } else {
         acc = lastAcc;
-        lastAcc.childId = (uint32_t)-1;
+        lastAcc.childId = (uint32_t) -1;
     }
 
     //Run until we reach the cycle limit or run out of phases
@@ -122,53 +135,53 @@ bool TraceDriver::executePhase() {
 }
 
 void TraceDriver::executeAccess(AccessRecord acc) {
-	assert(false); //Kasraa: As I did not handle this function, I don't want that this function is executed!!!
+    assert(false); //Kasraa: As I did not handle this function, I don't want that this function is executed!!!
     assert(acc.childId < numChildren);
-    std::unordered_map<Address, MESIState>& cStore = children[acc.childId].cStore;
+    std::unordered_map<Address, MESIState> &cStore = children[acc.childId].cStore;
 
     int64_t lat = 0;
     switch (acc.type) {
         case PUTS:
-        case PUTX:
-            {
-                if (!playPuts) return;
-                std::unordered_map<Address, MESIState>::iterator it = cStore.find(acc.lineAddr);
-                if (it == cStore.end()) return; //we don't currently have this line, skip
-                MemReq req = {acc.lineAddr, acc.type, acc.childId, &it->second, acc.reqCycle, nullptr, it->second, acc.childId};
-                lat = parent->access(req) - acc.reqCycle; //note that PUT latency does not affect driver latency
-                assert(it->second == I);
-                cStore.erase(it);
-            }
+        case PUTX: {
+            if (!playPuts) return;
+            std::unordered_map<Address, MESIState>::iterator it = cStore.find(acc.lineAddr);
+            if (it == cStore.end()) return; //we don't currently have this line, skip
+            MemReq req = {acc.lineAddr, acc.type, acc.childId, &it->second, acc.reqCycle, nullptr, it->second,
+                          acc.childId};
+            lat = parent->access(req) - acc.reqCycle; //note that PUT latency does not affect driver latency
+            assert(it->second == I);
+            cStore.erase(it);
+        }
             break;
         case GETS:
-        case GETX:
-            {
-                std::unordered_map<Address, MESIState>::iterator it = cStore.find(acc.lineAddr);
-                MESIState state = I;
-                if (it != cStore.end()) {
-                    if (!((it->second == S) && (acc.type == GETX))) { //we have the line, and it's not an upgrade miss, we can't replay this access directly
-                        if (playAllGets) { //issue a PUT
-                            MemReq req = {acc.lineAddr, (it->second == M)? PUTX : PUTS, acc.childId, &it->second, acc.reqCycle, nullptr, it->second, acc.childId};
-                            parent->access(req);
-                            assert(it->second == I);
-                        } else {
-                            return; //skip
-                        }
+        case GETX: {
+            std::unordered_map<Address, MESIState>::iterator it = cStore.find(acc.lineAddr);
+            MESIState state = I;
+            if (it != cStore.end()) {
+                if (!((it->second == S) && (acc.type ==
+                                            GETX))) { //we have the line, and it's not an upgrade miss, we can't replay this access directly
+                    if (playAllGets) { //issue a PUT
+                        MemReq req = {acc.lineAddr, (it->second == M) ? PUTX : PUTS, acc.childId, &it->second,
+                                      acc.reqCycle, nullptr, it->second, acc.childId};
+                        parent->access(req);
+                        assert(it->second == I);
                     } else {
-                        state = it->second;
+                        return; //skip
                     }
+                } else {
+                    state = it->second;
                 }
-                MemReq req = {acc.lineAddr, acc.type, acc.childId, &state, acc.reqCycle, nullptr, state, acc.childId};
-                uint64_t respCycle = parent->access(req);
-                lat = respCycle - acc.reqCycle;
-                children[acc.childId].profLat.inc(lat);
-                children[acc.childId].skew += ((int64_t)lat - acc.latency);
-                assert(state != I);
-                cStore[acc.lineAddr] = state;
             }
+            MemReq req = {acc.lineAddr, acc.type, acc.childId, &state, acc.reqCycle, nullptr, state, acc.childId};
+            uint64_t respCycle = parent->access(req);
+            lat = respCycle - acc.reqCycle;
+            children[acc.childId].profLat.inc(lat);
+            children[acc.childId].skew += ((int64_t) lat - acc.latency);
+            assert(state != I);
+            cStore[acc.lineAddr] = state;
+        }
             break;
-        default:
-            panic("Unknown access type %d, trace is probably corrupted", acc.type);
+        default: panic("Unknown access type %d, trace is probably corrupted", acc.type);
     }
 
     children[acc.childId].lastReqCycle = acc.reqCycle;

@@ -36,25 +36,26 @@ uint32_t MESIBottomCC::getParentId(Address lineAddr) {
     uint32_t res = 0;
     uint64_t tmp = lineAddr;
     for (uint32_t i = 0; i < 4; i++) {
-        res ^= (uint32_t) ( ((uint64_t)0xffff) & tmp);
+        res ^= (uint32_t) (((uint64_t) 0xffff) & tmp);
         tmp = tmp >> 16;
     }
     return (res % parents.size());
 }
 
 
-void MESIBottomCC::init(const g_vector<MemObject*>& _parents, Network* network, const char* name) {
+void MESIBottomCC::init(const g_vector<MemObject *> &_parents, Network *network, const char *name) {
     parents.resize(_parents.size());
     parentRTTs.resize(_parents.size());
     for (uint32_t p = 0; p < parents.size(); p++) {
         parents[p] = _parents[p];
-        parentRTTs[p] = (network)? network->getRTT(name, parents[p]->getName()) : 0;
+        parentRTTs[p] = (network) ? network->getRTT(name, parents[p]->getName()) : 0;
     }
 }
 
 
-uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId, Address pc /*Kasraa*/) {
-    MESIState* state = &array[lineId];
+uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle,
+                                       uint32_t srcId, Address pc /*Kasraa*/) {
+    MESIState *state = &array[lineId];
     if (lowerLevelWriteback) {
         //If this happens, when tcc issued the invalidations, it got a writeback. This means we have to do a PUTX, i.e. we have to transition to M if we are in E
         assert(*state == M || *state == E); //Must have exclusive permission!
@@ -65,19 +66,19 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
         case I:
             break; //Nothing to do
         case S:
-        case E:
-            {
-                MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/, pc /*Kasraa*/};
-				//printf("[71] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
-                respCycle = parents[getParentId(wbLineAddr)]->access(req);
-            }
+        case E: {
+            MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/,
+                          pc /*Kasraa*/};
+            //printf("[71] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
+            respCycle = parents[getParentId(wbLineAddr)]->access(req);
+        }
             break;
-        case M:
-            {
-                MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/, pc /*Kasraa*/};
-				//printf("[78] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
-                respCycle = parents[getParentId(wbLineAddr)]->access(req);
-            }
+        case M: {
+            MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/,
+                          pc /*Kasraa*/};
+            //printf("[78] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
+            respCycle = parents[getParentId(wbLineAddr)]->access(req);
+        }
             break;
 
         default: panic("!?");
@@ -86,17 +87,18 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
     return respCycle;
 }
 
-uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/) {
+uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId,
+                                     uint32_t flags, Address pc /*Kasraa*/) {
     uint64_t respCycle = cycle;
-    MESIState* state = &array[lineId];
+    MESIState *state = &array[lineId];
     switch (type) {
         // A PUTS/PUTX does nothing w.r.t. higher coherence levels --- it dies here
         case PUTS: //Clean writeback, nothing to do (except profiling)
-            assert(*state != I);
+        assert(*state != I);
             profPUTS.inc();
             break;
         case PUTX: //Dirty writeback
-            assert(*state == M || *state == E);
+        assert(*state == M || *state == E);
             if (*state == E) {
                 //Silent transition, record that block was written to
                 *state = M;
@@ -106,7 +108,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
         case GETS:
             if (*state == I) {
                 uint32_t parentId = getParentId(lineAddr);
-				//printf("[lines=%d, id=%d] parentId = %d/%ld, lineAddr=%#lx\n", numLines, selfId, parentId, parents.size(), lineAddr);
+                //printf("[lines=%d, id=%d] parentId = %d/%ld, lineAddr=%#lx\n", numLines, selfId, parentId, parents.size(), lineAddr);
                 MemReq req = {lineAddr, GETS, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/};
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
@@ -126,7 +128,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                 else profGETXMissSM.inc();
                 uint32_t parentId = getParentId(lineAddr);
                 MemReq req = {lineAddr, GETX, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/};
-				//printf("[130] ID=%d, name=%s\n", parentId, parents[parentId]->getName());
+                //printf("[130] ID=%d, name=%s\n", parentId, parents[parentId]->getName());
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
                 profGETNextLevelLat.inc(nextLevelLat);
@@ -145,7 +147,8 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                 }
                 profGETXHit.inc();
             }
-            assert_msg(*state == M, "Wrong final state on GETX, lineId %d numLines %d, finalState %s", lineId, numLines, MESIStateName(*state));
+            assert_msg(*state == M, "Wrong final state on GETX, lineId %d numLines %d, finalState %s", lineId, numLines,
+                       MESIStateName(*state));
             break;
 
         default: panic("!?");
@@ -155,7 +158,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
 }
 
 void MESIBottomCC::processWritebackOnAccess(Address lineAddr, uint32_t lineId, AccessType type) {
-    MESIState* state = &array[lineId];
+    MESIState *state = &array[lineId];
     assert(*state == M || *state == E);
     if (*state == E) {
         //Silent transition to M if in E
@@ -163,25 +166,25 @@ void MESIBottomCC::processWritebackOnAccess(Address lineAddr, uint32_t lineId, A
     }
 }
 
-void MESIBottomCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback) {
-    MESIState* state = &array[lineId];
+void MESIBottomCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool *reqWriteback) {
+    MESIState *state = &array[lineId];
     assert(*state != I);
     switch (type) {
         case INVX: //lose exclusivity
             //Hmmm, do we have to propagate loss of exclusivity down the tree? (nah, topcc will do this automatically -- it knows the final state, always!)
-            assert_msg(*state == E || *state == M, "Invalid state %s", MESIStateName(*state));
+        assert_msg(*state == E || *state == M, "Invalid state %s", MESIStateName(*state));
             if (*state == M) *reqWriteback = true;
             *state = S;
             profINVX.inc();
             break;
         case INV: //invalidate
-            assert(*state != I);
+        assert(*state != I);
             if (*state == M) *reqWriteback = true;
             *state = I;
             profINV.inc();
             break;
         case FWD: //forward
-            assert_msg(*state == S, "Invalid state %s on FWD", MESIStateName(*state));
+        assert_msg(*state == S, "Invalid state %s on FWD", MESIStateName(*state));
             profFWD.inc();
             break;
         default: panic("!?");
@@ -190,12 +193,15 @@ void MESIBottomCC::processInval(Address lineAddr, uint32_t lineId, InvType type,
 }
 
 
-uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType type, uint64_t cycle, MESIState* state, uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/) {
-    if (!nonInclusiveHack) panic("Non-inclusive %s on line 0x%lx, this cache should be inclusive", AccessTypeName(type), lineAddr);
+uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType type, uint64_t cycle, MESIState *state,
+                                                    uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/) {
+    if (!nonInclusiveHack) panic("Non-inclusive %s on line 0x%lx, this cache should be inclusive", AccessTypeName(type),
+                                 lineAddr);
 
     //info("Non-inclusive wback, forwarding");
-    MemReq req = {lineAddr, type, selfId, state, cycle, &ccLock, *state, srcId, flags | MemReq::NONINCLWB, pc /*Kasraa*/};
-	//printf("[199] ID=%d, name=%s\n", getParentId(lineAddr), parents[getParentId(lineAddr)]->getName());
+    MemReq req = {lineAddr, type, selfId, state, cycle, &ccLock, *state, srcId, flags | MemReq::NONINCLWB,
+                  pc /*Kasraa*/};
+    //printf("[199] ID=%d, name=%s\n", getParentId(lineAddr), parents[getParentId(lineAddr)]->getName());
     uint64_t respCycle = parents[getParentId(lineAddr)]->access(req);
     return respCycle;
 }
@@ -203,21 +209,23 @@ uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType
 
 /* MESITopCC implementation */
 
-void MESITopCC::init(const g_vector<BaseCache*>& _children, Network* network, const char* name) {
+void MESITopCC::init(const g_vector<BaseCache *> &_children, Network *network, const char *name) {
     if (_children.size() > MAX_CACHE_CHILDREN) {
-        panic("[%s] Children size (%d) > MAX_CACHE_CHILDREN (%d)", name, (uint32_t)_children.size(), MAX_CACHE_CHILDREN);
+        panic("[%s] Children size (%d) > MAX_CACHE_CHILDREN (%d)", name, (uint32_t) _children.size(),
+              MAX_CACHE_CHILDREN);
     }
     children.resize(_children.size());
     childrenRTTs.resize(_children.size());
     for (uint32_t c = 0; c < children.size(); c++) {
         children[c] = _children[c];
-        childrenRTTs[c] = (network)? network->getRTT(name, children[c]->getName()) : 0;
+        childrenRTTs[c] = (network) ? network->getRTT(name, children[c]->getName()) : 0;
     }
 }
 
-uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool *reqWriteback, uint64_t cycle,
+                                    uint32_t srcId) {
     //Send down downgrades/invalidates
-    Entry* e = &array[lineId];
+    Entry *e = &array[lineId];
 
     //Don't propagate downgrades if sharers are not exclusive.
     if (type == INVX && !e->isExclusive()) {
@@ -252,7 +260,9 @@ uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType t
 }
 
 
-uint64_t MESITopCC::processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId, Address pc /*Kasraa*/) {
+uint64_t
+MESITopCC::processEviction(Address wbLineAddr, uint32_t lineId, bool *reqWriteback, uint64_t cycle, uint32_t srcId,
+                           Address pc /*Kasraa*/) {
     if (nonInclusiveHack) {
         // Don't invalidate anything, just clear our entry
         array[lineId].clear();
@@ -263,13 +273,15 @@ uint64_t MESITopCC::processEviction(Address wbLineAddr, uint32_t lineId, bool* r
     }
 }
 
-uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint32_t childId, bool haveExclusive,
-                                  MESIState* childState, bool* inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/) {
-    Entry* e = &array[lineId];
+uint64_t
+MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint32_t childId, bool haveExclusive,
+                         MESIState *childState, bool *inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags,
+                         Address pc /*Kasraa*/) {
+    Entry *e = &array[lineId];
     uint64_t respCycle = cycle;
     switch (type) {
         case PUTX:
-            assert(e->isExclusive());
+        assert(e->isExclusive());
             if (flags & MemReq::PUTX_KEEPEXCL) {
                 assert(e->sharers[childId]);
                 assert(*childState == M);
@@ -278,7 +290,7 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
             }
             //note NO break in general
         case PUTS:
-            assert(e->sharers[childId]);
+        assert(e->sharers[childId]);
             e->sharers[childId] = false;
             e->numSharers--;
             *childState = I;
@@ -299,7 +311,8 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
                     respCycle = sendInvalidates(lineAddr, lineId, INVX, inducedWriteback, cycle, srcId);
                 }
 
-                assert_msg(!e->isExclusive(), "Can't have exclusivity here. isExcl=%d excl=%d numSharers=%d", e->isExclusive(), e->exclusive, e->numSharers);
+                assert_msg(!e->isExclusive(), "Can't have exclusivity here. isExcl=%d excl=%d numSharers=%d",
+                           e->isExclusive(), e->exclusive, e->numSharers);
 
                 e->sharers[childId] = true;
                 e->numSharers++;
@@ -308,11 +321,12 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
             }
             break;
         case GETX:
-            assert(haveExclusive); //the current cache better have exclusive access to this line
+        assert(haveExclusive); //the current cache better have exclusive access to this line
 
             // If child is in sharers list (this is an upgrade miss), take it out
             if (e->sharers[childId]) {
-                assert_msg(!e->isExclusive(), "Spurious GETX, childId=%d numSharers=%d isExcl=%d excl=%d", childId, e->numSharers, e->isExclusive(), e->exclusive);
+                assert_msg(!e->isExclusive(), "Spurious GETX, childId=%d numSharers=%d isExcl=%d excl=%d", childId,
+                           e->numSharers, e->isExclusive(), e->exclusive);
                 e->sharers[childId] = false;
                 e->numSharers--;
             }
@@ -336,7 +350,8 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
     return respCycle;
 }
 
-uint64_t MESITopCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESITopCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool *reqWriteback, uint64_t cycle,
+                                 uint32_t srcId) {
     if (type == FWD) {//if it's a FWD, we should be inclusive for now, so we must have the line, just invLat works
         assert(!nonInclusiveHack); //dsm: ask me if you see this failing and don't know why
         return cycle;

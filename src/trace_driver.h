@@ -37,68 +37,81 @@
 class TraceDriverProxyCache;
 
 class TraceDriver {
-    private:
-        struct ChildInfo {
-            std::unordered_map<Address, MESIState> cStore; //holds current sets of lines for each child. Needs to support an arbitrary set, hence the hash table
-            int64_t skew;
-            uint64_t lastReqCycle;
-            //Counter bypassedGETS;
-            //Counter bypassedGETX;
-            Counter profLat;
-            Counter profSelfInv; //invalidations in response to our own access
-            Counter profCrossInv; //invalidations in response to another access
-            Counter profInvx;
-        };
+private:
+    struct ChildInfo {
+        std::unordered_map<Address, MESIState> cStore; //holds current sets of lines for each child. Needs to support an arbitrary set, hence the hash table
+        int64_t skew;
+        uint64_t lastReqCycle;
+        //Counter bypassedGETS;
+        //Counter bypassedGETX;
+        Counter profLat;
+        Counter profSelfInv; //invalidations in response to our own access
+        Counter profCrossInv; //invalidations in response to another access
+        Counter profInvx;
+    };
 
-        ChildInfo* children;
-        lock_t lock; //NOTE: not needed for now
-        AccessTraceReader tr;
-        uint32_t numChildren;
-        bool useSkews; //If false, replays the trace using its request cycles. If true, it skews the simulated child. Can only be true with a single child.
-        bool playPuts; //If true, issues PUTS/PUTX requests as they appear in the trace. If false, it just issues the GETS/X requests, leaving it up to the parent to decide when to evict something (NOTE: if the parent is running OPT, it knows better!)
-        bool playAllGets; //If true, if we have a get to an address that we already have, issue a put immediately before.
-        MemObject* parent;
+    ChildInfo *children;
+    lock_t lock; //NOTE: not needed for now
+    AccessTraceReader tr;
+    uint32_t numChildren;
+    bool useSkews; //If false, replays the trace using its request cycles. If true, it skews the simulated child. Can only be true with a single child.
+    bool playPuts; //If true, issues PUTS/PUTX requests as they appear in the trace. If false, it just issues the GETS/X requests, leaving it up to the parent to decide when to evict something (NOTE: if the parent is running OPT, it knows better!)
+    bool playAllGets; //If true, if we have a get to an address that we already have, issue a put immediately before.
+    MemObject *parent;
 
-        AccessTraceWriter* atw;
+    AccessTraceWriter *atw;
 
-        //Last access, childId == -1 if invalid, acts as 1-elem buffer
-        AccessRecord lastAcc;
+    //Last access, childId == -1 if invalid, acts as 1-elem buffer
+    AccessRecord lastAcc;
 
-    public:
-        TraceDriver(std::string filename, std::string retracefile, std::vector<TraceDriverProxyCache*>& proxies, bool _useSkews, bool _playPuts, bool _playAllGets);
-        void initStats(AggregateStat* parentStat);
-        void setParent(MemObject* _parent);
+public:
+    TraceDriver(std::string filename, std::string retracefile, std::vector<TraceDriverProxyCache *> &proxies,
+                bool _useSkews, bool _playPuts, bool _playAllGets);
 
-        uint64_t invalidate(uint32_t childId, Address lineAddr, InvType type, bool* reqWriteback, uint64_t reqCycle, uint32_t srcId);
+    void initStats(AggregateStat *parentStat);
 
-        //Returns false if done, true otherwise
-        bool executePhase();
+    void setParent(MemObject *_parent);
 
-    private:
-        inline void executeAccess(AccessRecord acc);
+    uint64_t
+    invalidate(uint32_t childId, Address lineAddr, InvType type, bool *reqWriteback, uint64_t reqCycle, uint32_t srcId);
+
+    //Returns false if done, true otherwise
+    bool executePhase();
+
+private:
+    inline void executeAccess(AccessRecord acc);
 };
 
 
 class TraceDriverProxyCache : public BaseCache {
-    private:
-        TraceDriver* drv;
-        uint32_t id;
-        g_string name;
-        MemObject* parent;
-    public:
-        TraceDriverProxyCache(g_string& _name) : drv(nullptr), id(-1), name(_name) {}
-        const char* getName() {return name.c_str();}
+private:
+    TraceDriver *drv;
+    uint32_t id;
+    g_string name;
+    MemObject *parent;
+public:
+    TraceDriverProxyCache(g_string &_name) : drv(nullptr), id(-1), name(_name) {}
 
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) {id = _childId; assert(parents.size() == 1); parent = parents[0];}; //FIXME: Support multi-banked caches...
-        void setChildren(const g_vector<BaseCache*>& children, Network* network) {panic("Should not be called, this must be terminal");};
+    const char *getName() { return name.c_str(); }
 
-        MemObject* getParent() const {return parent;}
-        void setDriver(TraceDriver* driver) {drv = driver;}
+    void setParents(uint32_t _childId, const g_vector<MemObject *> &parents, Network *network) {
+        id = _childId;
+        assert(parents.size() == 1);
+        parent = parents[0];
+    }; //FIXME: Support multi-banked caches...
+    void setChildren(const g_vector<BaseCache *> &children, Network *network) {
+        panic("Should not be called, this must be terminal");
+    };
 
-        uint64_t access(MemReq& req) {panic("Should never be called");}
-        uint64_t invalidate(const InvReq& req) {
-            return drv->invalidate(id, req.lineAddr, req.type, req.writeback, req.cycle, req.srcId);
-        }
+    MemObject *getParent() const { return parent; }
+
+    void setDriver(TraceDriver *driver) { drv = driver; }
+
+    uint64_t access(MemReq &req) {panic("Should never be called"); }
+
+    uint64_t invalidate(const InvReq &req) {
+        return drv->invalidate(id, req.lineAddr, req.type, req.writeback, req.cycle, req.srcId);
+    }
 };
 
 #endif /*__TRACE_DRIVER_H__*/

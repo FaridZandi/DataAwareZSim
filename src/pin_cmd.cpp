@@ -34,9 +34,9 @@
 #define QUOTED_(x) #x
 #define QUOTED(x) QUOTED_(x)
 
-PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint64_t shmid) {
+PinCmd::PinCmd(Config *conf, const char *configFile, const char *outputDir, uint64_t shmid) {
     //Figure the program paths
-    const char* zsimEnvPath = getenv("ZSIM_PATH");
+    const char *zsimEnvPath = getenv("ZSIM_PATH");
     g_string pinPath, zsimPath;
     if (zsimEnvPath) {
         info("Using env path %s", zsimEnvPath);
@@ -57,7 +57,7 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
     args.push_back("1");
 
     //Additional options (e.g., -smc_strict for Java), parsed from config
-    const char* pinOptions = conf->get<const char*>("sim.pinOptions", "");
+    const char *pinOptions = conf->get<const char *>("sim.pinOptions", "");
     wordexp_t p;
     wordexp(pinOptions, &p, 0);
     for (uint32_t i = 0; i < p.we_wordc; i++) {
@@ -73,7 +73,7 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
     if (configFile) {
         //Check configFile is an absolute path
         //NOTE: We check rather than canonicalizing it ourselves because by the time we're created, we might be in another directory
-        char* absPath = realpath(configFile, nullptr);
+        char *absPath = realpath(configFile, nullptr);
         if (std::string(configFile) != std::string(absPath)) {
             panic("Internal zsim bug, configFile should be absolute");
         }
@@ -103,10 +103,10 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
 
         if (!conf->exists(p_ss.str().c_str())) break;
 
-        const char* cmd = conf->get<const char*>(p_ss.str() +  ".command");
-        const char* input = conf->get<const char*>(p_ss.str() +  ".input", "");
-        const char* loader = conf->get<const char*>(p_ss.str() +  ".loader", "");
-        const char* env = conf->get<const char*>(p_ss.str() +  ".env", "");
+        const char *cmd = conf->get<const char *>(p_ss.str() + ".command");
+        const char *input = conf->get<const char *>(p_ss.str() + ".input", "");
+        const char *loader = conf->get<const char *>(p_ss.str() + ".loader", "");
+        const char *env = conf->get<const char *>(p_ss.str() + ".env", "");
 
         ProcCmdInfo pi = {g_string(cmd), g_string(input), g_string(loader), g_string(env)};
         procInfo.push_back(pi);
@@ -114,7 +114,7 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
 }
 
 g_vector<g_string> PinCmd::getPinCmdArgs(uint32_t procIdx) {
-    g_vector<g_string> res = args;
+    g_vector < g_string > res = args;
 
     std::stringstream procIdx_ss;
     procIdx_ss << procIdx;
@@ -124,9 +124,9 @@ g_vector<g_string> PinCmd::getPinCmdArgs(uint32_t procIdx) {
     return res;
 }
 
-g_vector<g_string> PinCmd::getFullCmdArgs(uint32_t procIdx, const char** inputFile) {
+g_vector<g_string> PinCmd::getFullCmdArgs(uint32_t procIdx, const char **inputFile) {
     assert(procIdx < procInfo.size()); //must be one of the topmost processes
-    g_vector<g_string> res = getPinCmdArgs(procIdx);
+    g_vector < g_string > res = getPinCmdArgs(procIdx);
 
     g_string cmd = procInfo[procIdx].cmd;
 
@@ -141,7 +141,7 @@ g_vector<g_string> PinCmd::getFullCmdArgs(uint32_t procIdx, const char** inputFi
         cmd = procInfo[procIdx].loader + " " + cmd;
         info("Injected loader on process%d, command line: %s", procIdx, cmd.c_str());
         warn("Loader injection makes Pin unaware of symbol routines, so things like routine patching"
-             "will not work! You can homogeneize the loaders instead by editing the .interp ELF section");
+                     "will not work! You can homogeneize the loaders instead by editing the .interp ELF section");
     }
 
     //Parse command -- use glibc's wordexp to parse things like quotes, handle argument expansion, etc correctly
@@ -153,7 +153,7 @@ g_vector<g_string> PinCmd::getFullCmdArgs(uint32_t procIdx, const char** inputFi
     wordfree(&p);
 
     //Input redirect
-    *inputFile = (procInfo[procIdx].input == "")? nullptr : procInfo[procIdx].input.c_str();
+    *inputFile = (procInfo[procIdx].input == "") ? nullptr : procInfo[procIdx].input.c_str();
     return res;
 }
 
@@ -163,7 +163,7 @@ void PinCmd::setEnvVars(uint32_t procIdx) {
         wordexp_t p;
         wordexp(procInfo[procIdx].env.c_str(), &p, 0);
         for (uint32_t i = 0; i < p.we_wordc; i++) {
-            char* var = strdup(p.we_wordv[i]); //putenv() does not make copies, and takes non-const char* in
+            char *var = strdup(p.we_wordv[i]); //putenv() does not make copies, and takes non-const char* in
             if (putenv(var) != 0) {
                 panic("putenv(%s) failed", var);
             }

@@ -33,7 +33,10 @@
 //template <typename T> typedef std::vector<T, StlGlobAlloc<T> > g_vector;
 
 // Until GCC is compliant with this, just inherit:
-template <typename T> class g_list : public std::list<T, StlGlobAlloc<T> > {};
+template<typename T> class g_list : public std::list<T, StlGlobAlloc < T>
+
+> {
+};
 
 /* Some pointers on template typedefs:
  * http://www.gotw.ca/gotw/079.htm

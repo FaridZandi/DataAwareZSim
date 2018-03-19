@@ -74,11 +74,11 @@ ProcInfo childInfo[MAX_CHILDREN];
 
 volatile uint32_t debuggerChildIdx = MAX_THREADS;
 
-GlobSimInfo* globzinfo = nullptr; //used very sparingly, only in sig handlers. Should probably promote to a global like in zsim processes.
+GlobSimInfo *globzinfo = nullptr; //used very sparingly, only in sig handlers. Should probably promote to a global like in zsim processes.
 
 bool perProcessDir, aslr;
 
-PinCmd* pinCmd;
+PinCmd *pinCmd;
 
 /* Defs & helper functions */
 
@@ -113,7 +113,7 @@ void chldSigHandler(int sig) {
         int idx = eraseChild(cpid);
         if (idx < MAX_THREADS) {
             info("Child %d done", cpid);
-            int exitCode = WIFEXITED(status)? WEXITSTATUS(status) : 0;
+            int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 0;
             if (exitCode == PANIC_EXIT_CODE) {
                 panic("Child issued a panic, killing simulation");
             }
@@ -138,20 +138,16 @@ void sigHandler(int sig) {
     if (termStatus == KILL_EM_ALL) return; //a kill was already issued, avoid infinite recursion
 
     switch (sig) {
-        case SIGSEGV:
-            warn("Segmentation fault");
+        case SIGSEGV: warn("Segmentation fault");
             termStatus = KILL_EM_ALL;
             break;
-        case SIGINT:
-            info("Received interrupt");
-            termStatus = (termStatus == OK)? GRACEFUL_TERMINATION : KILL_EM_ALL;
+        case SIGINT: info("Received interrupt");
+            termStatus = (termStatus == OK) ? GRACEFUL_TERMINATION : KILL_EM_ALL;
             break;
-        case SIGTERM:
-            info("Received SIGTERM");
+        case SIGTERM: info("Received SIGTERM");
             termStatus = KILL_EM_ALL;
             break;
-        default:
-            warn("Received signal %d", sig);
+        default: warn("Received signal %d", sig);
             termStatus = KILL_EM_ALL;
     }
 
@@ -185,11 +181,11 @@ void exitHandler() {
     }
 }
 
-void debugSigHandler(int signum, siginfo_t* siginfo, void* dummy) {
+void debugSigHandler(int signum, siginfo_t *siginfo, void *dummy) {
     assert(signum == SIGUSR1);
     uint32_t callerPid = siginfo->si_pid;
     // Child better have this initialized...
-    struct LibInfo* zsimAddrs = (struct LibInfo*) gm_get_secondary_ptr();
+    struct LibInfo *zsimAddrs = (struct LibInfo *) gm_get_secondary_ptr();
     uint32_t debuggerPid = launchXtermDebugger(callerPid, zsimAddrs);
     childInfo[debuggerChildIdx].pid = debuggerPid;
     childInfo[debuggerChildIdx++].status = PS_RUNNING;
@@ -201,8 +197,8 @@ static time_t startTime;
 static time_t lastHeartbeatTime;
 static uint64_t lastCycles = 0;
 
-static void printHeartbeat(GlobSimInfo* zinfo) {
-    uint64_t cycles = zinfo->numPhases*zinfo->phaseLength;
+static void printHeartbeat(GlobSimInfo *zinfo) {
+    uint64_t cycles = zinfo->numPhases * zinfo->phaseLength;
     time_t curTime = time(nullptr);
     time_t elapsedSecs = curTime - startTime;
     time_t heartbeatSecs = curTime - lastHeartbeatTime;
@@ -218,12 +214,12 @@ static void printHeartbeat(GlobSimInfo* zinfo) {
     hb << "Running on: " << hostname << std::endl;
     hb << "Start time: " << ctime_r(&startTime, time);
     hb << "Heartbeat time: " << ctime_r(&curTime, time);
-    hb << "Stats since start:" << std:: endl;
+    hb << "Stats since start:" << std::endl;
     hb << " " << zinfo->numPhases << " phases" << std::endl;
     hb << " " << cycles << " cycles" << std::endl;
-    hb << " " << (cycles)/elapsedSecs << " cycles/s" << std::endl;
-    hb << "Stats since last heartbeat (" << heartbeatSecs << "s):" << std:: endl;
-    hb << " " << (cycles-lastCycles)/heartbeatSecs << " cycles/s" << std::endl;
+    hb << " " << (cycles) / elapsedSecs << " cycles/s" << std::endl;
+    hb << "Stats since last heartbeat (" << heartbeatSecs << "s):" << std::endl;
+    hb << " " << (cycles - lastCycles) / heartbeatSecs << " cycles/s" << std::endl;
 
     lastHeartbeatTime = curTime;
     lastCycles = cycles;
@@ -240,19 +236,19 @@ void LaunchProcess(uint32_t procIdx) {
         // Set the child's vars and get the command
         // NOTE: We set the vars first so that, when parsing the command, wordexp takes those vars into account
         pinCmd->setEnvVars(procIdx);
-        const char* inputFile;
-        g_vector<g_string> args = pinCmd->getFullCmdArgs(procIdx, &inputFile);
+        const char *inputFile;
+        g_vector < g_string > args = pinCmd->getFullCmdArgs(procIdx, &inputFile);
 
         //Copy args to a const char* [] for exec
-        int nargs = args.size()+1;
-        const char* aptrs[nargs];
+        int nargs = args.size() + 1;
+        const char *aptrs[nargs];
 
         trace(Harness, "Calling arguments:");
         for (unsigned int i = 0; i < args.size(); i++) {
             trace(Harness, " arg%d = %s", i, args[i].c_str());
             aptrs[i] = args[i].c_str();
         }
-        aptrs[nargs-1] = nullptr;
+        aptrs[nargs - 1] = nullptr;
 
         //Chdir to process dir if needed
         if (perProcessDir) {
@@ -287,16 +283,18 @@ void LaunchProcess(uint32_t procIdx) {
          */
         if (!aslr) {
             //Get old personality flags & update
-            int pers = personality(((unsigned int)-1) /*returns current pers flags; arg is a long, hence the cast, see man*/);
+            int pers = personality(
+                    ((unsigned int) -1) /*returns current pers flags; arg is a long, hence the cast, see man*/);
             if (pers == -1 || personality(pers | ADDR_NO_RANDOMIZE) == -1) {
                 perror("personality() call failed");
                 panic("Could not change personality to disable address space randomization!");
             }
-            int newPers = personality(((unsigned int)-1));
-            if ((newPers & ADDR_NO_RANDOMIZE) == 0) panic("personality() call was not honored! old 0x%x new 0x%x", pers, newPers);
+            int newPers = personality(((unsigned int) -1));
+            if ((newPers & ADDR_NO_RANDOMIZE) == 0) panic("personality() call was not honored! old 0x%x new 0x%x", pers,
+                                                          newPers);
         }
 
-        if (execvp(aptrs[0], (char* const*)aptrs) == -1) {
+        if (execvp(aptrs[0], (char *const *) aptrs) == -1) {
             perror("Could not exec, killing child");
             panic("Could not exec %s", aptrs[0]);
         } else {
@@ -322,15 +320,15 @@ int main(int argc, char *argv[]) {
     }
 
     //Canonicalize paths --- because we change dirs, we deal in absolute paths
-    const char* configFile = realpath(argv[1], nullptr);
-    const char* outputDir = getcwd(nullptr, 0); //already absolute
+    const char *configFile = realpath(argv[1], nullptr);
+    const char *outputDir = getcwd(nullptr, 0); //already absolute
 
     Config conf(configFile);
 
     if (atexit(exitHandler)) panic("Could not register exit handler");
 
     signal(SIGSEGV, sigHandler);
-    signal(SIGINT,  sigHandler);
+    signal(SIGINT, sigHandler);
     signal(SIGABRT, sigHandler);
     signal(SIGTERM, sigHandler);
 
@@ -339,10 +337,10 @@ int main(int argc, char *argv[]) {
     //SIGUSR1 is used by children processes when they want to get a debugger session started;
     struct sigaction debugSa;
     debugSa.sa_flags = SA_SIGINFO;
-    sigemptyset(&debugSa.sa_mask); //NOTE: We might want to start using sigfullsets in other signal handlers to avoid races...
+    sigemptyset(
+            &debugSa.sa_mask); //NOTE: We might want to start using sigfullsets in other signal handlers to avoid races...
     debugSa.sa_sigaction = debugSigHandler;
-    if (sigaction(SIGUSR1, &debugSa, nullptr) != 0)
-        panic("sigaction() failed");
+    if (sigaction(SIGUSR1, &debugSa, nullptr) != 0) panic("sigaction() failed");
 
     waitid(P_ALL, 0, nullptr, WEXITED);
 
@@ -356,9 +354,9 @@ int main(int argc, char *argv[]) {
     }
     if (removedLogfiles) info("Removed %d old logfiles", removedLogfiles);
 
-    uint32_t gmSize = conf.get<uint32_t>("sim.gmMBytes", (1<<10) /*default 1024MB*/);
+    uint32_t gmSize = conf.get<uint32_t>("sim.gmMBytes", (1 << 10) /*default 1024MB*/);
     info("Creating global segment, %d MBs", gmSize);
-    int shmid = gm_init(((size_t)gmSize) << 20 /*MB to Bytes*/);
+    int shmid = gm_init(((size_t) gmSize) << 20 /*MB to Bytes*/);
     info("Global segment shmid = %d", shmid);
     //fprintf(stderr, "%sGlobal segment shmid = %d\n", logHeader, shmid); //hack to print shmid on both streams
     //fflush(stderr);
@@ -382,7 +380,7 @@ int main(int argc, char *argv[]) {
         deadlockDetection = conf.get<bool>("sim.deadlockDetection", true);
     }
 
-    info("Deadlock detection %s", deadlockDetection? "ON" : "OFF");
+    info("Deadlock detection %s", deadlockDetection ? "ON" : "OFF");
 
     aslr = conf.get<bool>("sim.aslr", false);
     if (aslr) info("Not disabling ASLR, multiprocess runs will fail");
@@ -399,7 +397,7 @@ int main(int argc, char *argv[]) {
 
     //Wait for all processes to finish
     int sleepLength = 10;
-    GlobSimInfo* zinfo = nullptr;
+    GlobSimInfo *zinfo = nullptr;
     int32_t secsStalled = 0;
 
     int64_t lastNumPhases = 0;
@@ -411,7 +409,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (zinfo == nullptr) {
-            zinfo = static_cast<GlobSimInfo*>(gm_get_glob_ptr());
+            zinfo = static_cast<GlobSimInfo *>(gm_get_glob_ptr());
             globzinfo = zinfo;
             info("Attached to global heap");
         }
@@ -443,7 +441,9 @@ int main(int argc, char *argv[]) {
                     secsStalled = 0;
                 }
             } else if (activeProcs) {
-                if (numPhases == lastNumPhases) info("Some fast-forwarding is going on, not doing deadlock detection (a: %d, ff: %d, sff: %d)", activeProcs, ffProcs, sffProcs);
+                if (numPhases == lastNumPhases) info(
+                        "Some fast-forwarding is going on, not doing deadlock detection (a: %d, ff: %d, sff: %d)",
+                        activeProcs, ffProcs, sffProcs);
                 lastNumPhases = numPhases;
             } //otherwise, activeProcs == 0; we're done
         }
@@ -471,7 +471,8 @@ int main(int argc, char *argv[]) {
         info("Graceful termination finished, exiting");
         exitCode = 1;
     }
-    if (zinfo && zinfo->globalActiveProcs) warn("Unclean exit of %d children, termination stats were most likely not dumped", zinfo->globalActiveProcs);
+    if (zinfo && zinfo->globalActiveProcs) warn(
+            "Unclean exit of %d children, termination stats were most likely not dumped", zinfo->globalActiveProcs);
     exit(exitCode);
 }
 

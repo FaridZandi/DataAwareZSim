@@ -29,44 +29,42 @@
 #include "zsim.h"
 
 
-SimpleMemory::SimpleMemory(uint32_t _latency, g_string& _name, Config& config) 
-	: name(_name)
-	, latency(_latency) 
-{
-	// trace is collected in mc.cpp.  
-	_collect_trace = false;
-	_cur_trace_len = 0;
-	_max_trace_len = 10000;
+SimpleMemory::SimpleMemory(uint32_t _latency, g_string &_name, Config &config)
+        : name(_name), latency(_latency) {
+    // trace is collected in mc.cpp.
+    _collect_trace = false;
+    _cur_trace_len = 0;
+    _max_trace_len = 10000;
 //	temp = new char[200];
-	temp = nullptr;
-	_trace_dir = config.get<const char *>("sys.mem.traceDir", "./");
-	//_address_trace = new Address[_max_trace_len]; 
-	//_type_trace = new uint32_t[_max_trace_len];
-	if (_collect_trace) {
-		FILE * f = fopen((_trace_dir + g_string("/") + name + g_string("trace.bin")).c_str(), "wb");
-		uint32_t num = 0;
-		fwrite(&num, sizeof(uint32_t), 1, f);
-		fclose(f);
-	    futex_init(&_lock);
-	}
+    temp = nullptr;
+    _trace_dir = config.get<const char *>("sys.mem.traceDir", "./");
+    //_address_trace = new Address[_max_trace_len];
+    //_type_trace = new uint32_t[_max_trace_len];
+    if (_collect_trace) {
+        FILE *f = fopen((_trace_dir + g_string("/") + name + g_string("trace.bin")).c_str(), "wb");
+        uint32_t num = 0;
+        fwrite(&num, sizeof(uint32_t), 1, f);
+        fclose(f);
+        futex_init(&_lock);
+    }
 }
 
-uint64_t SimpleMemory::access(MemReq& req) {
-	if (_collect_trace) {
-	    futex_lock(&_lock);
-		_address_trace[_cur_trace_len] = req.lineAddr;
-		_type_trace[_cur_trace_len] = (req.type == PUTS || req.type == PUTX)? 1 : 0;
-		_cur_trace_len ++;
-		assert(_cur_trace_len <= _max_trace_len);
-		if (_cur_trace_len == _max_trace_len) {
-			FILE * f = fopen((_trace_dir + g_string("/") + name + g_string("trace.bin")).c_str(), "ab");
-			fwrite(_address_trace, sizeof(Address), _max_trace_len, f);
-			fwrite(_type_trace, sizeof(uint32_t), _max_trace_len, f);
-			fclose(f);
-			_cur_trace_len = 0;
-		}
-	    futex_unlock(&_lock);
-	}
+uint64_t SimpleMemory::access(MemReq &req) {
+    if (_collect_trace) {
+        futex_lock(&_lock);
+        _address_trace[_cur_trace_len] = req.lineAddr;
+        _type_trace[_cur_trace_len] = (req.type == PUTS || req.type == PUTX) ? 1 : 0;
+        _cur_trace_len++;
+        assert(_cur_trace_len <= _max_trace_len);
+        if (_cur_trace_len == _max_trace_len) {
+            FILE *f = fopen((_trace_dir + g_string("/") + name + g_string("trace.bin")).c_str(), "ab");
+            fwrite(_address_trace, sizeof(Address), _max_trace_len, f);
+            fwrite(_type_trace, sizeof(uint32_t), _max_trace_len, f);
+            fclose(f);
+            _cur_trace_len = 0;
+        }
+        futex_unlock(&_lock);
+    }
 /*	if (temp == nullptr) {
 		//temp = std::new char[2000];
 		temp = (Chunk *) malloc(sizeof(Chunk));
@@ -82,7 +80,7 @@ uint64_t SimpleMemory::access(MemReq& req) {
             *req.state = I;
             break;
         case GETS:
-            *req.state = req.is(MemReq::NOEXCL)? S : E;
+            *req.state = req.is(MemReq::NOEXCL) ? S : E;
             break;
         case GETX:
             *req.state = M;
@@ -104,15 +102,13 @@ uint64_t SimpleMemory::access(MemReq& req) {
 }
 
 
-
-
-MD1Memory::MD1Memory(uint32_t requestSize, uint32_t megacyclesPerSecond, uint32_t megabytesPerSecond, uint32_t _zeroLoadLatency, g_string& _name)
-    : zeroLoadLatency(_zeroLoadLatency), name(_name)
-{
+MD1Memory::MD1Memory(uint32_t requestSize, uint32_t megacyclesPerSecond, uint32_t megabytesPerSecond,
+                     uint32_t _zeroLoadLatency, g_string &_name)
+        : zeroLoadLatency(_zeroLoadLatency), name(_name) {
     lastPhase = 0;
 
-    double bytesPerCycle = ((double)megabytesPerSecond)/((double)megacyclesPerSecond);
-    maxRequestsPerCycle = bytesPerCycle/requestSize;
+    double bytesPerCycle = ((double) megabytesPerSecond) / ((double) megacyclesPerSecond);
+    maxRequestsPerCycle = bytesPerCycle / requestSize;
     assert(maxRequestsPerCycle > 0.0);
 
     zeroLoadLatency = _zeroLoadLatency;
@@ -125,12 +121,12 @@ MD1Memory::MD1Memory(uint32_t requestSize, uint32_t megacyclesPerSecond, uint32_
 }
 
 void MD1Memory::updateLatency() {
-    uint32_t phaseCycles = (zinfo->numPhases - lastPhase)*(zinfo->phaseLength);
+    uint32_t phaseCycles = (zinfo->numPhases - lastPhase) * (zinfo->phaseLength);
     if (phaseCycles < 10000) return; //Skip with short phases
 
-    smoothedPhaseAccesses =  (curPhaseAccesses*0.5) + (smoothedPhaseAccesses*0.5);
-    double requestsPerCycle = smoothedPhaseAccesses/((double)phaseCycles);
-    double load = requestsPerCycle/maxRequestsPerCycle;
+    smoothedPhaseAccesses = (curPhaseAccesses * 0.5) + (smoothedPhaseAccesses * 0.5);
+    double requestsPerCycle = smoothedPhaseAccesses / ((double) phaseCycles);
+    double load = requestsPerCycle / maxRequestsPerCycle;
 
     //Clamp load
     if (load > 0.95) {
@@ -139,11 +135,11 @@ void MD1Memory::updateLatency() {
         profClampedLoads.inc();
     }
 
-    double latMultiplier = 1.0 + 0.5*load/(1.0 - load); //See Pollancek-Khinchine formula
-    curLatency = (uint32_t)(latMultiplier*zeroLoadLatency);
+    double latMultiplier = 1.0 + 0.5 * load / (1.0 - load); //See Pollancek-Khinchine formula
+    curLatency = (uint32_t) (latMultiplier * zeroLoadLatency);
 
     //info("%s: Load %.2f, latency multiplier %.2f, latency %d", name.c_str(), load, latMultiplier, curLatency);
-    uint32_t intLoad = (uint32_t)(load*100.0);
+    uint32_t intLoad = (uint32_t) (load * 100.0);
     profLoad.inc(intLoad);
     profUpdates.inc();
 
@@ -152,7 +148,7 @@ void MD1Memory::updateLatency() {
     lastPhase = zinfo->numPhases;
 }
 
-uint64_t MD1Memory::access(MemReq& req) {
+uint64_t MD1Memory::access(MemReq &req) {
     if (zinfo->numPhases > lastPhase) {
         futex_lock(&updateLock);
         //Recheck, someone may have updated already
@@ -177,7 +173,7 @@ uint64_t MD1Memory::access(MemReq& req) {
             profReads.atomicInc();
             profTotalRdLat.atomicInc(curLatency);
             __sync_fetch_and_add(&curPhaseAccesses, 1);
-            *req.state = req.is(MemReq::NOEXCL)? S : E;
+            *req.state = req.is(MemReq::NOEXCL) ? S : E;
             break;
         case GETX:
             profReads.atomicInc();
@@ -188,6 +184,6 @@ uint64_t MD1Memory::access(MemReq& req) {
 
         default: panic("!?");
     }
-    return req.cycle + ((req.type == PUTS)? 0 /*PUTS is not a real access*/ : curLatency);
+    return req.cycle + ((req.type == PUTS) ? 0 /*PUTS is not a real access*/ : curLatency);
 }
 

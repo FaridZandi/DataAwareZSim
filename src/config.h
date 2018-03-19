@@ -39,66 +39,82 @@
 
 namespace libconfig {
     class Config;
+
     class Setting;
 };
 
 
 class Config {
-    private:
-        libconfig::Config* inCfg;
-        libconfig::Config* outCfg;
+private:
+    libconfig::Config *inCfg;
+    libconfig::Config *outCfg;
 
-    public:
-        explicit Config(const char* inFile);
-        ~Config();
+public:
+    explicit Config(const char *inFile);
 
-        //Called when initialization ends. Writes output config, and emits warnings for unused input settings
-        void writeAndClose(const char* outFile, bool strictCheck);
+    ~Config();
 
-        bool exists(const char* key);
-        bool exists(const std::string& key) {return exists(key.c_str());}
+    //Called when initialization ends. Writes output config, and emits warnings for unused input settings
+    void writeAndClose(const char *outFile, bool strictCheck);
 
-        //Access interface
-        //T can be uint32_t, uint64_t, bool, or const char*. Instantiations are in the cpp file
+    bool exists(const char *key);
 
-        // Mandatory values (no default, panics if setting does not exist)
-        template<typename T> T get(const char* key);
-        template<typename T> T get(const std::string& key) {return get<T>(key.c_str());}
+    bool exists(const std::string &key) { return exists(key.c_str()); }
 
-        // Optional values (default)
-        template<typename T> T get(const char* key, T def);
-        template<typename T> T get(const std::string& key, T def) {return get<T>(key.c_str(), def);}
+    //Access interface
+    //T can be uint32_t, uint64_t, bool, or const char*. Instantiations are in the cpp file
 
-        //Get subgroups in a specific key
-        void subgroups(const char* key, std::vector<const char*>& grps);
-        void subgroups(const std::string& key, std::vector<const char*>& grps) {subgroups(key.c_str(), grps);}
+    // Mandatory values (no default, panics if setting does not exist)
+    template<typename T>
+    T get(const char *key);
 
-    private:
-        template<typename T> T genericGet(const char* key);
-        template<typename T> T genericGet(const char* key, T def);
+    template<typename T>
+    T get(const std::string &key) { return get<T>(key.c_str()); }
+
+    // Optional values (default)
+    template<typename T>
+    T get(const char *key, T def);
+
+    template<typename T>
+    T get(const std::string &key, T def) { return get<T>(key.c_str(), def); }
+
+    //Get subgroups in a specific key
+    void subgroups(const char *key, std::vector<const char *> &grps);
+
+    void subgroups(const std::string &key, std::vector<const char *> &grps) { subgroups(key.c_str(), grps); }
+
+private:
+    template<typename T>
+    T genericGet(const char *key);
+
+    template<typename T>
+    T genericGet(const char *key, T def);
 };
 
 
 /* Parsing functions used for configuration */
 
-std::vector<bool> ParseMask(const std::string& maskStr, uint32_t maskSize);
+std::vector<bool> ParseMask(const std::string &maskStr, uint32_t maskSize);
 
 /* Parses a delimiter-separated list of T's (typically ints, see/add specializtions in .cpp)
  * 0-elem lists are OK
  * panics on parsing and size-violation errors
  */
-template <typename T> std::vector<T> ParseList(const std::string& listStr, const char* delimiters);
+template<typename T>
+std::vector<T> ParseList(const std::string &listStr, const char *delimiters);
 
-template <typename T> std::vector<T> ParseList(const std::string& listStr) { return ParseList<T>(listStr, " "); }
+template<typename T>
+std::vector<T> ParseList(const std::string &listStr) { return ParseList<T>(listStr, " "); }
 
 // fills remaining elems till maxSize with fillValue
-template <typename T> std::vector<T> ParseList(const std::string& listStr, uint32_t maxSize, uint32_t fillValue) {
+template<typename T>
+std::vector<T> ParseList(const std::string &listStr, uint32_t maxSize, uint32_t fillValue) {
     std::vector<T> res = ParseList<T>(listStr);
     if (res.size() > maxSize) panic("ParseList: Too many elements, max %d, got %ld", maxSize, res.size());
     while (res.size() < maxSize) res.push_back(fillValue);
     return res;
 }
 
-void Tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters);
+void Tokenize(const std::string &str, std::vector<std::string> &tokens, const std::string &delimiters);
 
 #endif  // CONFIG_H_

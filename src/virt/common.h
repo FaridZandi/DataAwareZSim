@@ -36,29 +36,31 @@
 
 struct PrePatchArgs {
     uint32_t tid;
-    CONTEXT* ctxt;
+    CONTEXT *ctxt;
     SYSCALL_STANDARD std;
-    const char* patchRoot;
+    const char *patchRoot;
     bool isNopThread;
 };
 
 struct PostPatchArgs {
     uint32_t tid;
-    CONTEXT* ctxt;
+    CONTEXT *ctxt;
     SYSCALL_STANDARD std;
 };
 
 typedef std::function<PostPatchAction(PostPatchArgs)> PostPatchFn;
+
 typedef PostPatchFn (*PrePatchFn)(PrePatchArgs);
 
 extern const PostPatchFn NullPostPatch; // defined in virt.cpp
 
 // PIN_SafeCopy wrapper. We expect the default thing to be correct access
 template<typename T>
-static inline bool safeCopy(const T* src, T* dst, const char* file = __FILE__, int line = __LINE__) {
+static inline bool safeCopy(const T *src, T *dst, const char *file = __FILE__, int line = __LINE__) {
     size_t copiedBytes = PIN_SafeCopy(dst, src, sizeof(T));
     if (copiedBytes != sizeof(T)) {
-        warn("[%d] %s:%d Failed app<->tool copy (%ld/%ld bytes copied)", PIN_ThreadId(), file, line, copiedBytes, sizeof(T));
+        warn("[%d] %s:%d Failed app<->tool copy (%ld/%ld bytes copied)", PIN_ThreadId(), file, line, copiedBytes,
+             sizeof(T));
         return false;
     }
     return true;

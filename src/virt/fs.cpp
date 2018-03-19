@@ -44,20 +44,20 @@ using std::vector;
  */
 
 static string getcwd() {
-    char buf[PATH_MAX+1];
-    char* res = getcwd(buf, PATH_MAX);
+    char buf[PATH_MAX + 1];
+    char *res = getcwd(buf, PATH_MAX);
     assert(res);
     return string(res);
 }
 
-static string abspath(const string& path, const string& basepath) {
+static string abspath(const string &path, const string &basepath) {
     if (path.length() == 0) return path;
     if (path[0] == '/') return path;
     return basepath + "/" + path;
 }
 
-static string dirnamepath(const string& path) {
-    char* buf = strdup(path.c_str());
+static string dirnamepath(const string &path) {
+    char *buf = strdup(path.c_str());
     string res = dirname(buf);
     free(buf);
     return res;
@@ -65,7 +65,7 @@ static string dirnamepath(const string& path) {
 
 // Resolves at most one symlink, returns an absolute path
 // Works fine if file does not exist --- it will return the same path
-string resolvepath(const string& path) {
+string resolvepath(const string &path) {
     string ap = abspath(path, getcwd());
     if (ap.length() == 0) return ap;
 
@@ -82,17 +82,17 @@ string resolvepath(const string& path) {
     for (uint32_t i = 0; i < comps.size(); i++) {
         if (comps[i] == "..") {
             cur = dirnamepath(cur); // reaching / is safe, (/.. returns /)
-            if ((i+1) < comps.size()) cur += "/";
+            if ((i + 1) < comps.size()) cur += "/";
             continue;
         }
         string p = cur + comps[i];
 
-        char buf[PATH_MAX+1];
+        char buf[PATH_MAX + 1];
         int res = readlink(p.c_str(), buf, PATH_MAX);
         if (res < 0) {
             // not a symlink, keep going
             cur = p;
-            if ((i+1) < comps.size()) cur += "/";
+            if ((i + 1) < comps.size()) cur += "/";
         } else {
             // NULL-terminate the string (readlink doesn't)
             assert(res <= PATH_MAX);
@@ -101,7 +101,7 @@ string resolvepath(const string& path) {
             // Reconstruct rest of the path
             string link = buf;
             string newpath = abspath(link, cur);
-            for (uint32_t j = i+1; j < comps.size(); j++) {
+            for (uint32_t j = i + 1; j < comps.size(); j++) {
                 newpath += "/" + comps[j];
             }
             cur = newpath;
@@ -116,10 +116,10 @@ string resolvepath(const string& path) {
 vector<string> listdir(string dir) {
     vector<string> files;
 
-    DIR* d = opendir(dir.c_str());
+    DIR *d = opendir(dir.c_str());
     if (!d) panic("Invalid dir %s", dir.c_str());
 
-    struct dirent* de;
+    struct dirent *de;
     while ((de = readdir(d)) != nullptr) {
         string s = de->d_name;
         if (s == ".") continue;
@@ -131,7 +131,7 @@ vector<string> listdir(string dir) {
     return files;
 }
 
-vector<string>* getFakedPaths(const char* patchRoot) {
+vector<string> *getFakedPaths(const char *patchRoot) {
     vector<string> rootFiles = listdir(patchRoot);
     auto pi = std::find(rootFiles.begin(), rootFiles.end(), "proc");
 
@@ -144,7 +144,7 @@ vector<string>* getFakedPaths(const char* patchRoot) {
         }
     }
 
-    vector<string>* res = new vector<string>();
+    vector<string> *res = new vector<string>();
     for (auto f : rootFiles) {
         res->push_back("/" + f);
     }
@@ -152,15 +152,15 @@ vector<string>* getFakedPaths(const char* patchRoot) {
     return res;
 }
 
-static const vector<string>* fakedPaths = nullptr; //{"/proc/cputinfo", "/proc/stat", "/sys", "/lib", "/usr"};
+static const vector<string> *fakedPaths = nullptr; //{"/proc/cputinfo", "/proc/stat", "/sys", "/lib", "/usr"};
 static uint32_t numInfos = 0;
 static const uint32_t MAX_INFOS = 100;
 
 // SYS_open and SYS_openat; these are ALWAYS patched
 PostPatchFn PatchOpen(PrePatchArgs args) {
-    CONTEXT* ctxt = args.ctxt;
+    CONTEXT *ctxt = args.ctxt;
     SYSCALL_STANDARD std = args.std;
-    const char* patchRoot = args.patchRoot;
+    const char *patchRoot = args.patchRoot;
 
     uint32_t syscall = PIN_GetSyscallNumber(ctxt, std);
     assert(syscall == SYS_open || syscall == SYS_openat);
@@ -168,19 +168,19 @@ PostPatchFn PatchOpen(PrePatchArgs args) {
     if (!patchRoot) return NullPostPatch;  // process does not want patched system...
 
     string fileName;
-    int pathReg = (syscall == SYS_open)? 0 : 1;
+    int pathReg = (syscall == SYS_open) ? 0 : 1;
     ADDRINT pathArg = PIN_GetSyscallArgument(ctxt, std, pathReg);
-    if (pathArg) fileName = (const char*) pathArg;  // TODO(dsm): SafeCopy
+    if (pathArg) fileName = (const char *) pathArg;  // TODO(dsm): SafeCopy
     if (syscall == SYS_openat) {
         // Get path relative to dirfd's path; if AT_CWDFD, readlink() should fail
         int dirfd = PIN_GetSyscallArgument(ctxt, std, 0);
-        char buf[PATH_MAX+1];
+        char buf[PATH_MAX + 1];
         string fd = "/proc/self/fd/" + Str(dirfd);
         int res = readlink(fd.c_str(), buf, PATH_MAX);
         if (res > 0) {
             buf[res] = '\0';  // argh... readlink does not null-terminate strings!
             // Double-check deref'd symlink is valid
-            char* rp = realpath(buf, nullptr);
+            char *rp = realpath(buf, nullptr);
             if (rp) {
                 fileName = string(buf) + "/" + fileName;
                 free(rp);
@@ -217,7 +217,7 @@ PostPatchFn PatchOpen(PrePatchArgs args) {
             //FILE * patchedFd = fopen(patchPath.c_str(), "r");
             //if (patchedFd) fclose(patchedFd); else patch = false;
             if (patch) {
-                char* patchPathMem = strdup(patchPath.c_str());  // in heap
+                char *patchPathMem = strdup(patchPath.c_str());  // in heap
                 if (numInfos <= MAX_INFOS) {
                     info("Patched SYS_open, original %s, patched %s", fileName.c_str(), patchPathMem);
                     if (numInfos == MAX_INFOS) {

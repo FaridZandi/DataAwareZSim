@@ -41,83 +41,86 @@ namespace DRAMSim {
 class DRAMSimAccEvent;
 
 class DRAMSimMemory : public MemObject { //one DRAMSim controller
-    private:
-        g_string name;
-        uint32_t minLatency;
-        uint32_t domain;
+private:
+    g_string name;
+    uint32_t minLatency;
+    uint32_t domain;
 
-        DRAMSim::MultiChannelMemorySystem* dramCore;
+    DRAMSim::MultiChannelMemorySystem *dramCore;
 
-        std::multimap<uint64_t, DRAMSimAccEvent*> inflightRequests;
+    std::multimap<uint64_t, DRAMSimAccEvent *> inflightRequests;
 
-        uint64_t curCycle; //processor cycle, used in callbacks
+    uint64_t curCycle; //processor cycle, used in callbacks
 
-        // R/W stats
-        PAD();
-        Counter profReads;
-        Counter profWrites;
-        Counter profTotalRdLat;
-        Counter profTotalWrLat;
-        PAD();
+    // R/W stats
+    PAD();
+    Counter profReads;
+    Counter profWrites;
+    Counter profTotalRdLat;
+    Counter profTotalWrLat;
+    PAD();
 
-    public:
-        DRAMSimMemory(std::string& dramTechIni, std::string& dramSystemIni, std::string& outputDir, std::string& traceName, uint32_t capacityMB,
-                uint64_t cpuFreqHz,  uint32_t _minLatency, uint32_t _domain, const g_string& _name);
+public:
+    DRAMSimMemory(std::string &dramTechIni, std::string &dramSystemIni, std::string &outputDir, std::string &traceName,
+                  uint32_t capacityMB,
+                  uint64_t cpuFreqHz, uint32_t _minLatency, uint32_t _domain, const g_string &_name);
 
-        const char* getName() {return name.c_str();}
+    const char *getName() { return name.c_str(); }
 
-        void initStats(AggregateStat* parentStat);
+    void initStats(AggregateStat *parentStat);
 
-        // Record accesses
-        uint64_t access(MemReq& req, int type, uint32_t data_size = 4);
-        uint64_t access(MemReq& req); // { return access(req, 0, 1); };
+    // Record accesses
+    uint64_t access(MemReq &req, int type, uint32_t data_size = 4);
 
-        // Event-driven simulation (phase 2)
-        uint32_t tick(uint64_t cycle);
-        void enqueue(DRAMSimAccEvent* ev, uint64_t cycle);
+    uint64_t access(MemReq &req); // { return access(req, 0, 1); };
 
-    private:
-        void DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
-        void DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
+    // Event-driven simulation (phase 2)
+    uint32_t tick(uint64_t cycle);
+
+    void enqueue(DRAMSimAccEvent *ev, uint64_t cycle);
+
+private:
+    void DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
+
+    void DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
 };
 
 //DRAMSIM does not support non-pow2 channels, so:
 // - Encapsulate multiple DRAMSim controllers
 // - Fan out addresses interleaved across banks, and change the address to a "memory address"
 class SplitAddrMemory : public MemObject {
-    private:
-        const g_vector<MemObject*> mems;
-        const g_string name;
-		uint32_t _mapping_granu;   
-    public:
-        SplitAddrMemory(const g_vector<MemObject*>& _mems, const char* _name, Config& config) 
-			: mems(_mems), name(_name) 
-		{
-			// 64 cachelines = 4096 bytes (page granularity mapping)
-			_mapping_granu = config.get<uint32_t>("sys.mem.mapGranu", 64); 
-		}
+private:
+    const g_vector<MemObject *> mems;
+    const g_string name;
+    uint32_t _mapping_granu;
+public:
+    SplitAddrMemory(const g_vector<MemObject *> &_mems, const char *_name, Config &config)
+            : mems(_mems), name(_name) {
+        // 64 cachelines = 4096 bytes (page granularity mapping)
+        _mapping_granu = config.get<uint32_t>("sys.mem.mapGranu", 64);
+    }
 
-        uint64_t access(MemReq& req) {
-            Address addr = req.lineAddr;
-			uint32_t mem = (addr / _mapping_granu) % mems.size();
-			Address sel1 = addr / _mapping_granu / mems.size();
-			Address sel2 = addr % _mapping_granu;
-			req.lineAddr = sel1 * _mapping_granu + sel2;  
-            //uint32_t mem = addr % mems.size();
-            //Address ctrlAddr = addr/mems.size();
-            //req.lineAddr = ctrlAddr;
-            uint64_t respCycle = mems[mem]->access(req);
-            req.lineAddr = addr;
-            return respCycle;
-        }
+    uint64_t access(MemReq &req) {
+        Address addr = req.lineAddr;
+        uint32_t mem = (addr / _mapping_granu) % mems.size();
+        Address sel1 = addr / _mapping_granu / mems.size();
+        Address sel2 = addr % _mapping_granu;
+        req.lineAddr = sel1 * _mapping_granu + sel2;
+        //uint32_t mem = addr % mems.size();
+        //Address ctrlAddr = addr/mems.size();
+        //req.lineAddr = ctrlAddr;
+        uint64_t respCycle = mems[mem]->access(req);
+        req.lineAddr = addr;
+        return respCycle;
+    }
 
-        const char* getName() {
-            return name.c_str();
-        }
+    const char *getName() {
+        return name.c_str();
+    }
 
-        void initStats(AggregateStat* parentStat) {
-            for (auto mem : mems) mem->initStats(parentStat);
-        }
+    void initStats(AggregateStat *parentStat) {
+        for (auto mem : mems) mem->initStats(parentStat);
+    }
 };
 
 #endif  // DRAMSIM_MEM_CTRL_H_

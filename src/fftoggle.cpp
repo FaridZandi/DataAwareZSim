@@ -40,13 +40,13 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    const char* cmd = argv[1];
+    const char *cmd = argv[1];
     int shmid = atoi(argv[2]);
-    int procIdx = (argc == 4)? atoi(argv[3]) : -1;
+    int procIdx = (argc == 4) ? atoi(argv[3]) : -1;
 
     gm_attach(shmid);
     while (!gm_isready()) sched_yield(); //wait till proc idx 0 initializes everything; sched_yield to avoid livelock with lots of processes
-    GlobSimInfo* zinfo = static_cast<GlobSimInfo*>(gm_get_glob_ptr());
+    GlobSimInfo *zinfo = static_cast<GlobSimInfo *>(gm_get_glob_ptr());
 
     if (strcmp(cmd, "ff") == 0) {
         if (procIdx < 0) panic("ff needs procIdx");

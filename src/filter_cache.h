@@ -45,153 +45,160 @@
  */
 
 class FilterCache : public Cache {
-    private:
-        struct FilterEntry {
-            volatile Address rdAddr;
-            volatile Address wrAddr;
-            volatile uint64_t availCycle;
+private:
+    struct FilterEntry {
+        volatile Address rdAddr;
+        volatile Address wrAddr;
+        volatile uint64_t availCycle;
 
-            void clear() {wrAddr = 0; rdAddr = 0; availCycle = 0;}
-        };
-
-        //Replicates the most accessed line of each set in the cache
-        FilterEntry* filterArray;
-        Address setMask;
-        uint32_t numSets;
-        uint32_t srcId; //should match the core
-        uint32_t reqFlags;
-
-        lock_t filterLock;
-        uint64_t fGETSHit, fGETXHit;
-		// this is not an accurate tlb. It just randomize the page nums   
-		bool _enable_tlb;
-		drand48_data _buffer;
-		g_unordered_map <Address, Address> _tlb;
-		g_unordered_set <Address> _exist_pgnum; 
-    public:
-        FilterCache(uint32_t _numSets, uint32_t _numLines, CC* _cc, CacheArray* _array,
-                ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, g_string& _name, Config &config)
-            : Cache(_numLines, _cc, _array, _rp, _accLat, _invLat, _name)
-        {
-            numSets = _numSets;
-            setMask = numSets - 1;
-            filterArray = gm_memalign<FilterEntry>(CACHE_LINE_BYTES, numSets);
-            for (uint32_t i = 0; i < numSets; i++) filterArray[i].clear();
-            futex_init(&filterLock);
-            fGETSHit = fGETXHit = 0;
-            srcId = -1;
-            reqFlags = 0;
-			_enable_tlb = config.get<bool>("sim.enableTLB", false);
-			srand48_r((uint64_t)this, &_buffer);
+        void clear() {
+            wrAddr = 0;
+            rdAddr = 0;
+            availCycle = 0;
         }
+    };
 
-        void setSourceId(uint32_t id) {
-            srcId = id;
+    //Replicates the most accessed line of each set in the cache
+    FilterEntry *filterArray;
+    Address setMask;
+    uint32_t numSets;
+    uint32_t srcId; //should match the core
+    uint32_t reqFlags;
+
+    lock_t filterLock;
+    uint64_t fGETSHit, fGETXHit;
+    // this is not an accurate tlb. It just randomize the page nums
+    bool _enable_tlb;
+    drand48_data _buffer;
+    g_unordered_map<Address, Address> _tlb;
+    g_unordered_set<Address> _exist_pgnum;
+public:
+    FilterCache(uint32_t _numSets, uint32_t _numLines, CC *_cc, CacheArray *_array,
+                ReplPolicy *_rp, uint32_t _accLat, uint32_t _invLat, g_string &_name, Config &config)
+            : Cache(_numLines, _cc, _array, _rp, _accLat, _invLat, _name) {
+        numSets = _numSets;
+        setMask = numSets - 1;
+        filterArray = gm_memalign<FilterEntry>(CACHE_LINE_BYTES, numSets);
+        for (uint32_t i = 0; i < numSets; i++) filterArray[i].clear();
+        futex_init(&filterLock);
+        fGETSHit = fGETXHit = 0;
+        srcId = -1;
+        reqFlags = 0;
+        _enable_tlb = config.get<bool>("sim.enableTLB", false);
+        srand48_r((uint64_t) this, &_buffer);
+    }
+
+    void setSourceId(uint32_t id) {
+        srcId = id;
+    }
+
+    void setFlags(uint32_t flags) {
+        reqFlags = flags;
+    }
+
+    void initStats(AggregateStat *parentStat) {
+        AggregateStat *cacheStat = new AggregateStat();
+        cacheStat->init(name.c_str(), "Filter cache stats");
+
+        ProxyStat *fgetsStat = new ProxyStat();
+        fgetsStat->init("fhGETS", "Filtered GETS hits", &fGETSHit);
+        ProxyStat *fgetxStat = new ProxyStat();
+        fgetxStat->init("fhGETX", "Filtered GETX hits", &fGETXHit);
+        cacheStat->append(fgetsStat);
+        cacheStat->append(fgetxStat);
+
+        initCacheStats(cacheStat);
+        parentStat->append(cacheStat);
+    }
+
+    inline uint64_t load(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
+
+        Address vLineAddr = vAddr >> lineBits;
+        uint32_t idx = vLineAddr & setMask;
+        uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
+        if (vLineAddr == filterArray[idx].rdAddr) {
+            fGETSHit++;
+            return MAX(curCycle, availCycle);
+        } else {
+            return replace(vLineAddr, idx, true, curCycle, pc /*Kasraa*/);
         }
+    }
 
-        void setFlags(uint32_t flags) {
-            reqFlags = flags;
+    inline uint64_t store(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
+        Address vLineAddr = vAddr >> lineBits;
+        uint32_t idx = vLineAddr & setMask;
+        uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
+        if (vLineAddr == filterArray[idx].wrAddr) {
+            fGETXHit++;
+            //NOTE: Stores don't modify availCycle; we'll catch matches in the core
+            //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
+            return MAX(curCycle, availCycle);
+        } else {
+            return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/);
         }
+    }
 
-        void initStats(AggregateStat* parentStat) {
-            AggregateStat* cacheStat = new AggregateStat();
-            cacheStat->init(name.c_str(), "Filter cache stats");
-
-            ProxyStat* fgetsStat = new ProxyStat();
-            fgetsStat->init("fhGETS", "Filtered GETS hits", &fGETSHit);
-            ProxyStat* fgetxStat = new ProxyStat();
-            fgetxStat->init("fhGETX", "Filtered GETX hits", &fGETXHit);
-            cacheStat->append(fgetsStat);
-            cacheStat->append(fgetxStat);
-
-            initCacheStats(cacheStat);
-            parentStat->append(cacheStat);
-        }
-
-        inline uint64_t load(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
-            Address vLineAddr = vAddr >> lineBits;
-            uint32_t idx = vLineAddr & setMask;
-            uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
-            if (vLineAddr == filterArray[idx].rdAddr) {
-                fGETSHit++;
-                return MAX(curCycle, availCycle);
-            } else {
-                return replace(vLineAddr, idx, true, curCycle, pc /*Kasraa*/);
-            }
-        }
-
-        inline uint64_t store(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
-            Address vLineAddr = vAddr >> lineBits;
-            uint32_t idx = vLineAddr & setMask;
-            uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
-            if (vLineAddr == filterArray[idx].wrAddr) {
-                fGETXHit++;
-                //NOTE: Stores don't modify availCycle; we'll catch matches in the core
-                //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
-                return MAX(curCycle, availCycle);
-            } else {
-                return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/);
-            }
-        }
-
-        uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle, Address pc /*Kasraa*/) {
-			Address pLineAddr;
-			// page num = vLineAddr shifted by 6 bits. So it is shifted by 12 bits in total (4KB page size)
-			if (_enable_tlb) {
-				Address vpgnum = vLineAddr >> 6; 
-				uint64_t pgnum;
-        	    futex_lock(&filterLock);
-				if (_tlb.find(vpgnum) == _tlb.end()) {
-					do {
-						int64_t rand;
-						lrand48_r(&_buffer, &rand);
-						pgnum = rand & 0x000fffffffffffff;
-					} while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
-					_tlb[vpgnum] = pgnum;
-					_exist_pgnum.insert( pgnum );
-				} else 
-					pgnum = _tlb[vpgnum];	
-				pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f); 
-			} else 
-            	pLineAddr = procMask | vLineAddr;
-            MESIState dummyState = MESIState::I;
-            MemReq req = {pLineAddr, isLoad? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId, reqFlags, pc};
-            uint64_t respCycle  = access(req);
-
-            //Due to the way we do the locking, at this point the old address might be invalidated, but we have the new address guaranteed until we release the lock
-
-            //Careful with this order
-            Address oldAddr = filterArray[idx].rdAddr;
-            filterArray[idx].wrAddr = isLoad? -1L : vLineAddr;
-            filterArray[idx].rdAddr = vLineAddr;
-
-            //For LSU simulation purposes, loads bypass stores even to the same line if there is no conflict,
-            //(e.g., st to x, ld from x+8) and we implement store-load forwarding at the core.
-            //So if this is a load, it always sets availCycle; if it is a store hit, it doesn't
-            if (oldAddr != vLineAddr) filterArray[idx].availCycle = respCycle;
-
-            futex_unlock(&filterLock);
-            return respCycle;
-        }
-
-        uint64_t invalidate(const InvReq& req) {
-            Cache::startInvalidate();  // grabs cache's downLock
+    uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle, Address pc /*Kasraa*/) {
+        Address pLineAddr;
+        // page num = vLineAddr shifted by 6 bits. So it is shifted by 12 bits in total (4KB page size)
+        if (_enable_tlb) {
+            Address vpgnum = vLineAddr >> 6;
+            uint64_t pgnum;
             futex_lock(&filterLock);
-            uint32_t idx = req.lineAddr & setMask; //works because of how virtual<->physical is done...
-            if ((filterArray[idx].rdAddr | procMask) == req.lineAddr) { //FIXME: If another process calls invalidate(), procMask will not match even though we may be doing a capacity-induced invalidation!
-                filterArray[idx].wrAddr = -1L;
-                filterArray[idx].rdAddr = -1L;
-            }
-            uint64_t respCycle = Cache::finishInvalidate(req); // releases cache's downLock
-            futex_unlock(&filterLock);
-            return respCycle;
-        }
+            if (_tlb.find(vpgnum) == _tlb.end()) {
+                do {
+                    int64_t rand;
+                    lrand48_r(&_buffer, &rand);
+                    pgnum = rand & 0x000fffffffffffff;
+                } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+                _tlb[vpgnum] = pgnum;
+                _exist_pgnum.insert(pgnum);
+            } else
+                pgnum = _tlb[vpgnum];
+            pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f);
+        } else
+            pLineAddr = procMask | vLineAddr;
 
-        void contextSwitch() {
-            futex_lock(&filterLock);
-            for (uint32_t i = 0; i < numSets; i++) filterArray[i].clear();
-            futex_unlock(&filterLock);
+        MESIState dummyState = MESIState::I;
+        MemReq req = {pLineAddr, isLoad ? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId,
+                      reqFlags, pc};
+        uint64_t respCycle = access(req);
+
+        //Due to the way we do the locking, at this point the old address might be invalidated, but we have the new address guaranteed until we release the lock
+
+        //Careful with this order
+        Address oldAddr = filterArray[idx].rdAddr;
+        filterArray[idx].wrAddr = isLoad ? -1L : vLineAddr;
+        filterArray[idx].rdAddr = vLineAddr;
+
+        //For LSU simulation purposes, loads bypass stores even to the same line if there is no conflict,
+        //(e.g., st to x, ld from x+8) and we implement store-load forwarding at the core.
+        //So if this is a load, it always sets availCycle; if it is a store hit, it doesn't
+        if (oldAddr != vLineAddr) filterArray[idx].availCycle = respCycle;
+
+        futex_unlock(&filterLock);
+        return respCycle;
+    }
+
+    uint64_t invalidate(const InvReq &req) {
+        Cache::startInvalidate();  // grabs cache's downLock
+        futex_lock(&filterLock);
+        uint32_t idx = req.lineAddr & setMask; //works because of how virtual<->physical is done...
+        if ((filterArray[idx].rdAddr | procMask) ==
+            req.lineAddr) { //FIXME: If another process calls invalidate(), procMask will not match even though we may be doing a capacity-induced invalidation!
+            filterArray[idx].wrAddr = -1L;
+            filterArray[idx].rdAddr = -1L;
         }
+        uint64_t respCycle = Cache::finishInvalidate(req); // releases cache's downLock
+        futex_unlock(&filterLock);
+        return respCycle;
+    }
+
+    void contextSwitch() {
+        futex_lock(&filterLock);
+        for (uint32_t i = 0; i < numSets; i++) filterArray[i].clear();
+        futex_unlock(&filterLock);
+    }
 };
 
 #endif  // FILTER_CACHE_H_

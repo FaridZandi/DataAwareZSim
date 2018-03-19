@@ -32,68 +32,69 @@
 class TimingCoreEvent;
 
 class CoreRecorder {
-    private:
-        typedef enum {
-            HALTED, //Not scheduled, no events left. Initial state. join() --> RUNNING
-            RUNNING, //Scheduled. leave() --> DRAINING
-            DRAINING //Not scheduled, but events remain. join() --> RUNNING; all events done --> HALTED
-        } State;
+private:
+    typedef enum {
+        HALTED, //Not scheduled, no events left. Initial state. join() --> RUNNING
+        RUNNING, //Scheduled. leave() --> DRAINING
+        DRAINING //Not scheduled, but events remain. join() --> RUNNING; all events done --> HALTED
+    } State;
 
-        State state;
+    State state;
 
-        /* There are 2 clocks:
-         *  - phase 1 clock = curCycle and is maintained by the bound phase contention-free core model
-         *  - phase 2 clock = curCycle - gapCycles is the zll clock
-         *  We maintain gapCycles, and only get curCycle on function calls. Some of those calls also
-         *  need to change curCycle, so they just return an updated version that the bound phase model
-         *  needs to take. However, **we have no idea about curCycle outside of those calls**.
-         *  Defend this invariant with your life or you'll find this horrible to reason about.
-         */
-        uint64_t gapCycles; //phase 2 clock == curCycle - gapCycles
+    /* There are 2 clocks:
+     *  - phase 1 clock = curCycle and is maintained by the bound phase contention-free core model
+     *  - phase 2 clock = curCycle - gapCycles is the zll clock
+     *  We maintain gapCycles, and only get curCycle on function calls. Some of those calls also
+     *  need to change curCycle, so they just return an updated version that the bound phase model
+     *  needs to take. However, **we have no idea about curCycle outside of those calls**.
+     *  Defend this invariant with your life or you'll find this horrible to reason about.
+     */
+    uint64_t gapCycles; //phase 2 clock == curCycle - gapCycles
 
-        //Event bookkeeping
-        EventRecorder eventRecorder;
-        uint64_t prevRespCycle;
-        TimingEvent* prevRespEvent;
-        uint64_t lastEventSimulatedStartCycle;
-        uint64_t lastEventSimulatedOrigStartCycle;
+    //Event bookkeeping
+    EventRecorder eventRecorder;
+    uint64_t prevRespCycle;
+    TimingEvent *prevRespEvent;
+    uint64_t lastEventSimulatedStartCycle;
+    uint64_t lastEventSimulatedOrigStartCycle;
 
-        //Cycle accounting
-        uint64_t totalGapCycles; //does not include gapCycles
-        uint64_t totalHaltedCycles; //does not include cycles since last transition to HALTED
-        uint64_t lastUnhaltedCycle; //set on transition to HALTED
+    //Cycle accounting
+    uint64_t totalGapCycles; //does not include gapCycles
+    uint64_t totalHaltedCycles; //does not include cycles since last transition to HALTED
+    uint64_t lastUnhaltedCycle; //set on transition to HALTED
 
-        uint32_t domain;
-        g_string name;
+    uint32_t domain;
+    g_string name;
 
-    public:
-        CoreRecorder(uint32_t _domain, g_string& _name);
+public:
+    CoreRecorder(uint32_t _domain, g_string &_name);
 
-        //Methods called in the bound phase
-        uint64_t notifyJoin(uint64_t curCycle); //returns th updated curCycle, if it needs updating
-        void notifyLeave(uint64_t curCycle);
+    //Methods called in the bound phase
+    uint64_t notifyJoin(uint64_t curCycle); //returns th updated curCycle, if it needs updating
+    void notifyLeave(uint64_t curCycle);
 
-        //This better be inlined 100% of the time, it's called on EVERY access
-        inline void record(uint64_t startCycle) {
-            if (unlikely(eventRecorder.hasRecord())) recordAccess(startCycle);
-        }
+    //This better be inlined 100% of the time, it's called on EVERY access
+    inline void record(uint64_t startCycle) {
+        if (unlikely(eventRecorder.hasRecord())) recordAccess(startCycle);
+    }
 
-        //Methods called between the bound and weave phases
-        uint64_t cSimStart(uint64_t curCycle); //returns updated curCycle
-        uint64_t cSimEnd(uint64_t curCycle); //returns updated curCycle
+    //Methods called between the bound and weave phases
+    uint64_t cSimStart(uint64_t curCycle); //returns updated curCycle
+    uint64_t cSimEnd(uint64_t curCycle); //returns updated curCycle
 
-        //Methods called in the weave phase
-        inline void reportEventSimulated(TimingCoreEvent* ev);
+    //Methods called in the weave phase
+    inline void reportEventSimulated(TimingCoreEvent *ev);
 
-        //Misc
-        inline EventRecorder* getEventRecorder() {return &eventRecorder;}
+    //Misc
+    inline EventRecorder *getEventRecorder() { return &eventRecorder; }
 
-        //Stats (called fully synchronized)
-        uint64_t getUnhaltedCycles(uint64_t curCycle) const;
-        uint64_t getContentionCycles() const;
+    //Stats (called fully synchronized)
+    uint64_t getUnhaltedCycles(uint64_t curCycle) const;
 
-    private:
-        void recordAccess(uint64_t startCycle);
+    uint64_t getContentionCycles() const;
+
+private:
+    void recordAccess(uint64_t startCycle);
 };
 
 #endif  // CORE_RECORDER_H_

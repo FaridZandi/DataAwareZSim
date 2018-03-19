@@ -49,54 +49,56 @@ struct PackedAccessRecord {
 
 
 class AccessTraceReader {
-    private:
-        PackedAccessRecord* buf;
-        uint32_t cur;
-        uint32_t max;
-        g_string fname;
+private:
+    PackedAccessRecord *buf;
+    uint32_t cur;
+    uint32_t max;
+    g_string fname;
 
-        uint64_t curFrameRecord;
-        uint64_t numRecords;
-        uint32_t numChildren; //i.e., how many parallel streams does this file contain?
+    uint64_t curFrameRecord;
+    uint64_t numRecords;
+    uint32_t numChildren; //i.e., how many parallel streams does this file contain?
 
-    public:
-        AccessTraceReader(std::string fname);
+public:
+    AccessTraceReader(std::string fname);
 
-        inline bool empty() const {return (cur == max);}
-        uint32_t getNumChildren() const {return numChildren;}
-        uint64_t getNumRecords() const {return numRecords;}
+    inline bool empty() const { return (cur == max); }
 
-        inline AccessRecord read() {
-            assert(cur < max);
-            PackedAccessRecord& pr = buf[cur++];
-            AccessRecord rec = {pr.lineAddr, pr.reqCycle, pr.latency, pr.childId, (AccessType) pr.type};
-            if (unlikely(cur == max)) nextChunk();
-            return rec;
-        }
+    uint32_t getNumChildren() const { return numChildren; }
 
-    private:
-        void nextChunk();
+    uint64_t getNumRecords() const { return numRecords; }
+
+    inline AccessRecord read() {
+        assert(cur < max);
+        PackedAccessRecord &pr = buf[cur++];
+        AccessRecord rec = {pr.lineAddr, pr.reqCycle, pr.latency, pr.childId, (AccessType) pr.type};
+        if (unlikely(cur == max)) nextChunk();
+        return rec;
+    }
+
+private:
+    void nextChunk();
 };
 
 class AccessTraceWriter : public GlobAlloc {
-    private:
-        PackedAccessRecord* buf;
-        uint32_t cur;
-        uint32_t max;
-        g_string fname;
+private:
+    PackedAccessRecord *buf;
+    uint32_t cur;
+    uint32_t max;
+    g_string fname;
 
-    public:
-        AccessTraceWriter(g_string fname, uint32_t numChildren);
+public:
+    AccessTraceWriter(g_string fname, uint32_t numChildren);
 
-        inline void write(AccessRecord& acc) {
-            buf[cur++] = {acc.lineAddr, acc.reqCycle, acc.latency, (uint16_t) acc.childId, (uint8_t) acc.type};
-            if (unlikely(cur == max)) {
-                dump(true);
-                assert(cur < max);
-            }
+    inline void write(AccessRecord &acc) {
+        buf[cur++] = {acc.lineAddr, acc.reqCycle, acc.latency, (uint16_t) acc.childId, (uint8_t) acc.type};
+        if (unlikely(cur == max)) {
+            dump(true);
+            assert(cur < max);
         }
+    }
 
-        void dump(bool cont);
+    void dump(bool cont);
 };
 
 #endif  // _ACCESS_TRACING_H

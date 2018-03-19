@@ -27,16 +27,14 @@
 
 // UMon
 
-UMonMonitor::UMonMonitor(uint32_t _numLines, uint32_t _umonLines, uint32_t _umonBuckets, uint32_t _numPartitions, uint32_t _buckets)
-        : PartitionMonitor(_buckets)
-        , missCache(nullptr)
-        , missCacheValid(false)
-        , monitors(_numPartitions, nullptr) {
+UMonMonitor::UMonMonitor(uint32_t _numLines, uint32_t _umonLines, uint32_t _umonBuckets, uint32_t _numPartitions,
+                         uint32_t _buckets)
+        : PartitionMonitor(_buckets), missCache(nullptr), missCacheValid(false), monitors(_numPartitions, nullptr) {
     assert(_numPartitions > 0);
 
     missCache = gm_calloc<uint32_t>(_buckets * _numPartitions);
 
-    for (auto& monitor : monitors) {
+    for (auto &monitor : monitors) {
         monitor = new UMon(_numLines, _umonLines, _umonBuckets);
     }
 }
@@ -74,21 +72,21 @@ uint32_t UMonMonitor::get(uint32_t partition, uint32_t bucket) const {
         missCacheValid = true;
     }
 
-    return missCache[partition*buckets+bucket];
+    return missCache[partition * buckets + bucket];
 }
 
 void UMonMonitor::getMissCurves() const {
     for (uint32_t partition = 0; partition < getNumPartitions(); partition++) {
-        getMissCurve(&missCache[partition*buckets], partition);
+        getMissCurve(&missCache[partition * buckets], partition);
     }
 }
 
-void UMonMonitor::getMissCurve(uint32_t* misses, uint32_t partition) const {
+void UMonMonitor::getMissCurve(uint32_t *misses, uint32_t partition) const {
     assert(partition < monitors.size());
 
     auto monitor = monitors[partition];
     uint32_t umonBuckets = monitor->getBuckets();
-    uint64_t umonMisses[ umonBuckets ];
+    uint64_t umonMisses[umonBuckets];
 
     monitor->getMisses(umonMisses);
 
@@ -97,25 +95,25 @@ void UMonMonitor::getMissCurve(uint32_t* misses, uint32_t partition) const {
     // We have an odd number of elements; the last one is the one that
     // should not be aliased, as it is the one without buckets
     if (umonBuckets >= buckets) {
-        uint32_t downsampleRatio = umonBuckets/buckets;
+        uint32_t downsampleRatio = umonBuckets / buckets;
         assert(umonBuckets % buckets == 0);
         //info("Downsampling (or keeping sampling), ratio %d", downsampleRatio);
         for (uint32_t j = 0; j < buckets; j++) {
-            misses[j] = umonMisses[j*downsampleRatio];
+            misses[j] = umonMisses[j * downsampleRatio];
         }
         misses[buckets] = umonMisses[umonBuckets];
     } else {
-        uint32_t upsampleRatio = buckets/umonBuckets;
+        uint32_t upsampleRatio = buckets / umonBuckets;
         assert(buckets % umonBuckets == 0);
         //info("Upsampling , ratio %d", upsampleRatio);
         for (uint32_t j = 0; j < umonBuckets; j++) {
-            misses[upsampleRatio*j] = umonMisses[j];
+            misses[upsampleRatio * j] = umonMisses[j];
             double m0 = umonMisses[j];
-            double m1 = umonMisses[j+1];
+            double m1 = umonMisses[j + 1];
             for (uint32_t k = 1; k < upsampleRatio; k++) {
-                double frac = ((double)k)/((double)upsampleRatio);
-                double m = m0*(1-frac) + m1*(frac);
-                misses[upsampleRatio*j + k] = (uint64_t)m;
+                double frac = ((double) k) / ((double) upsampleRatio);
+                double m = m0 * (1 - frac) + m1 * (frac);
+                misses[upsampleRatio * j + k] = (uint64_t) m;
             }
             misses[buckets] = umonMisses[umonBuckets];
         }

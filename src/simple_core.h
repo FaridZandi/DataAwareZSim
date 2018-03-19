@@ -35,41 +35,51 @@
 class FilterCache;
 
 class SimpleCore : public Core {
-    protected:
-        FilterCache* l1i;
-        FilterCache* l1d;
+protected:
+    FilterCache *l1i;
+    FilterCache *l1d;
 
-        uint64_t instrs;
-        uint64_t curCycle;
-        uint64_t phaseEndCycle; //next stopping point
-        uint64_t haltedCycles;
+    uint64_t instrs;
+    uint64_t curCycle;
+    uint64_t phaseEndCycle; //next stopping point
+    uint64_t haltedCycles;
 
-    public:
-        SimpleCore(FilterCache* _l1i, FilterCache* _l1d, g_string& _name);
-        void initStats(AggregateStat* parentStat);
+public:
+    SimpleCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name);
 
-        uint64_t getInstrs() const {return instrs;}
-        uint64_t getPhaseCycles() const;
-        uint64_t getCycles() const {return curCycle - haltedCycles;}
+    void initStats(AggregateStat *parentStat);
 
-        void contextSwitch(int32_t gid);
-        virtual void join();
+    uint64_t getInstrs() const { return instrs; }
 
-        InstrFuncPtrs GetFuncPtrs();
+    uint64_t getPhaseCycles() const;
 
-    protected:
-        //Simulation functions
-        inline void load(Address addr, Address pc /*Kasraa*/);
-        inline void store(Address addr, Address pc /*Kasraa*/);
-        inline void bbl(Address bblAddr, BblInfo* bblInstrs);
+    uint64_t getCycles() const { return curCycle - haltedCycles; }
 
-        static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo);
-        static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
-        static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+    void contextSwitch(int32_t gid);
 
-        static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
+    virtual void join();
+
+    InstrFuncPtrs GetFuncPtrs();
+
+protected:
+    //Simulation functions
+    inline void load(Address addr, Address pc /*Kasraa*/);
+
+    inline void store(Address addr, Address pc /*Kasraa*/);
+
+    inline void bbl(Address bblAddr, BblInfo *bblInstrs);
+
+    static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo);
+
+    static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
 }  ATTR_LINE_ALIGNED; //This needs to take up a whole cache line, or false sharing will be extremely frequent
 
 #endif  // SIMPLE_CORE_H_

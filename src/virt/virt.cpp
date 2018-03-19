@@ -36,7 +36,7 @@
 PrePatchFn prePatchFunctions[MAX_SYSCALLS];
 PostPatchFn postPatchFunctions[MAX_THREADS];
 
-const PostPatchFn NullPostPatch = [](PostPatchArgs) {return PPA_NOTHING;};
+const PostPatchFn NullPostPatch = [](PostPatchArgs) { return PPA_NOTHING; };
 
 // Common prepatch functions
 PostPatchFn NullPatch(PrePatchArgs) {
@@ -45,13 +45,16 @@ PostPatchFn NullPatch(PrePatchArgs) {
 
 PostPatchFn WarnTimingRelated(PrePatchArgs args) {
     uint32_t syscall = PIN_GetSyscallNumber(args.ctxt, args.std);
-    warn("[%d] Executing unvirtualized potentially timing-sensitive syscall: %s (%d)", args.tid, GetSyscallName(syscall), syscall);
+    warn("[%d] Executing unvirtualized potentially timing-sensitive syscall: %s (%d)", args.tid,
+         GetSyscallName(syscall), syscall);
     return NullPostPatch;
 }
 
 // Define all patch functions
 #define PF(syscall, pfn) PostPatchFn pfn(PrePatchArgs args);
+
 #include "virt/patchdefs.h"
+
 #undef PF
 
 void VirtInit() {
@@ -59,20 +62,22 @@ void VirtInit() {
 
     // Issue warnings on timing-sensitive syscalls
     for (uint32_t syscall : {SYS_select, SYS_getitimer, SYS_alarm, SYS_setitimer, SYS_semop,
-            SYS_gettimeofday, SYS_times, SYS_rt_sigtimedwait, SYS_time, SYS_futex, SYS_mq_timedsend,
-            SYS_mq_timedreceive, SYS_pselect6, SYS_ppoll}) {
+                             SYS_gettimeofday, SYS_times, SYS_rt_sigtimedwait, SYS_time, SYS_futex, SYS_mq_timedsend,
+                             SYS_mq_timedreceive, SYS_pselect6, SYS_ppoll}) {
         prePatchFunctions[syscall] = WarnTimingRelated;
     }
 
     // Bind all patch functions
-    #define PF(syscall, pfn) prePatchFunctions[syscall] = pfn;
-    #include "virt/patchdefs.h"
-    #undef PF
+#define PF(syscall, pfn) prePatchFunctions[syscall] = pfn;
+
+#include "virt/patchdefs.h"
+
+#undef PF
 }
 
 
 // Dispatch methods
-void VirtSyscallEnter(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std, const char* patchRoot, bool isNopThread) {
+void VirtSyscallEnter(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std, const char *patchRoot, bool isNopThread) {
     uint32_t syscall = PIN_GetSyscallNumber(ctxt, std);
     if (syscall >= MAX_SYSCALLS) {
         warn("syscall %d out of range", syscall);

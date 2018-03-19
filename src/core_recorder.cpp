@@ -31,27 +31,27 @@
 //#define DEBUG_MSG(args...) info(args)
 
 class TimingCoreEvent : public TimingEvent {
-    private:
-        uint64_t origStartCycle;
-        uint64_t startCycle;
-        CoreRecorder* cRec;
+private:
+    uint64_t origStartCycle;
+    uint64_t startCycle;
+    CoreRecorder *cRec;
 
-    public:
-        //NOTE: Only the first TimingCoreEvent after a thread join needs to be in a domain, hence the default parameter. Because these are inherently sequential and have a fixed delay, subsequent events can inherit the parent's domain, reducing domain xings and improving slack and performance
-        TimingCoreEvent(uint64_t _delay, uint64_t _origStartCycle, CoreRecorder* _cRec, int32_t domain = -1) : TimingEvent(0, _delay, domain), origStartCycle(_origStartCycle), cRec(_cRec) {}
+public:
+    //NOTE: Only the first TimingCoreEvent after a thread join needs to be in a domain, hence the default parameter. Because these are inherently sequential and have a fixed delay, subsequent events can inherit the parent's domain, reducing domain xings and improving slack and performance
+    TimingCoreEvent(uint64_t _delay, uint64_t _origStartCycle, CoreRecorder *_cRec, int32_t domain = -1) : TimingEvent(
+            0, _delay, domain), origStartCycle(_origStartCycle), cRec(_cRec) {}
 
-        void simulate(uint64_t _startCycle) {
-            startCycle = _startCycle;
-            cRec->reportEventSimulated(this);
-            done(startCycle);
-        }
+    void simulate(uint64_t _startCycle) {
+        startCycle = _startCycle;
+        cRec->reportEventSimulated(this);
+        done(startCycle);
+    }
 
-        friend class CoreRecorder;
+    friend class CoreRecorder;
 };
 
-CoreRecorder::CoreRecorder(uint32_t _domain, g_string& _name)
-    : domain(_domain), name(_name + "-rec")
-{
+CoreRecorder::CoreRecorder(uint32_t _domain, g_string &_name)
+        : domain(_domain), name(_name + "-rec") {
     prevRespEvent = nullptr;
     state = HALTED;
     gapCycles = 0;
@@ -74,7 +74,7 @@ uint64_t CoreRecorder::notifyJoin(uint64_t curCycle) {
         assert(lastUnhaltedCycle <= curCycle);
         totalHaltedCycles += curCycle - lastUnhaltedCycle;
 
-        prevRespEvent = new (eventRecorder) TimingCoreEvent(0, curCycle, this, domain);
+        prevRespEvent = new(eventRecorder) TimingCoreEvent(0, curCycle, this, domain);
         prevRespCycle = curCycle;
         prevRespEvent->setMinStartCycle(curCycle);
         prevRespEvent->queue(curCycle);
@@ -100,14 +100,14 @@ void CoreRecorder::notifyLeave(uint64_t curCycle) {
     //Taper off the event
     // Cover delay to curCycle
     uint64_t delay = curCycle - prevRespCycle;
-    TimingCoreEvent* ev = new (eventRecorder) TimingCoreEvent(delay, prevRespCycle-gapCycles, this);
+    TimingCoreEvent *ev = new(eventRecorder) TimingCoreEvent(delay, prevRespCycle - gapCycles, this);
     ev->setMinStartCycle(prevRespCycle);
     prevRespEvent->addChild(ev, eventRecorder);
     prevRespEvent = ev;
     prevRespCycle = curCycle;
 
     // Then put a zero-delay event that finishes the sequence
-    ev = new (eventRecorder) TimingCoreEvent(0, prevRespCycle-gapCycles, this);
+    ev = new(eventRecorder) TimingCoreEvent(0, prevRespCycle - gapCycles, this);
     ev->setMinStartCycle(prevRespCycle);
     prevRespEvent->addChild(ev, eventRecorder);
     prevRespEvent = ev;
@@ -118,14 +118,14 @@ void CoreRecorder::notifyLeave(uint64_t curCycle) {
 void CoreRecorder::recordAccess(uint64_t startCycle) {
     assert(eventRecorder.hasRecord());
     TimingRecord tr = eventRecorder.popRecord();
-    TimingEvent* origPrevResp = prevRespEvent;
+    TimingEvent *origPrevResp = prevRespEvent;
 
     assert(startCycle >= prevRespCycle);
     assert(tr.reqCycle >= startCycle);
 
     if (IsGet(tr.type)) {
         uint64_t delay = tr.reqCycle - prevRespCycle;
-        TimingEvent* ev = new (eventRecorder) TimingCoreEvent(delay, prevRespCycle - gapCycles, this);
+        TimingEvent *ev = new(eventRecorder) TimingCoreEvent(delay, prevRespCycle - gapCycles, this);
         ev->setMinStartCycle(prevRespCycle);
         prevRespEvent->addChild(ev, eventRecorder)->addChild(tr.startEvent, eventRecorder);
         prevRespEvent = tr.endEvent;
@@ -134,7 +134,7 @@ void CoreRecorder::recordAccess(uint64_t startCycle) {
     } else {
         assert(IsPut(tr.type));
         // Link previous response and this req directly (don't even create a new event)
-        DelayEvent* dr = new (eventRecorder) DelayEvent(tr.reqCycle - prevRespCycle);
+        DelayEvent *dr = new(eventRecorder) DelayEvent(tr.reqCycle - prevRespCycle);
         dr->setMinStartCycle(prevRespCycle);
         prevRespEvent->addChild(dr, eventRecorder)->addChild(tr.startEvent, eventRecorder);
         //tr.endEvent not linked to anything, it's a PUT
@@ -159,7 +159,7 @@ uint64_t CoreRecorder::cSimStart(uint64_t curCycle) {
         // Cover delay to curCycle
         if (prevRespCycle < curCycle) {
             uint64_t delay = curCycle - prevRespCycle;
-            TimingCoreEvent* ev = new (eventRecorder) TimingCoreEvent(delay, prevRespCycle-gapCycles, this);
+            TimingCoreEvent *ev = new(eventRecorder) TimingCoreEvent(delay, prevRespCycle - gapCycles, this);
             ev->setMinStartCycle(prevRespCycle);
             prevRespEvent->addChild(ev, eventRecorder);
             prevRespEvent = ev;
@@ -167,12 +167,12 @@ uint64_t CoreRecorder::cSimStart(uint64_t curCycle) {
         }
 
         // Add an event that STARTS in the next phase, so it never gets simulated on the current phase
-        TimingCoreEvent* ev = new (eventRecorder) TimingCoreEvent(0, prevRespCycle-gapCycles, this);
+        TimingCoreEvent *ev = new(eventRecorder) TimingCoreEvent(0, prevRespCycle - gapCycles, this);
         ev->setMinStartCycle(prevRespCycle);
         prevRespEvent->addChild(ev, eventRecorder);
         prevRespEvent = ev;
     } else if (state == DRAINING) { // add no event --- that's how we detect we're done draining
-         if (curCycle < nextPhaseCycle) curCycle = nextPhaseCycle; // bring cycle up
+        if (curCycle < nextPhaseCycle) curCycle = nextPhaseCycle; // bring cycle up
     }
     return curCycle;
 }
@@ -185,12 +185,15 @@ uint64_t CoreRecorder::cSimEnd(uint64_t curCycle) {
     // Adjust curCycle to account for contention simulation delay
 
     // In our current clock, when did the last event start (1) before contention simulation, and (2) after contention simulation
-    uint64_t lastEvCycle1 = lastEventSimulatedOrigStartCycle + gapCycles; //we add gapCycles because origStartCycle is in zll clocks
+    uint64_t lastEvCycle1 =
+            lastEventSimulatedOrigStartCycle + gapCycles; //we add gapCycles because origStartCycle is in zll clocks
     uint64_t lastEvCycle2 = lastEventSimulatedStartCycle;
 
     assert(lastEvCycle1 <= curCycle);
     assert_msg(lastEvCycle2 <= curCycle, "[%s] lec2 %ld cc %ld, state %d", name.c_str(), lastEvCycle2, curCycle, state);
-    if (unlikely(lastEvCycle1 > lastEvCycle2)) panic("[%s] Contention simulation introduced a negative skew, curCycle %ld, lc1 %ld lc2 %ld", name.c_str(), curCycle, lastEvCycle1, lastEvCycle2);
+    if (unlikely(lastEvCycle1 > lastEvCycle2)) panic(
+            "[%s] Contention simulation introduced a negative skew, curCycle %ld, lc1 %ld lc2 %ld", name.c_str(),
+            curCycle, lastEvCycle1, lastEvCycle2);
 
     uint64_t skew = lastEvCycle2 - lastEvCycle1;
 
@@ -208,15 +211,17 @@ uint64_t CoreRecorder::cSimEnd(uint64_t curCycle) {
 
     if (!prevRespEvent) {
         //if we were RUNNING, the phase would have been tapered off
-        assert_msg(state == DRAINING, "[%s] state %d lastEventSimulated startCycle %ld curCycle %ld", name.c_str(), state, lastEventSimulatedStartCycle, curCycle);
+        assert_msg(state == DRAINING, "[%s] state %d lastEventSimulated startCycle %ld curCycle %ld", name.c_str(),
+                   state, lastEventSimulatedStartCycle, curCycle);
         lastUnhaltedCycle = lastEventSimulatedStartCycle; //the taper is a 0-delay event
         state = HALTED;
-        DEBUG_MSG("[%s] lastEventSimulated reached (startCycle %ld), DRAINING -> HALTED", name.c_str(), lastEventSimulatedStartCycle);
+        DEBUG_MSG("[%s] lastEventSimulated reached (startCycle %ld), DRAINING -> HALTED", name.c_str(),
+                  lastEventSimulatedStartCycle);
     }
     return curCycle;
 }
 
-void CoreRecorder::reportEventSimulated(TimingCoreEvent* ev) {
+void CoreRecorder::reportEventSimulated(TimingCoreEvent *ev) {
     lastEventSimulatedStartCycle = ev->startCycle;
     lastEventSimulatedOrigStartCycle = ev->origStartCycle;
     if (unlikely(ev == prevRespEvent)) {
@@ -230,7 +235,7 @@ void CoreRecorder::reportEventSimulated(TimingCoreEvent* ev) {
 //Stats
 uint64_t CoreRecorder::getUnhaltedCycles(uint64_t curCycle) const {
     uint64_t cycle = MAX(curCycle, zinfo->globPhaseCycles);
-    uint64_t haltedCycles =  totalHaltedCycles + ((state == HALTED)? (cycle - lastUnhaltedCycle) : 0);
+    uint64_t haltedCycles = totalHaltedCycles + ((state == HALTED) ? (cycle - lastUnhaltedCycle) : 0);
     return cycle - haltedCycles;
 }
 

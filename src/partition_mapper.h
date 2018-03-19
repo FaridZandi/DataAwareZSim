@@ -32,58 +32,70 @@
 
 //Interface
 class PartMapper : public GlobAlloc {
-    public:
-        virtual uint32_t getNumPartitions()=0;
-        virtual uint32_t getPartition(const MemReq& req)=0;
+public:
+    virtual uint32_t getNumPartitions()=0;
+
+    virtual uint32_t getPartition(const MemReq &req)=0;
 };
 
 class CorePartMapper : public PartMapper {
-    private:
-        uint32_t numCores;
-    public:
-        explicit CorePartMapper(uint32_t _numCores) : numCores(_numCores) {}
-        virtual uint32_t getNumPartitions() {return numCores;}
-        virtual uint32_t getPartition(const MemReq& req);
+private:
+    uint32_t numCores;
+public:
+    explicit CorePartMapper(uint32_t _numCores) : numCores(_numCores) {}
+
+    virtual uint32_t getNumPartitions() { return numCores; }
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 class InstrDataPartMapper : public PartMapper {
-    public:
-        virtual uint32_t getNumPartitions() {return 2;}
-        virtual uint32_t getPartition(const MemReq& req);
+public:
+    virtual uint32_t getNumPartitions() { return 2; }
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 class InstrDataCorePartMapper : public PartMapper {
-    private:
-        uint32_t numCores;
-    public:
-        explicit InstrDataCorePartMapper(uint32_t _numCores) : numCores(_numCores) {}
-        virtual uint32_t getNumPartitions() {return 2*numCores;}
-        virtual uint32_t getPartition(const MemReq& req);
+private:
+    uint32_t numCores;
+public:
+    explicit InstrDataCorePartMapper(uint32_t _numCores) : numCores(_numCores) {}
+
+    virtual uint32_t getNumPartitions() { return 2 * numCores; }
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 class ProcessPartMapper : public PartMapper {
-    private:
-        uint32_t numProcs;
-    public:
-        explicit ProcessPartMapper(uint32_t _numProcs) : numProcs(_numProcs) {}
-        virtual uint32_t getNumPartitions() {return numProcs;}
-        virtual uint32_t getPartition(const MemReq& req);
+private:
+    uint32_t numProcs;
+public:
+    explicit ProcessPartMapper(uint32_t _numProcs) : numProcs(_numProcs) {}
+
+    virtual uint32_t getNumPartitions() { return numProcs; }
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 class InstrDataProcessPartMapper : public PartMapper {
-    private:
-        uint32_t numProcs;
-    public:
-        explicit InstrDataProcessPartMapper(uint32_t _numProcs) : numProcs(_numProcs) {}
-        virtual uint32_t getNumPartitions() {return 2*numProcs;}
-        virtual uint32_t getPartition(const MemReq& req);
+private:
+    uint32_t numProcs;
+public:
+    explicit InstrDataProcessPartMapper(uint32_t _numProcs) : numProcs(_numProcs) {}
+
+    virtual uint32_t getNumPartitions() { return 2 * numProcs; }
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 class ProcessGroupPartMapper : public PartMapper {
-    public:
-        ProcessGroupPartMapper() {}
-        virtual uint32_t getNumPartitions();
-        virtual uint32_t getPartition(const MemReq& req);
+public:
+    ProcessGroupPartMapper() {}
+
+    virtual uint32_t getNumPartitions();
+
+    virtual uint32_t getPartition(const MemReq &req);
 };
 
 #endif  // PARTITION_MAPPER_H_

@@ -47,14 +47,19 @@
 
 // Integer log2 --- called ilog2 because cmath defines log2 for floats/doubles,
 // and promotes int calls to use FP
-template<typename T> static inline uint32_t ilog2(T val);
+template<typename T>
+static inline uint32_t ilog2(T val);
+
 // Only specializations of unsigned types (no calling these with ints)
 // __builtin_clz is undefined for 0 (internally, this uses bsr in x86-64)
-template<> uint32_t ilog2<uint32_t>(uint32_t val) {
-    return val? 31 - __builtin_clz(val) : 0;
+template<>
+uint32_t ilog2<uint32_t>(uint32_t val) {
+    return val ? 31 - __builtin_clz(val) : 0;
 }
-template<> uint32_t ilog2<uint64_t>(uint64_t val) {
-    return val? 63 - __builtin_clzl(val) : 0;
+
+template<>
+uint32_t ilog2<uint64_t>(uint64_t val) {
+    return val ? 63 - __builtin_clzl(val) : 0;
 }
 
 template<typename T>
@@ -67,14 +72,20 @@ static inline bool isPow2(T val) {
  * Type-wise, you can compare multiple types (e.g., maxN(1, -7, 3.3)), but the
  * output type is the first arg's type (e.g., returns 3)
  */
-template <typename T> static inline T maxN(T a) { return a; }
-template <typename T, typename U, typename ... V> static inline T maxN(T a, U b, V... c) {
-    return maxN(((a > b)? a : b), c...);
+template<typename T>
+static inline T maxN(T a) { return a; }
+
+template<typename T, typename U, typename ... V>
+static inline T maxN(T a, U b, V... c) {
+    return maxN(((a > b) ? a : b), c...);
 }
 
-template <typename T> static inline T minN(T a) { return a; }
-template <typename T, typename U, typename ... V> static inline T minN(T a, U b, V... c) {
-    return minN(((a < b)? a : b), c...);
+template<typename T>
+static inline T minN(T a) { return a; }
+
+template<typename T, typename U, typename ... V>
+static inline T minN(T a, U b, V... c) {
+    return minN(((a < b) ? a : b), c...);
 }
 
 

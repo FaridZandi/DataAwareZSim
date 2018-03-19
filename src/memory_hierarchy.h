@@ -66,11 +66,14 @@ typedef enum {
 } MESIState;
 
 //Convenience methods for clearer debug traces
-const char* AccessTypeName(AccessType t);
-const char* InvTypeName(InvType t);
-const char* MESIStateName(MESIState s);
+const char *AccessTypeName(AccessType t);
+
+const char *InvTypeName(InvType t);
+
+const char *MESIStateName(MESIState s);
 
 inline bool IsGet(AccessType t) { return t == GETS || t == GETX; }
+
 inline bool IsPut(AccessType t) { return t == PUTS || t == PUTX; }
 
 
@@ -79,11 +82,11 @@ struct MemReq {
     Address lineAddr;
     AccessType type;
     uint32_t childId;
-    MESIState* state;
+    MESIState *state;
     uint64_t cycle; //cycle where request arrives at component
 
     //Used for race detection/sync
-    lock_t* childLock;
+    lock_t *childLock;
     MESIState initialState;
 
     //Requester id --- used for contention simulation
@@ -92,18 +95,23 @@ struct MemReq {
     //Flags propagate across levels, though not to evictions
     //Some other things that can be indicated here: Demand vs prefetch accesses, TLB accesses, etc.
     enum Flag {
-        IFETCH        = (1<<1), //For instruction fetches. Purely informative for now, does not imply NOEXCL (but ifetches should be marked NOEXCL)
-        NOEXCL        = (1<<2), //Do not give back E on a GETS request (turns MESI protocol into MSI for this line). Used on e.g., ifetches and NUCA.
-        NONINCLWB     = (1<<3), //This is a non-inclusive writeback. Do not assume that the line was in the lower level. Used on NUCA (BankDir).
-        PUTX_KEEPEXCL = (1<<4), //Non-relinquishing PUTX. On a PUTX, maintain the requestor's E state instead of removing the sharer (i.e., this is a pure writeback)
-        PREFETCH      = (1<<5), //Prefetch GETS access. Only set at level where prefetch is issued; handled early in MESICC
+        IFETCH = (1
+                << 1), //For instruction fetches. Purely informative for now, does not imply NOEXCL (but ifetches should be marked NOEXCL)
+        NOEXCL = (1
+                << 2), //Do not give back E on a GETS request (turns MESI protocol into MSI for this line). Used on e.g., ifetches and NUCA.
+        NONINCLWB = (1
+                << 3), //This is a non-inclusive writeback. Do not assume that the line was in the lower level. Used on NUCA (BankDir).
+        PUTX_KEEPEXCL = (1
+                << 4), //Non-relinquishing PUTX. On a PUTX, maintain the requestor's E state instead of removing the sharer (i.e., this is a pure writeback)
+        PREFETCH = (1 << 5), //Prefetch GETS access. Only set at level where prefetch is issued; handled early in MESICC
     };
     uint32_t flags;
 
     Address pc; //Kasraa
 
-    inline void set(Flag f) {flags |= f;}
-    inline bool is (Flag f) const {return flags & f;}
+    inline void set(Flag f) { flags |= f; }
+
+    inline bool is(Flag f) const { return flags & f; }
 };
 
 /* Invalidation/downgrade request */
@@ -111,7 +119,7 @@ struct InvReq {
     Address lineAddr;
     InvType type;
     // NOTE: writeback should start false, children pull it up to true
-    bool* writeback;
+    bool *writeback;
     uint64_t cycle;
     uint32_t srcId;
 };
@@ -119,24 +127,29 @@ struct InvReq {
 /** INTERFACES **/
 
 class AggregateStat;
+
 class Network;
 
 /* Base class for all memory objects (caches and memories) */
 class MemObject : public GlobAlloc {
-    public:
-        //Returns response cycle
-        virtual uint64_t access(MemReq& req) = 0;
-        virtual uint64_t access(MemReq& req, int type, uint32_t data_size) { assert(false); }; // return access(req); };
-        virtual void initStats(AggregateStat* parentStat) {}
-        virtual const char* getName() = 0;
+public:
+    //Returns response cycle
+    virtual uint64_t access(MemReq &req) = 0;
+
+    virtual uint64_t access(MemReq &req, int type, uint32_t data_size) { assert(false); }; // return access(req); };
+    virtual void initStats(AggregateStat *parentStat) {}
+
+    virtual const char *getName() = 0;
 };
 
 /* Base class for all cache objects */
 class BaseCache : public MemObject {
-    public:
-        virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) = 0;
-        virtual void setChildren(const g_vector<BaseCache*>& children, Network* network) = 0;
-        virtual uint64_t invalidate(const InvReq& req) = 0;
+public:
+    virtual void setParents(uint32_t _childId, const g_vector<MemObject *> &parents, Network *network) = 0;
+
+    virtual void setChildren(const g_vector<BaseCache *> &children, Network *network) = 0;
+
+    virtual uint64_t invalidate(const InvReq &req) = 0;
 };
 
 #endif  // MEMORY_HIERARCHY_H_

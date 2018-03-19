@@ -45,7 +45,7 @@ H3HashFamily::H3HashFamily(uint32_t numFunctions, uint32_t outputBits, uint64_t 
     }
 
     uint32_t words = 64 >> resShift;
-    hMatrix = gm_calloc<uint64_t>(words*numFuncs);
+    hMatrix = gm_calloc<uint64_t>(words * numFuncs);
     for (uint32_t ii = 0; ii < numFuncs; ii++) {
         for (uint32_t jj = 0; jj < words; jj++) {
             uint64_t val = 0;
@@ -56,7 +56,7 @@ H3HashFamily::H3HashFamily(uint32_t numFunctions, uint32_t outputBits, uint64_t 
             //Indeed, they are distributed around 32, but we might get better mileage by forcing 32b...
             //info("H3: Function %d Matrix 64-bit word %d has %d 1s", ii, jj, __builtin_popcountll(val));
             //if (__builtin_popcountll(val) != 32) {jj--; continue;} // no difference
-            hMatrix[ii*words + jj] = val;
+            hMatrix[ii * words + jj] = val;
         }
     }
 }
@@ -79,20 +79,21 @@ uint64_t H3HashFamily::hash(uint32_t id, uint64_t val) {
 
     // 8-way unrolled loop
     uint32_t maxBits = 64 >> resShift;
-    for (uint32_t x = 0; x < maxBits; x+=8) {
+    for (uint32_t x = 0; x < maxBits; x += 8) {
         uint32_t base = (id << (6 - resShift)) + x;
         uint64_t res0 = val & hMatrix[base];
-        uint64_t res1 = val & hMatrix[base+1];
-        uint64_t res2 = val & hMatrix[base+2];
-        uint64_t res3 = val & hMatrix[base+3];
+        uint64_t res1 = val & hMatrix[base + 1];
+        uint64_t res2 = val & hMatrix[base + 2];
+        uint64_t res3 = val & hMatrix[base + 3];
 
-        uint64_t res4 = val & hMatrix[base+4];
-        uint64_t res5 = val & hMatrix[base+5];
-        uint64_t res6 = val & hMatrix[base+6];
-        uint64_t res7 = val & hMatrix[base+7];
+        uint64_t res4 = val & hMatrix[base + 4];
+        uint64_t res5 = val & hMatrix[base + 5];
+        uint64_t res6 = val & hMatrix[base + 6];
+        uint64_t res7 = val & hMatrix[base + 7];
 
         res ^= res0 ^ ((res1 << 1) | (res1 >> 63)) ^ ((res2 << 2) | (res2 >> 62)) ^ ((res3 << 3) | (res3 >> 61));
-        res ^= ((res4 << 4) | (res4 >> 60)) ^ ((res5 << 5) | (res5 >> 59)) ^ ((res6 << 6) | (res6 >> 58)) ^ ((res7 << 7) | (res7 >> 57));
+        res ^= ((res4 << 4) | (res4 >> 60)) ^ ((res5 << 5) | (res5 >> 59)) ^ ((res6 << 6) | (res6 >> 58)) ^
+               ((res7 << 7) | (res7 >> 57));
         res = (res << 8) | (res >> 56);
     }
 

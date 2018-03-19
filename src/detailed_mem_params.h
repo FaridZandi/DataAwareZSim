@@ -29,119 +29,130 @@
 #include "g_std/g_string.h"
 #include "config.h"
 
-class MemParam : public GlobAlloc{
-    protected:
-        enum eRowBufferPolicy {
-            RB_CLOSE = 0,
-            RB_OPEN
-        };
-        uint32_t rowBufferPolicy;
-        int32_t constraints[4];
+class MemParam : public GlobAlloc {
+protected:
+    enum eRowBufferPolicy {
+        RB_CLOSE = 0,
+        RB_OPEN
+    };
+    uint32_t rowBufferPolicy;
+    int32_t constraints[4];
 
-        virtual void LoadConfigMain(Config &cfg, uint32_t _chacheLineSize = 64);
-        virtual void LoadTiming(Config &cfg);
-        virtual void LoadPower(Config &cfg);
-        virtual void MakeConstraints(void);
+    virtual void LoadConfigMain(Config &cfg, uint32_t _chacheLineSize = 64);
 
-    public:
-        MemParam();
-        virtual ~MemParam();
+    virtual void LoadTiming(Config &cfg);
 
-        virtual void LoadConfig(g_string _cfgFile, uint32_t _chacheLineSize = 64);
+    virtual void LoadPower(Config &cfg);
 
-        bool IsOpenRowBufPolicy();
-        bool IsCloseRowBufPolicy();
-        virtual uint32_t GetDataLatency(uint32_t type);
-        virtual uint32_t GetDataDelay(uint32_t type);
-        virtual uint32_t GetDataSlot(uint32_t type);
-        virtual uint32_t GetPreDelay(uint32_t type);
-        virtual uint32_t GetRefreshCycle(void);
-        virtual uint32_t GetRdWrDelay(uint32_t type, uint32_t lastType);
+    virtual void MakeConstraints(void);
 
-        // Simulation Parameter
-        uint32_t reportPhase;
-        uint64_t reportStart;
-        uint64_t reportFinish;
+public:
+    MemParam();
 
-        // FIXME(dsm): These violate transparency... use info/warn!
-        // I'm also not sure why these are here; can we move all the power-related reporting to a separate tool?
-        bool anyReport;
-        bool accAvgPowerReport;
-        bool curAvgPowerReport;
-        bool bandwidthReport;
-        bool addrTrace;
+    virtual ~MemParam();
 
-        // Memory Controller Parameter
-        uint32_t totalCapacity; // mega byte
-        uint32_t channelCount;
-        uint32_t interleaveType;
-        uint32_t powerDownCycle;
-        uint32_t controllerLatency;
-        uint32_t cacheLineSize;
-        uint32_t byteOffsetWidth;
-        uint32_t accessLogDepth;
-        bool mergeContinuous;
-        uint32_t schedulerQueueCount;
+    virtual void LoadConfig(g_string _cfgFile, uint32_t _chacheLineSize = 64);
 
-        // Device Architectural Parameter
-        uint32_t chipCapacity; // megabits
-        uint32_t bankCount;
-        uint32_t rowAddrWidth;
-        uint32_t colAddrWidth;
-        uint32_t dataBusWidth;
+    bool IsOpenRowBufPolicy();
 
-        uint32_t chipCountPerRank;
-        uint32_t rankCount;
-        uint32_t rankWidth;
-        uint32_t channelWidth;
-        uint32_t bankWidth;
-        uint32_t channelDataWidth; // Data bus bits (= JEDEC_BUS_WIDTH)
-        uint32_t channelDataWidthLog; // ilog2(Datawdith / 8)
+    bool IsCloseRowBufPolicy();
 
-        // Timing Parameters
-        double tCK;
-        uint32_t tCMD;
-        uint32_t tRC;
-        uint32_t tRAS;
-        uint32_t tRCD;
-        uint32_t tRP;
-        uint32_t tRPab;
-        uint32_t tRTRS;
-        uint32_t tRRD;
-        uint32_t tWR;
-        uint32_t tWTR;
-        uint32_t tCAS;
-        uint32_t tCWD;
-        uint32_t tCCD;
-        uint32_t tTrans;
-        uint32_t tTransCrit;
-        uint32_t tXP;
-        uint32_t tREFI;
-        uint32_t tRFC;
-        uint32_t tFAW;
-        uint32_t tRTP;
+    virtual uint32_t GetDataLatency(uint32_t type);
 
-        // Power Parameters
-        // Voltage
-        uint32_t VDD1;
+    virtual uint32_t GetDataDelay(uint32_t type);
 
-        struct IDDs {
-            uint32_t IDD0;
-            uint32_t IDD2P;
-            uint32_t IDD2N;
-            uint32_t IDD3P;
-            uint32_t IDD3N;
-            uint32_t IDD4R;
-            uint32_t IDD4W;
-            uint32_t IDD5;
-        };
-        // Statically Allocate
-        IDDs IDD_VDD1;
+    virtual uint32_t GetDataSlot(uint32_t type);
 
-        uint32_t readDqPin;
-        uint32_t writeDqPin;
-        uint32_t readTermPin;
-        uint32_t writeTermPin;
+    virtual uint32_t GetPreDelay(uint32_t type);
+
+    virtual uint32_t GetRefreshCycle(void);
+
+    virtual uint32_t GetRdWrDelay(uint32_t type, uint32_t lastType);
+
+    // Simulation Parameter
+    uint32_t reportPhase;
+    uint64_t reportStart;
+    uint64_t reportFinish;
+
+    // FIXME(dsm): These violate transparency... use info/warn!
+    // I'm also not sure why these are here; can we move all the power-related reporting to a separate tool?
+    bool anyReport;
+    bool accAvgPowerReport;
+    bool curAvgPowerReport;
+    bool bandwidthReport;
+    bool addrTrace;
+
+    // Memory Controller Parameter
+    uint32_t totalCapacity; // mega byte
+    uint32_t channelCount;
+    uint32_t interleaveType;
+    uint32_t powerDownCycle;
+    uint32_t controllerLatency;
+    uint32_t cacheLineSize;
+    uint32_t byteOffsetWidth;
+    uint32_t accessLogDepth;
+    bool mergeContinuous;
+    uint32_t schedulerQueueCount;
+
+    // Device Architectural Parameter
+    uint32_t chipCapacity; // megabits
+    uint32_t bankCount;
+    uint32_t rowAddrWidth;
+    uint32_t colAddrWidth;
+    uint32_t dataBusWidth;
+
+    uint32_t chipCountPerRank;
+    uint32_t rankCount;
+    uint32_t rankWidth;
+    uint32_t channelWidth;
+    uint32_t bankWidth;
+    uint32_t channelDataWidth; // Data bus bits (= JEDEC_BUS_WIDTH)
+    uint32_t channelDataWidthLog; // ilog2(Datawdith / 8)
+
+    // Timing Parameters
+    double tCK;
+    uint32_t tCMD;
+    uint32_t tRC;
+    uint32_t tRAS;
+    uint32_t tRCD;
+    uint32_t tRP;
+    uint32_t tRPab;
+    uint32_t tRTRS;
+    uint32_t tRRD;
+    uint32_t tWR;
+    uint32_t tWTR;
+    uint32_t tCAS;
+    uint32_t tCWD;
+    uint32_t tCCD;
+    uint32_t tTrans;
+    uint32_t tTransCrit;
+    uint32_t tXP;
+    uint32_t tREFI;
+    uint32_t tRFC;
+    uint32_t tFAW;
+    uint32_t tRTP;
+
+    // Power Parameters
+    // Voltage
+    uint32_t VDD1;
+
+    struct IDDs {
+        uint32_t IDD0;
+        uint32_t IDD2P;
+        uint32_t IDD2N;
+        uint32_t IDD3P;
+        uint32_t IDD3N;
+        uint32_t IDD4R;
+        uint32_t IDD4W;
+        uint32_t IDD5;
+    };
+    // Statically Allocate
+    IDDs IDD_VDD1;
+
+    uint32_t readDqPin;
+    uint32_t writeDqPin;
+    uint32_t readTermPin;
+    uint32_t writeTermPin;
 };
 
 #endif  // DETAILED_MEM_PARAMS_H_

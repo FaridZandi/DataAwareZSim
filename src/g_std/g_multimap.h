@@ -30,7 +30,12 @@
 #include <map>
 #include "g_std/stl_galloc.h"
 
-template <typename K, typename V> class g_map : public std::map<K, V, std::less<K>, StlGlobAlloc<std::pair<const K, V> > > {};
-template <typename K, typename V> class g_multimap : public std::multimap<K, V, std::less<K>, StlGlobAlloc<std::pair<const K, V> > > {};
+template<typename K, typename V>
+class g_map : public std::map<K, V, std::less<K>, StlGlobAlloc<std::pair<const K, V> > > {
+};
+
+template<typename K, typename V>
+class g_multimap : public std::multimap<K, V, std::less<K>, StlGlobAlloc<std::pair<const K, V> > > {
+};
 
 #endif  // G_MULTIMAP_H_

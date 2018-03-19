@@ -30,40 +30,43 @@
 #include "galloc.h"
 
 class HashFamily : public GlobAlloc {
-    public:
-        HashFamily() {}
-        virtual ~HashFamily() {}
+public:
+    HashFamily() {}
 
-        virtual uint64_t hash(uint32_t id, uint64_t val) = 0;
+    virtual ~HashFamily() {}
+
+    virtual uint64_t hash(uint32_t id, uint64_t val) = 0;
 };
 
 class H3HashFamily : public HashFamily {
-    private:
-        uint32_t numFuncs;
-        uint32_t resShift;
-        uint64_t* hMatrix;
-    public:
-        H3HashFamily(uint32_t numFunctions, uint32_t outputBits, uint64_t randSeed = 123132127);
-        uint64_t hash(uint32_t id, uint64_t val);
+private:
+    uint32_t numFuncs;
+    uint32_t resShift;
+    uint64_t *hMatrix;
+public:
+    H3HashFamily(uint32_t numFunctions, uint32_t outputBits, uint64_t randSeed = 123132127);
+
+    uint64_t hash(uint32_t id, uint64_t val);
 };
 
 class SHA1HashFamily : public HashFamily {
-    private:
-        int numFuncs;
-        int numPasses;
+private:
+    int numFuncs;
+    int numPasses;
 
-        //SHA1 is quite expensive and returns large blocks, so we use memoization and chunk the block to implement hash function families.
-        uint64_t memoizedVal;
-        uint32_t* memoizedHashes;
-    public:
-        explicit SHA1HashFamily(int numFunctions);
-        uint64_t hash(uint32_t id, uint64_t val);
+    //SHA1 is quite expensive and returns large blocks, so we use memoization and chunk the block to implement hash function families.
+    uint64_t memoizedVal;
+    uint32_t *memoizedHashes;
+public:
+    explicit SHA1HashFamily(int numFunctions);
+
+    uint64_t hash(uint32_t id, uint64_t val);
 };
 
 /* Used when we don't want hashing, just return the value */
 class IdHashFamily : public HashFamily {
-    public:
-        inline uint64_t hash(uint32_t id, uint64_t val) {return val;}
+public:
+    inline uint64_t hash(uint32_t id, uint64_t val) { return val; }
 };
 
 #endif  // HASH_H_

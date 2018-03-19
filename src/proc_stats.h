@@ -30,30 +30,32 @@
 #include "stats.h"
 
 class ProcStats : public GlobAlloc {
-    private:
+private:
 
-        class ProcessCounter;
-        class ProcessVectorCounter;
+    class ProcessCounter;
 
-        uint64_t lastUpdatePhase;
+    class ProcessVectorCounter;
 
-        AggregateStat* coreStats;  // each member must be a regular aggregate with numCores elems
-        AggregateStat* procStats;  // stats produced
+    uint64_t lastUpdatePhase;
 
-        uint64_t* buf;
-        uint64_t* lastBuf;
-        uint64_t bufSize;
+    AggregateStat *coreStats;  // each member must be a regular aggregate with numCores elems
+    AggregateStat *procStats;  // stats produced
 
-    public:
-        explicit ProcStats(AggregateStat* parentStat, AggregateStat* _coreStats); //includes initStats, called post-system init
+    uint64_t *buf;
+    uint64_t *lastBuf;
+    uint64_t bufSize;
 
-        // Must be called by scheduler when descheduling; core must be quiesced
-        void notifyDeschedule();
+public:
+    explicit ProcStats(AggregateStat *parentStat,
+                       AggregateStat *_coreStats); //includes initStats, called post-system init
 
-    private:
-        Stat* replStat(Stat* s, const char* name = nullptr, const char* desc = nullptr);
+    // Must be called by scheduler when descheduling; core must be quiesced
+    void notifyDeschedule();
 
-        void update();  // transparent
+private:
+    Stat *replStat(Stat *s, const char *name = nullptr, const char *desc = nullptr);
+
+    void update();  // transparent
 };
 
 #endif  // PROCESS_STATS_H_

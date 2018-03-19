@@ -28,10 +28,10 @@
 
 #include "g_std/g_multimap.h"
 
-template <typename T, uint32_t B>
+template<typename T, uint32_t B>
 class PrioQueue {
     struct PQBlock {
-        T* array[64];
+        T *array[64];
         uint64_t occ; // bit i is 1 if array[i] is populated
 
         PQBlock() {
@@ -39,11 +39,11 @@ class PrioQueue {
             occ = 0;
         }
 
-        inline T* dequeue(uint32_t& offset) {
+        inline T *dequeue(uint32_t &offset) {
             assert(occ);
             uint32_t pos = __builtin_ctzl(occ);
-            T* res = array[pos];
-            T* next = res->next;
+            T *res = array[pos];
+            T *next = res->next;
             array[pos] = next;
             if (!next) occ ^= 1L << pos;
             assert(res);
@@ -52,7 +52,7 @@ class PrioQueue {
             return res;
         }
 
-        inline void enqueue(T* obj, uint32_t pos) {
+        inline void enqueue(T *obj, uint32_t pos) {
             occ |= 1L << pos;
             assert(!obj->next);
             obj->next = array[pos];
@@ -62,7 +62,7 @@ class PrioQueue {
 
     PQBlock blocks[B];
 
-    typedef g_multimap<uint64_t, T*> FEMap; //far element map
+    typedef g_multimap<uint64_t, T *> FEMap; //far element map
     typedef typename FEMap::iterator FEMapIterator;
 
     FEMap feMap;
@@ -70,84 +70,84 @@ class PrioQueue {
     uint64_t curBlock;
     uint64_t elems;
 
-    public:
-        PrioQueue() {
-            curBlock = 0;
-            elems = 0;
+public:
+    PrioQueue() {
+        curBlock = 0;
+        elems = 0;
+    }
+
+    void enqueue(T *obj, uint64_t cycle) {
+        uint64_t absBlock = cycle / 64;
+        assert(absBlock >= curBlock);
+
+        if (absBlock < curBlock + B) {
+            uint32_t i = absBlock % B;
+            uint32_t offset = cycle % 64;
+            blocks[i].enqueue(obj, offset);
+        } else {
+            //info("XXX far enq() %ld", cycle);
+            feMap.insert(std::pair<uint64_t, T *>(cycle, obj));
         }
+        elems++;
+    }
 
-        void enqueue(T* obj, uint64_t cycle) {
-            uint64_t absBlock = cycle/64;
-            assert(absBlock >= curBlock);
+    T *dequeue(uint64_t &deqCycle) {
+        assert(elems);
+        while (!blocks[curBlock % B].occ) {
+            curBlock++;
+            if ((curBlock % (B / 2)) == 0 && !feMap.empty()) {
+                uint64_t topCycle = (curBlock + B) * 64;
+                //Move every element with cycle < topCycle to blocks[]
+                FEMapIterator it = feMap.begin();
+                while (it != feMap.end() && it->first < topCycle) {
+                    uint64_t cycle = it->first;
+                    T *obj = it->second;
 
-            if (absBlock < curBlock + B) {
-                uint32_t i = absBlock % B;
-                uint32_t offset = cycle % 64;
-                blocks[i].enqueue(obj, offset);
-            } else {
-                //info("XXX far enq() %ld", cycle);
-                feMap.insert(std::pair<uint64_t, T*>(cycle, obj));
-            }
-            elems++;
-        }
-
-        T* dequeue(uint64_t& deqCycle) {
-            assert(elems);
-            while (!blocks[curBlock % B].occ) {
-                curBlock++;
-                if ((curBlock % (B/2)) == 0 && !feMap.empty()) {
-                    uint64_t topCycle = (curBlock + B)*64;
-                    //Move every element with cycle < topCycle to blocks[]
-                    FEMapIterator it = feMap.begin();
-                    while (it != feMap.end() && it->first < topCycle) {
-                        uint64_t cycle = it->first;
-                        T* obj = it->second;
-
-                        uint64_t absBlock = cycle/64;
-                        assert(absBlock >= curBlock);
-                        assert(absBlock < curBlock + B);
-                        uint32_t i = absBlock % B;
-                        uint32_t offset = cycle % 64;
-                        blocks[i].enqueue(obj, offset);
-                        it++;
-                    }
-                    feMap.erase(feMap.begin(), it);
+                    uint64_t absBlock = cycle / 64;
+                    assert(absBlock >= curBlock);
+                    assert(absBlock < curBlock + B);
+                    uint32_t i = absBlock % B;
+                    uint32_t offset = cycle % 64;
+                    blocks[i].enqueue(obj, offset);
+                    it++;
                 }
+                feMap.erase(feMap.begin(), it);
             }
-
-            //We're now at the first populated block
-            uint32_t offset;
-            T* obj = blocks[curBlock % B].dequeue(offset);
-            elems--;
-
-            deqCycle = curBlock*64 + offset;
-            return obj;
         }
 
-        inline uint64_t size() const {
-            return elems;
+        //We're now at the first populated block
+        uint32_t offset;
+        T *obj = blocks[curBlock % B].dequeue(offset);
+        elems--;
+
+        deqCycle = curBlock * 64 + offset;
+        return obj;
+    }
+
+    inline uint64_t size() const {
+        return elems;
+    }
+
+    inline uint64_t firstCycle() const {
+        assert(elems);
+        for (uint32_t i = 0; i < B / 2; i++) {
+            uint64_t occ = blocks[(curBlock + i) % B].occ;
+            if (occ) {
+                uint64_t pos = __builtin_ctzl(occ);
+                return (curBlock + i) * 64 + pos;
+            }
+        }
+        for (uint32_t i = B / 2; i < B; i++) { //beyond B/2 blocks, there may be a far element that comes earlier
+            uint64_t occ = blocks[(curBlock + i) % B].occ;
+            if (occ) {
+                uint64_t pos = __builtin_ctzl(occ);
+                uint64_t cycle = (curBlock + i) * 64 + pos;
+                return feMap.empty() ? cycle : MIN(cycle, feMap.begin()->first);
+            }
         }
 
-        inline uint64_t firstCycle() const {
-            assert(elems);
-            for (uint32_t i = 0; i < B/2; i++) {
-                uint64_t occ = blocks[(curBlock + i) % B].occ;
-                if (occ) {
-                    uint64_t pos = __builtin_ctzl(occ);
-                    return (curBlock + i)*64 + pos;
-                }
-            }
-            for (uint32_t i = B/2; i < B; i++) { //beyond B/2 blocks, there may be a far element that comes earlier
-                uint64_t occ = blocks[(curBlock + i) % B].occ;
-                if (occ) {
-                    uint64_t pos = __builtin_ctzl(occ);
-                    uint64_t cycle = (curBlock + i)*64 + pos;
-                    return feMap.empty()? cycle : MIN(cycle, feMap.begin()->first);
-                }
-            }
-
-            return feMap.begin()->first;
-        }
+        return feMap.begin()->first;
+    }
 };
 
 #endif  // PRIO_QUEUE_H_

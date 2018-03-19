@@ -33,6 +33,6 @@
  * The returned tree can be passed to any backend to produce filtered dumps. Returns nullptr if nothing
  * matches the regex.
  */
-AggregateStat* FilterStats(const AggregateStat* srcStat, const char* regex);
+AggregateStat *FilterStats(const AggregateStat *srcStat, const char *regex);
 
 #endif  // STATS_FILTER_H_

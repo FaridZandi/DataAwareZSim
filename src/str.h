@@ -33,24 +33,27 @@
 #include <vector>
 #include "g_std/g_vector.h"
 
-template <typename T> std::string Str(T v) {
+template<typename T>
+std::string Str(T v) {
     std::stringstream ss;
     ss << v;
     return ss.str();
 }
 
-template <typename T> std::string Str(const std::vector<T>& v) {
+template<typename T>
+std::string Str(const std::vector<T> &v) {
     std::stringstream ss;
     ss << "[";
-    for (auto& x : v) ss << " " << x;
+    for (auto &x : v) ss << " " << x;
     ss << " ]";
     return ss.str();
 }
 
-template <typename T> std::string Str(const g_vector<T>& v) {
+template<typename T>
+std::string Str(const g_vector<T> &v) {
     std::stringstream ss;
     ss << "[";
-    for (auto& x : v) ss << " " << x;
+    for (auto &x : v) ss << " " << x;
     ss << "]";
     return ss.str();
 }

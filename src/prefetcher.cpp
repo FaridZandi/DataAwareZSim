@@ -30,25 +30,24 @@
 #define DBG(args...) //info(args)
 
 class PrefetchResponseEvent : public TimingEvent {
-    private:
-        StreamPrefetcher* pf;
-    public:
-        const uint32_t idx;
-        const uint32_t prefetchPos;
+private:
+    StreamPrefetcher *pf;
+public:
+    const uint32_t idx;
+    const uint32_t prefetchPos;
 
-    public:
-        PrefetchResponseEvent(StreamPrefetcher* _pf, uint32_t _idx, uint32_t _prefetchPos, int32_t domain) :
+public:
+    PrefetchResponseEvent(StreamPrefetcher *_pf, uint32_t _idx, uint32_t _prefetchPos, int32_t domain) :
             TimingEvent(0, 0, domain), pf(_pf), idx(_idx), prefetchPos(_prefetchPos) {}
 
-        void simulate(uint64_t startCycle) {
-            pf->simulatePrefetchResponse(this, startCycle);
-            done(startCycle);
-        }
+    void simulate(uint64_t startCycle) {
+        pf->simulatePrefetchResponse(this, startCycle);
+        done(startCycle);
+    }
 };
 
-StreamPrefetcher::StreamPrefetcher(const g_string& _name, uint32_t _numBuffers, bool _partitionBuffers)
-    : timestamp(0), name(_name), numBuffers(_numBuffers), partitionBuffers(_partitionBuffers), partitions(1)
-{
+StreamPrefetcher::StreamPrefetcher(const g_string &_name, uint32_t _numBuffers, bool _partitionBuffers)
+        : timestamp(0), name(_name), numBuffers(_numBuffers), partitionBuffers(_partitionBuffers), partitions(1) {
     tag = gm_calloc<Address>(numBuffers);
     array = gm_calloc<Entry>(numBuffers);
 }
@@ -58,34 +57,44 @@ StreamPrefetcher::~StreamPrefetcher() {
     gm_free(array);
 }
 
-void StreamPrefetcher::setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) {
+void StreamPrefetcher::setParents(uint32_t _childId, const g_vector<MemObject *> &parents, Network *network) {
     childId = _childId;
     if (parents.size() != 1) panic("Must have one parent, %ld passed", parents.size());
     parent = parents[0];
-    if (network && network->getRTT(name.c_str(), parent->getName())) panic("Network not handled (non-zero delay with parent)");
+    if (network && network->getRTT(name.c_str(), parent->getName())) panic(
+            "Network not handled (non-zero delay with parent)");
 }
 
-void StreamPrefetcher::setChildren(const g_vector<BaseCache*>& children, Network* network) {
+void StreamPrefetcher::setChildren(const g_vector<BaseCache *> &children, Network *network) {
     if (children.size() != 1) panic("Must have one child, %ld passed", children.size());
     child = children[0];
-    if (network && network->getRTT(name.c_str(), child->getName())) panic("Network not handled (non-zero delay with child)");
+    if (network && network->getRTT(name.c_str(), child->getName())) panic(
+            "Network not handled (non-zero delay with child)");
 }
 
-void StreamPrefetcher::initStats(AggregateStat* parentStat) {
-    AggregateStat* s = new AggregateStat();
+void StreamPrefetcher::initStats(AggregateStat *parentStat) {
+    AggregateStat *s = new AggregateStat();
     s->init(name.c_str(), "Prefetcher stats");
-    profAccesses.init("acc", "Accesses"); s->append(&profAccesses);
-    profPrefetches.init("pf", "Issued prefetches"); s->append(&profPrefetches);
-    profDoublePrefetches.init("dpf", "Issued double prefetches"); s->append(&profDoublePrefetches);
-    profPageHits.init("pghit", "Page/entry hit"); s->append(&profPageHits);
-    profHits.init("hit", "Prefetch buffer hits, short and full"); s->append(&profHits);
-    profShortHits.init("shortHit", "Prefetch buffer short hits"); s->append(&profShortHits);
-    profStrideSwitches.init("strideSwitches", "Predicted stride switches"); s->append(&profStrideSwitches);
-    profLowConfAccs.init("lcAccs", "Low-confidence accesses with no prefetches"); s->append(&profLowConfAccs);
+    profAccesses.init("acc", "Accesses");
+    s->append(&profAccesses);
+    profPrefetches.init("pf", "Issued prefetches");
+    s->append(&profPrefetches);
+    profDoublePrefetches.init("dpf", "Issued double prefetches");
+    s->append(&profDoublePrefetches);
+    profPageHits.init("pghit", "Page/entry hit");
+    s->append(&profPageHits);
+    profHits.init("hit", "Prefetch buffer hits, short and full");
+    s->append(&profHits);
+    profShortHits.init("shortHit", "Prefetch buffer short hits");
+    s->append(&profShortHits);
+    profStrideSwitches.init("strideSwitches", "Predicted stride switches");
+    s->append(&profStrideSwitches);
+    profLowConfAccs.init("lcAccs", "Low-confidence accesses with no prefetches");
+    s->append(&profLowConfAccs);
     parentStat->append(s);
 }
 
-uint64_t StreamPrefetcher::access(MemReq& req) {
+uint64_t StreamPrefetcher::access(MemReq &req) {
     uint32_t origChildId = req.childId;
     req.childId = childId;
 
@@ -96,7 +105,7 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
     uint64_t reqCycle = req.cycle;
     uint64_t respCycle = parent->access(req);
 
-    EventRecorder* evRec = zinfo->eventRecorders[req.srcId];
+    EventRecorder *evRec = zinfo->eventRecorders[req.srcId];
     TimingRecord acc;
     acc.clear();
     if (unlikely(evRec && evRec->hasRecord())) {
@@ -112,7 +121,7 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
         // Massage acc TimingRecord, which may or may not be valid
         if (acc.isValid()) {  // Due to the demand access or a previous prefetch
             if (acc.reqCycle > reqCycle) {
-                DelayEvent* dUpEv = new (evRec) DelayEvent(acc.reqCycle - reqCycle);
+                DelayEvent *dUpEv = new(evRec) DelayEvent(acc.reqCycle - reqCycle);
                 dUpEv->setMinStartCycle(reqCycle);
                 dUpEv->addChild(acc.startEvent, evRec);
                 acc.reqCycle = reqCycle;
@@ -122,9 +131,9 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
             // Create fixed-delay start and end events, so that we can pass a TimingRecord
             // to the core (we always want to pass a TimingRecord if we issue prefetch accesses,
             // so that we account for latencies correctly even with skews)
-            DelayEvent* startEv = new (evRec) DelayEvent(respCycle - reqCycle);
+            DelayEvent *startEv = new(evRec) DelayEvent(respCycle - reqCycle);
             startEv->setMinStartCycle(reqCycle);
-            DelayEvent* endEv = new (evRec) DelayEvent(0);
+            DelayEvent *endEv = new(evRec) DelayEvent(0);
             endEv->setMinStartCycle(respCycle);
             startEv->addChild(endEv, evRec);
             acc = {req.lineAddr, reqCycle, respCycle, req.type, startEv, endEv};
@@ -140,7 +149,7 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
         startEntry = 0;
         endEntry = numBuffers;
     } else {
-		assert(false);
+        assert(false);
 /*        //assert_msg(zinfo->jsr != nullptr, "need jigsaw runtime for page to share mappings");
 
         uint32_t share = zinfo->jsr->getPageToShare(pageAddr);
@@ -158,13 +167,13 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
 */
     }
 
-    uint32_t pos = req.lineAddr & (64-1);
+    uint32_t pos = req.lineAddr & (64 - 1);
     uint32_t idx = numBuffers;
 
     // This loop gets unrolled and there are no control dependences. Way faster than a break (but should watch for the avoidable loop-carried dep)
     for (uint32_t i = startEntry; i < endEntry; i++) {
         bool match = (pageAddr == tag[i]);
-        idx = match?  i : idx;  // ccmov, no branch
+        idx = match ? i : idx;  // ccmov, no branch
     }
 
     DBG("%s: 0x%lx page %lx pos %d", name.c_str(), req.lineAddr, pageAddr, pos);
@@ -196,7 +205,7 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
         DBG("%s: MISS alloc idx %d", name.c_str(), idx);
     } else {  // entry hit
         profPageHits.inc();
-        Entry& e = array[idx];
+        Entry &e = array[idx];
         array[idx].ts = timestamp++;
         DBG("%s: PAGE HIT idx %d", name.c_str(), idx);
 
@@ -210,16 +219,17 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
             e.lastCycle = MAX(respCycle, e.lastCycle);
             profHits.inc();
             if (shortPrefetch) profShortHits.inc();
-            DBG("%s: pos %d prefetched on %ld, pf resp %ld, demand resp %ld, short %d", name.c_str(), pos, e.times[pos].startCycle, pfRespCycle, respCycle, shortPrefetch);
+            DBG("%s: pos %d prefetched on %ld, pf resp %ld, demand resp %ld, short %d", name.c_str(), pos,
+                e.times[pos].startCycle, pfRespCycle, respCycle, shortPrefetch);
 
             if (evRec && e.respEvents[pos]) {
                 initAcc();
                 // Link resp with PrefetchResponseEvent
                 assert(acc.respCycle <= respCycle);
                 assert(acc.endEvent);
-                DelayEvent* dDownEv = new (evRec) DelayEvent(respCycle - acc.respCycle);
+                DelayEvent *dDownEv = new(evRec) DelayEvent(respCycle - acc.respCycle);
                 dDownEv->setMinStartCycle(acc.respCycle);
-                DelayEvent* dEndEv = new (evRec) DelayEvent(0);
+                DelayEvent *dEndEv = new(evRec) DelayEvent(0);
                 dEndEv->setMinStartCycle(respCycle);
 
                 acc.endEvent->addChild(dDownEv, evRec)->addChild(dEndEv, evRec);
@@ -236,18 +246,21 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
         if (e.stride == stride) {
             e.conf.inc();
             if (e.conf.pred()) {  // do prefetches
-                int32_t fetchDepth = (e.lastPrefetchPos - e.lastPos)/stride;
+                int32_t fetchDepth = (e.lastPrefetchPos - e.lastPos) / stride;
                 uint32_t prefetchPos = e.lastPrefetchPos + stride;
                 if (fetchDepth < 1) {
                     prefetchPos = pos + stride;
                     fetchDepth = 1;
                 }
-                DBG("%s: pos %d stride %d conf %d lastPrefetchPos %d prefetchPos %d fetchDepth %d", name.c_str(), pos, stride, e.conf.counter(), e.lastPrefetchPos, prefetchPos, fetchDepth);
+                DBG("%s: pos %d stride %d conf %d lastPrefetchPos %d prefetchPos %d fetchDepth %d", name.c_str(), pos,
+                    stride, e.conf.counter(), e.lastPrefetchPos, prefetchPos, fetchDepth);
 
                 auto issuePrefetch = [&](uint32_t prefetchPos) {
                     DBG("issuing prefetch");
                     MESIState state = I;
-                    MemReq pfReq = {req.lineAddr + prefetchPos - pos, GETS, req.childId, &state, reqCycle, req.childLock, state, req.srcId, MemReq::PREFETCH, req.pc /*Kasraa: It is a bit non-trivial, but the best I can do for now. Prefetch requests carry PC of trigger access*/};
+                    MemReq pfReq = {req.lineAddr + prefetchPos - pos, GETS, req.childId, &state, reqCycle,
+                                    req.childLock, state, req.srcId, MemReq::PREFETCH,
+                                    req.pc /*Kasraa: It is a bit non-trivial, but the best I can do for now. Prefetch requests carry PC of trigger access*/};
                     uint64_t pfRespCycle = parent->access(pfReq);
                     assert(state == I);  // prefetch access should not give us any permissions
 
@@ -255,8 +268,9 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
                     e.times[prefetchPos].fill(reqCycle, pfRespCycle);
 
                     if (evRec) {  // create & connect weave-phase events
-                        DelayEvent* pfStartEv;
-                        PrefetchResponseEvent* pfEndEv = new (evRec) PrefetchResponseEvent(this, idx, prefetchPos, 0 /*FIXME: assign domain @ init*/);
+                        DelayEvent *pfStartEv;
+                        PrefetchResponseEvent *pfEndEv = new(evRec) PrefetchResponseEvent(this, idx, prefetchPos,
+                                                                                          0 /*FIXME: assign domain @ init*/);
                         pfEndEv->setMinStartCycle(pfRespCycle);
 
                         if (evRec->hasRecord()) {
@@ -264,15 +278,15 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
                             assert(pfAcc.isValid());
                             assert(pfAcc.reqCycle >= reqCycle);
                             assert(pfAcc.respCycle <= pfRespCycle);
-                            pfStartEv = new (evRec) DelayEvent(pfAcc.reqCycle - reqCycle);
+                            pfStartEv = new(evRec) DelayEvent(pfAcc.reqCycle - reqCycle);
                             pfStartEv->setMinStartCycle(reqCycle);
                             pfStartEv->addChild(pfAcc.startEvent, evRec);
 
-                            DelayEvent* pfDownEv = new (evRec) DelayEvent(pfRespCycle - pfAcc.respCycle);
+                            DelayEvent *pfDownEv = new(evRec) DelayEvent(pfRespCycle - pfAcc.respCycle);
                             pfDownEv->setMinStartCycle(pfAcc.respCycle);
                             pfAcc.endEvent->addChild(pfDownEv, evRec)->addChild(pfEndEv, evRec);
                         } else {
-                            pfStartEv = new (evRec) DelayEvent(pfRespCycle - reqCycle);
+                            pfStartEv = new(evRec) DelayEvent(pfRespCycle - reqCycle);
                             pfStartEv->setMinStartCycle(reqCycle);
                             pfStartEv->addChild(pfEndEv, evRec);
                         }
@@ -281,7 +295,7 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
                         assert(acc.isValid() && acc.reqCycle == reqCycle);
 
                         // Connect prefetch to start event
-                        DelayEvent* startEv = new (evRec) DelayEvent(0);
+                        DelayEvent *startEv = new(evRec) DelayEvent(0);
                         startEv->setMinStartCycle(reqCycle);
                         startEv->addChild(acc.startEvent, evRec);
                         startEv->addChild(pfStartEv, evRec);
@@ -297,7 +311,8 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
                     issuePrefetch(prefetchPos);
                     profPrefetches.inc();
 
-                    if (shortPrefetch && fetchDepth < 8 && prefetchPos + stride < 64 && !e.valid[prefetchPos + stride]) {
+                    if (shortPrefetch && fetchDepth < 8 && prefetchPos + stride < 64 &&
+                        !e.valid[prefetchPos + stride]) {
                         prefetchPos += stride;
                         issuePrefetch(prefetchPos);
                         profPrefetches.inc();
@@ -334,15 +349,16 @@ uint64_t StreamPrefetcher::access(MemReq& req) {
 }
 
 // nop for now; do we need to invalidate our own state?
-uint64_t StreamPrefetcher::invalidate(const InvReq& req) {
+uint64_t StreamPrefetcher::invalidate(const InvReq &req) {
     return child->invalidate(req);
 }
 
-void StreamPrefetcher::simulatePrefetchResponse(PrefetchResponseEvent* ev, uint64_t cycle) {
+void StreamPrefetcher::simulatePrefetchResponse(PrefetchResponseEvent *ev, uint64_t cycle) {
     // Self-clean so future requests don't get linked to a stale event
-    DBG("[%s] PrefetchResponse %d/%d cycle %ld min %ld", name.c_str(), ev->idx, ev->prefetchPos, cycle, ev->getMinStartCycle());
-    assert(ev->idx < 16 && ev-> prefetchPos < 64);
-    auto& evPtr = array[ev->idx].respEvents[ev->prefetchPos];
+    DBG("[%s] PrefetchResponse %d/%d cycle %ld min %ld", name.c_str(), ev->idx, ev->prefetchPos, cycle,
+        ev->getMinStartCycle());
+    assert(ev->idx < 16 && ev->prefetchPos < 64);
+    auto &evPtr = array[ev->idx].respEvents[ev->prefetchPos];
     // Guard avoids nullifying a pointer that changed before resp arrival (e.g., if entry was reused); this should be rare
     if (evPtr == ev) {
         evPtr = nullptr;

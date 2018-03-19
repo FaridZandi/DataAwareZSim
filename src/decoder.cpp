@@ -66,7 +66,8 @@ Decoder::Instr::Instr(INS _ins) : ins(_ins), numLoads(0), numInRegs(0), numOutRe
         if (INS_OperandIsMemory(ins, op)) {
             if (read) loadOps[numLoads++] = op;
             if (write) storeOps[numStores++] = op;
-        } else if (INS_OperandIsReg(ins, op) && INS_OperandReg(ins, op)) { //it's apparently possible to get INS_OperandIsReg to be true and an invalid reg ... WTF Pin?
+        } else if (INS_OperandIsReg(ins, op) && INS_OperandReg(ins,
+                                                               op)) { //it's apparently possible to get INS_OperandIsReg to be true and an invalid reg ... WTF Pin?
             REG reg = INS_OperandReg(ins, op);
             assert(reg);  // can't be invalid
             reg = REG_FullRegName(reg);  // eax -> rax, etc; o/w we'd miss a bunch of deps!
@@ -84,15 +85,15 @@ static inline bool isFlagsReg(uint32_t reg) {
     return (reg == REG_EFLAGS || reg == REG_FLAGS || reg == REG_MXCSR);
 }
 
-void Decoder::Instr::reorderRegs(uint32_t* array, uint32_t regs) {
+void Decoder::Instr::reorderRegs(uint32_t *array, uint32_t regs) {
     if (regs == 0) return;
     //Unoptimized bubblesort -- when arrays are this short, regularity wins over O(n^2).
     uint32_t swaps;
     do {
         swaps = 0;
-        for (uint32_t i = 0; i < regs-1; i++) {
-            if (isFlagsReg(array[i]) && !isFlagsReg(array[i+1])) {
-                std::swap(array[i], array[i+1]);
+        for (uint32_t i = 0; i < regs - 1; i++) {
+            if (isFlagsReg(array[i]) && !isFlagsReg(array[i + 1])) {
+                std::swap(array[i], array[i + 1]);
                 swaps++;
             }
         }
@@ -100,25 +101,26 @@ void Decoder::Instr::reorderRegs(uint32_t* array, uint32_t regs) {
 }
 
 //Helper function
-static std::string regsToString(uint32_t* regs, uint32_t numRegs) {
+static std::string regsToString(uint32_t *regs, uint32_t numRegs) {
     std::string str = ""; //if efficiency was a concern, we'd use a stringstream
     if (numRegs) {
         str += "(";
         for (uint32_t i = 0; i < numRegs - 1; i++) {
-            str += REG_StringShort((REG)regs[i]) + ", ";
+            str += REG_StringShort((REG) regs[i]) + ", ";
         }
-        str += REG_StringShort((REG)regs[numRegs - 1]) + ")";
+        str += REG_StringShort((REG) regs[numRegs - 1]) + ")";
     }
     return str;
 }
 
-void Decoder::reportUnhandledCase(Instr& instr, const char* desc) {
-    warn("Unhandled case: %s | %s | loads=%d stores=%d inRegs=%d %s outRegs=%d %s", desc, INS_Disassemble(instr.ins).c_str(),
-            instr.numLoads, instr.numStores, instr.numInRegs, regsToString(instr.inRegs, instr.numInRegs).c_str(),
-            instr.numOutRegs, regsToString(instr.outRegs, instr.numOutRegs).c_str());
+void Decoder::reportUnhandledCase(Instr &instr, const char *desc) {
+    warn("Unhandled case: %s | %s | loads=%d stores=%d inRegs=%d %s outRegs=%d %s", desc,
+         INS_Disassemble(instr.ins).c_str(),
+         instr.numLoads, instr.numStores, instr.numInRegs, regsToString(instr.inRegs, instr.numInRegs).c_str(),
+         instr.numOutRegs, regsToString(instr.outRegs, instr.numOutRegs).c_str());
 }
 
-void Decoder::emitLoad(Instr& instr, uint32_t idx, DynUopVec& uops, uint32_t destReg) {
+void Decoder::emitLoad(Instr &instr, uint32_t idx, DynUopVec &uops, uint32_t destReg) {
     assert(idx < instr.numLoads);
     uint32_t op = instr.loadOps[idx];
     uint32_t baseReg = INS_OperandMemoryBaseReg(instr.ins, op);
@@ -136,7 +138,7 @@ void Decoder::emitLoad(Instr& instr, uint32_t idx, DynUopVec& uops, uint32_t des
     uops.push_back(uop); //FIXME: The interface should support in-place grow...
 }
 
-void Decoder::emitStore(Instr& instr, uint32_t idx, DynUopVec& uops, uint32_t srcReg) {
+void Decoder::emitStore(Instr &instr, uint32_t idx, DynUopVec &uops, uint32_t srcReg) {
     assert(idx < instr.numStores);
     uint32_t op = instr.storeOps[idx];
     uint32_t baseReg = INS_OperandMemoryBaseReg(instr.ins, op);
@@ -173,19 +175,19 @@ void Decoder::emitStore(Instr& instr, uint32_t idx, DynUopVec& uops, uint32_t sr
 }
 
 
-void Decoder::emitLoads(Instr& instr, DynUopVec& uops) {
+void Decoder::emitLoads(Instr &instr, DynUopVec &uops) {
     for (uint32_t i = 0; i < instr.numLoads; i++) {
         emitLoad(instr, i, uops);
     }
 }
 
-void Decoder::emitStores(Instr& instr, DynUopVec& uops) {
+void Decoder::emitStores(Instr &instr, DynUopVec &uops) {
     for (uint32_t i = 0; i < instr.numStores; i++) {
         emitStore(instr, i, uops);
     }
 }
 
-void Decoder::emitFence(DynUopVec& uops, uint32_t lat) {
+void Decoder::emitFence(DynUopVec &uops, uint32_t lat) {
     DynUop uop;
     uop.clear();
     uop.lat = lat;
@@ -194,7 +196,8 @@ void Decoder::emitFence(DynUopVec& uops, uint32_t lat) {
     uops.push_back(uop);
 }
 
-void Decoder::emitExecUop(uint32_t rs0, uint32_t rs1, uint32_t rd0, uint32_t rd1, DynUopVec& uops, uint32_t lat, uint8_t ports, uint8_t extraSlots) {
+void Decoder::emitExecUop(uint32_t rs0, uint32_t rs1, uint32_t rd0, uint32_t rd1, DynUopVec &uops, uint32_t lat,
+                          uint8_t ports, uint8_t extraSlots) {
     DynUop uop;
     uop.clear();
     uop.rs[0] = rs0;
@@ -208,12 +211,12 @@ void Decoder::emitExecUop(uint32_t rs0, uint32_t rs1, uint32_t rd0, uint32_t rd1
     uops.push_back(uop);
 }
 
-void Decoder::emitBasicMove(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t ports) {
+void Decoder::emitBasicMove(Instr &instr, DynUopVec &uops, uint32_t lat, uint8_t ports) {
     if (instr.numLoads + instr.numInRegs > 1 || instr.numStores + instr.numOutRegs != 1) {
         reportUnhandledCase(instr, "emitBasicMove");
     }
     //Note that we can have 0 loads and 0 input registers. In this case, we are loading from an immediate, and we set the input register to 0 so there is no dependence
-    uint32_t inReg = (instr.numInRegs == 1)? instr.inRegs[0] : 0;
+    uint32_t inReg = (instr.numInRegs == 1) ? instr.inRegs[0] : 0;
     if (!instr.numLoads && !instr.numStores) { //reg->reg
         emitExecUop(inReg, 0, instr.outRegs[0], 0, uops, lat, ports);
     } else if (instr.numLoads && !instr.numStores) { //mem->reg
@@ -226,7 +229,7 @@ void Decoder::emitBasicMove(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t
     }
 }
 
-void Decoder::emitXchg(Instr& instr, DynUopVec& uops) {
+void Decoder::emitXchg(Instr &instr, DynUopVec &uops) {
     if (instr.numLoads) { // mem <-> reg
         assert(instr.numLoads == 1 && instr.numStores == 1);
         assert(instr.numInRegs == 1 && instr.numOutRegs == 1);
@@ -236,7 +239,8 @@ void Decoder::emitXchg(Instr& instr, DynUopVec& uops) {
         emitExecUop(instr.inRegs[0], 0, REG_EXEC_TEMP, 0, uops, 1, PORTS_015); //r -> temp
         emitExecUop(REG_LOAD_TEMP, 0, instr.outRegs[0], 0, uops, 1, PORTS_015); // load -> r
         emitStore(instr, 0, uops, REG_EXEC_TEMP); //temp -> out
-        if (!INS_LockPrefix(instr.ins)) emitFence(uops, 14); //xchg has an implicit lock prefix (TODO: Check we don't introduce two fences...)
+        if (!INS_LockPrefix(instr.ins))
+            emitFence(uops, 14); //xchg has an implicit lock prefix (TODO: Check we don't introduce two fences...)
     } else { // reg <-> reg
         assert(instr.numInRegs == 2 && instr.numOutRegs == 2);
         assert(instr.inRegs[0] == instr.outRegs[0]);
@@ -249,7 +253,7 @@ void Decoder::emitXchg(Instr& instr, DynUopVec& uops) {
 }
 
 
-void Decoder::emitConditionalMove(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t ports) {
+void Decoder::emitConditionalMove(Instr &instr, DynUopVec &uops, uint32_t lat, uint8_t ports) {
     uint32_t initialUops = uops.size();
     assert(instr.numOutRegs == 1); //always move to reg
     assert(instr.numStores == 0);
@@ -276,7 +280,7 @@ void Decoder::emitConditionalMove(Instr& instr, DynUopVec& uops, uint32_t lat, u
     }
 }
 
-void Decoder::emitCompareAndExchange(Instr& instr, DynUopVec& uops) {
+void Decoder::emitCompareAndExchange(Instr &instr, DynUopVec &uops) {
     emitLoads(instr, uops);
 
     uint32_t srcs = instr.numLoads + instr.numInRegs;
@@ -300,15 +304,16 @@ void Decoder::emitCompareAndExchange(Instr& instr, DynUopVec& uops) {
     if (!instr.numLoads) {
         //2 swaps, implemented in 2 stages: first, and all sources with rflags.zf; then or results pairwise. This is pure speculation, but matches uops required.
         emitExecUop(srcRegs[0], rax, REG_EXEC_TEMP, rflags, uops, 1, PORTS_015); //includes compare
-        emitExecUop(srcRegs[1], rflags, REG_EXEC_TEMP+1, 0, uops, 2, PORTS_015);
-        emitExecUop(srcRegs[2], rflags, REG_EXEC_TEMP+2, 0, uops, 2, PORTS_015);
+        emitExecUop(srcRegs[1], rflags, REG_EXEC_TEMP + 1, 0, uops, 2, PORTS_015);
+        emitExecUop(srcRegs[2], rflags, REG_EXEC_TEMP + 2, 0, uops, 2, PORTS_015);
 
-        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP+1, dstRegs[0], 0, uops, 2, PORTS_015);
-        emitExecUop(REG_EXEC_TEMP+1, REG_EXEC_TEMP+2, dstRegs[1] /*rax*/, 0, uops, 2, PORTS_015);
+        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP + 1, dstRegs[0], 0, uops, 2, PORTS_015);
+        emitExecUop(REG_EXEC_TEMP + 1, REG_EXEC_TEMP + 2, dstRegs[1] /*rax*/, 0, uops, 2, PORTS_015);
     } else {
         //6 uops (so 3 exec), and critical path is 4 (for rax), GO FIGURE
         emitExecUop(srcRegs[0], rax, REG_EXEC_TEMP, rflags, uops, 2, PORTS_015);
-        emitExecUop(srcRegs[1], rflags, dstRegs[0], 0, uops, 2, PORTS_015); //let's assume we can do a fancy conditional store
+        emitExecUop(srcRegs[1], rflags, dstRegs[0], 0, uops, 2,
+                    PORTS_015); //let's assume we can do a fancy conditional store
         emitExecUop(srcRegs[2], REG_EXEC_TEMP, dstRegs[1] /*rax*/, 0, uops, 2, PORTS_015); //likewise
     }
 
@@ -318,8 +323,7 @@ void Decoder::emitCompareAndExchange(Instr& instr, DynUopVec& uops) {
 }
 
 
-
-void Decoder::populateRegArrays(Instr& instr, uint32_t* srcRegs, uint32_t* dstRegs) {
+void Decoder::populateRegArrays(Instr &instr, uint32_t *srcRegs, uint32_t *dstRegs) {
     uint32_t curSource = 0;
     for (uint32_t i = 0; i < instr.numLoads; i++) {
         srcRegs[curSource++] = REG_LOAD_TEMP + i;
@@ -341,7 +345,8 @@ void Decoder::populateRegArrays(Instr& instr, uint32_t* srcRegs, uint32_t* dstRe
     dstRegs[curDest++] = 0;
 }
 
-void Decoder::emitBasicOp(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t ports, uint8_t extraSlots, bool reportUnhandled) {
+void Decoder::emitBasicOp(Instr &instr, DynUopVec &uops, uint32_t lat, uint8_t ports, uint8_t extraSlots,
+                          bool reportUnhandled) {
     emitLoads(instr, uops);
 
     uint32_t srcs = instr.numLoads + instr.numInRegs;
@@ -351,14 +356,15 @@ void Decoder::emitBasicOp(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t p
     uint32_t dstRegs[dsts + 2];
     populateRegArrays(instr, srcRegs, dstRegs);
 
-    if (reportUnhandled && (srcs > 2 || dsts > 2)) reportUnhandledCase(instr, "emitBasicOp"); //We're going to be ignoring some dependencies
+    if (reportUnhandled && (srcs > 2 || dsts > 2))
+        reportUnhandledCase(instr, "emitBasicOp"); //We're going to be ignoring some dependencies
 
     emitExecUop(srcRegs[0], srcRegs[1], dstRegs[0], dstRegs[1], uops, lat, ports, extraSlots);
 
     emitStores(instr, uops);
 }
 
-void Decoder::emitChainedOp(Instr& instr, DynUopVec& uops, uint32_t numUops, uint32_t* latArray, uint8_t* portsArray) {
+void Decoder::emitChainedOp(Instr &instr, DynUopVec &uops, uint32_t numUops, uint32_t *latArray, uint8_t *portsArray) {
     emitLoads(instr, uops);
 
     uint32_t srcs = instr.numLoads + instr.numInRegs;
@@ -373,16 +379,18 @@ void Decoder::emitChainedOp(Instr& instr, DynUopVec& uops, uint32_t numUops, uin
     assert(srcs + 2 >= numUops + 1); // note equality is not necessary in case one or more operands are immediates
 
     emitExecUop(srcRegs[0], srcRegs[1], REG_EXEC_TEMP, 0, uops, latArray[0], portsArray[0]);
-    for (uint32_t i = 1; i < numUops-1; i++) {
-        emitExecUop(REG_EXEC_TEMP, srcRegs[i+1], REG_EXEC_TEMP, 0, uops, latArray[i], portsArray[i]);
+    for (uint32_t i = 1; i < numUops - 1; i++) {
+        emitExecUop(REG_EXEC_TEMP, srcRegs[i + 1], REG_EXEC_TEMP, 0, uops, latArray[i], portsArray[i]);
     }
-    emitExecUop(REG_EXEC_TEMP, srcRegs[numUops-1], dstRegs[0], dstRegs[1], uops, latArray[numUops-1], portsArray[numUops-1]);
+    emitExecUop(REG_EXEC_TEMP, srcRegs[numUops - 1], dstRegs[0], dstRegs[1], uops, latArray[numUops - 1],
+                portsArray[numUops - 1]);
 
     emitStores(instr, uops);
 }
 
 //Some convert ops are implemented in 2 uops, even though they could just use one given src/dst reg constraints
-void Decoder::emitConvert2Op(Instr& instr, DynUopVec& uops, uint32_t lat1, uint32_t lat2, uint8_t ports1, uint8_t ports2) {
+void
+Decoder::emitConvert2Op(Instr &instr, DynUopVec &uops, uint32_t lat1, uint32_t lat2, uint8_t ports1, uint8_t ports2) {
     if (instr.numStores > 0 || instr.numLoads > 1 || instr.numOutRegs != 1 || instr.numLoads + instr.numInRegs != 1) {
         reportUnhandledCase(instr, "convert");
     } else {
@@ -401,7 +409,7 @@ void Decoder::emitConvert2Op(Instr& instr, DynUopVec& uops, uint32_t lat1, uint3
 }
 
 
-void Decoder::emitMul(Instr& instr, DynUopVec& uops) {
+void Decoder::emitMul(Instr &instr, DynUopVec &uops) {
     uint32_t dsts = instr.numStores + instr.numOutRegs;
     if (dsts == 3) {
         emitLoads(instr, uops);
@@ -415,8 +423,8 @@ void Decoder::emitMul(Instr& instr, DynUopVec& uops) {
         assert(srcs <= 2);
 
         emitExecUop(srcRegs[0], srcRegs[1], dstRegs[0], REG_EXEC_TEMP, uops, 3, PORT_1);
-        emitExecUop(srcRegs[0], srcRegs[1], dstRegs[1], REG_EXEC_TEMP+1, uops, 3, PORT_1);
-        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP+1, dstRegs[2], 0, uops, 1, PORTS_015);
+        emitExecUop(srcRegs[0], srcRegs[1], dstRegs[1], REG_EXEC_TEMP + 1, uops, 3, PORT_1);
+        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP + 1, dstRegs[2], 0, uops, 1, PORTS_015);
 
         emitStores(instr, uops);
     } else {
@@ -424,7 +432,7 @@ void Decoder::emitMul(Instr& instr, DynUopVec& uops) {
     }
 }
 
-void Decoder::emitDiv(Instr& instr, DynUopVec& uops) {
+void Decoder::emitDiv(Instr &instr, DynUopVec &uops) {
     uint32_t srcs = instr.numLoads + instr.numInRegs;
     uint32_t dsts = instr.numStores + instr.numOutRegs;
 
@@ -457,17 +465,17 @@ void Decoder::emitDiv(Instr& instr, DynUopVec& uops) {
         case 64:
             lat = 63;
             break;
-        default:
-            panic("emitDiv: Invalid reg size");
+        default: panic("emitDiv: Invalid reg size");
     }
-    uint8_t extraSlots = lat-1;
+    uint8_t extraSlots = lat - 1;
     if (srcs == 3 && dsts == 3) {
         emitLoads(instr, uops);
 
         emitExecUop(srcRegs[0], srcRegs[1], REG_EXEC_TEMP, 0, uops, lat, PORTS_015, extraSlots);
-        emitExecUop(srcRegs[0], srcRegs[2], REG_EXEC_TEMP+1, 0, uops, lat, PORTS_015, extraSlots);
-        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP+1, dstRegs[0], dstRegs[1], uops, 1, PORTS_015); //quotient and remainder
-        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP+1, dstRegs[2], 0, uops, 1, PORTS_015); //flags
+        emitExecUop(srcRegs[0], srcRegs[2], REG_EXEC_TEMP + 1, 0, uops, lat, PORTS_015, extraSlots);
+        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP + 1, dstRegs[0], dstRegs[1], uops, 1,
+                    PORTS_015); //quotient and remainder
+        emitExecUop(REG_EXEC_TEMP, REG_EXEC_TEMP + 1, dstRegs[2], 0, uops, 1, PORTS_015); //flags
 
         emitStores(instr, uops);
     } else if (srcs <= 2 && dsts <= 2) {
@@ -478,12 +486,12 @@ void Decoder::emitDiv(Instr& instr, DynUopVec& uops) {
 }
 
 //Helper function
-static bool dropRegister(uint32_t targetReg, uint32_t* regs, uint32_t& numRegs) {
+static bool dropRegister(uint32_t targetReg, uint32_t *regs, uint32_t &numRegs) {
     for (uint32_t i = 0; i < numRegs; i++) {
         uint32_t reg = regs[i];
         if (reg == targetReg) {
             //Shift rest of regs
-            for (uint32_t j = i; j < numRegs - 1; j++) regs[j] = regs[j+1];
+            for (uint32_t j = i; j < numRegs - 1; j++) regs[j] = regs[j + 1];
             numRegs--;
             return true;
         }
@@ -491,7 +499,7 @@ static bool dropRegister(uint32_t targetReg, uint32_t* regs, uint32_t& numRegs) 
     return false;
 }
 
-void Decoder::dropStackRegister(Instr& instr) {
+void Decoder::dropStackRegister(Instr &instr) {
     bool dropIn = dropRegister(REG_RSP, instr.inRegs, instr.numInRegs);
     bool dropOut = dropRegister(REG_RSP, instr.outRegs, instr.numOutRegs);
     if (!dropIn && !dropOut) /*reportUnhandledCase(instr, "dropStackRegister (no RSP found)")*/;
@@ -499,7 +507,7 @@ void Decoder::dropStackRegister(Instr& instr) {
 }
 
 
-bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
+bool Decoder::decodeInstr(INS ins, DynUopVec &uops) {
     uint32_t initialUops = uops.size();
     bool inaccurate = false;
     xed_category_enum_t category = (xed_category_enum_t) INS_Category(ins);
@@ -522,7 +530,7 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             emitExecUop(0, 0, 0, 0, uops, 1, PORTS_015);
             break;
 
-         /* Moves */
+            /* Moves */
         case XC(DATAXFER):
             switch (opcode) {
                 case XO(BSWAP):
@@ -586,81 +594,77 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             emitConditionalMove(instr, uops, 1, PORT_0);
             break;
 
-        /* Barebones arithmetic instructions */
-        case XC(BINARY):
-            {
-                if (opcode == XO(ADC) || opcode == XO(SBB)) {
-                    uint32_t lats[] = {1, 1};
-                    uint8_t ports[] = {PORTS_015, PORTS_015};
-                    emitChainedOp(instr, uops, 2, lats, ports);
-                } else if (opcode == XO(MUL) || opcode == XO(IMUL)) {
-                    emitMul(instr, uops);
-                } else if (opcode == XO(DIV) || opcode == XO(IDIV)) {
-                    emitDiv(instr, uops);
-                } else {
-                    //ADD, SUB, CMP, DEC, INC, NEG are 1 cycle
-                    emitBasicOp(instr, uops, 1, PORTS_015);
-                }
+            /* Barebones arithmetic instructions */
+        case XC(BINARY): {
+            if (opcode == XO(ADC) || opcode == XO(SBB)) {
+                uint32_t lats[] = {1, 1};
+                uint8_t ports[] = {PORTS_015, PORTS_015};
+                emitChainedOp(instr, uops, 2, lats, ports);
+            } else if (opcode == XO(MUL) || opcode == XO(IMUL)) {
+                emitMul(instr, uops);
+            } else if (opcode == XO(DIV) || opcode == XO(IDIV)) {
+                emitDiv(instr, uops);
+            } else {
+                //ADD, SUB, CMP, DEC, INC, NEG are 1 cycle
+                emitBasicOp(instr, uops, 1, PORTS_015);
             }
+        }
             break;
-        case XC(BITBYTE):
-            {
-                uint32_t opLat = 1;
-                switch (opcode) {
-                    case XO(BSF):
-                    case XO(BSR):
-                        opLat = 3;
-                        break;
-                        //TODO: EXTRQ, INSERTQ, LZCNT
-                    default: {} //BT, BTx, SETcc ops are 1 cycle
-                }
-                emitBasicOp(instr, uops, opLat, PORTS_015);
+        case XC(BITBYTE): {
+            uint32_t opLat = 1;
+            switch (opcode) {
+                case XO(BSF):
+                case XO(BSR):
+                    opLat = 3;
+                    break;
+                    //TODO: EXTRQ, INSERTQ, LZCNT
+                default: {
+                } //BT, BTx, SETcc ops are 1 cycle
             }
+            emitBasicOp(instr, uops, opLat, PORTS_015);
+        }
             break;
         case XC(LOGICAL):
             //AND, OR, XOR, TEST are 1 cycle
             emitBasicOp(instr, uops, 1, PORTS_015);
             break;
-        case XC(ROTATE):
-            {
-                uint32_t opLat = 1; //ROR, ROL 1 cycle
-                if (opcode == XO(RCR) || opcode == XO(RCL)) opLat = 2;
+        case XC(ROTATE): {
+            uint32_t opLat = 1; //ROR, ROL 1 cycle
+            if (opcode == XO(RCR) || opcode == XO(RCL)) opLat = 2;
+            emitBasicOp(instr, uops, opLat, PORT_0 | PORT_5);
+        }
+            break;
+        case XC(SHIFT): {
+            if (opcode == XO(SHLD) || opcode == XO(SHRD)) {
+                uint32_t lats[] = {2, opcode == XO(SHLD) ? 1u : 2u}; //SHRD takes 4 cycles total, SHLD takes 3
+                uint8_t ports[] = {PORTS_015, PORTS_015};
+                emitChainedOp(instr, uops, 2, lats, ports);
+            } else {
+                uint32_t opLat = 1; //SHR SHL SAR are 1 cycle
                 emitBasicOp(instr, uops, opLat, PORT_0 | PORT_5);
             }
-            break;
-        case XC(SHIFT):
-            {
-                if (opcode == XO(SHLD)|| opcode == XO(SHRD)) {
-                    uint32_t lats[] = {2, opcode == XO(SHLD)? 1u : 2u}; //SHRD takes 4 cycles total, SHLD takes 3
-                    uint8_t ports[] = {PORTS_015, PORTS_015};
-                    emitChainedOp(instr, uops, 2, lats, ports);
-                } else {
-                    uint32_t opLat = 1; //SHR SHL SAR are 1 cycle
-                    emitBasicOp(instr, uops, opLat, PORT_0 | PORT_5);
-                }
-            }
+        }
             break;
         case XC(DECIMAL): //pack/unpack BCD, these seem super-deprecated
-            {
-                uint32_t opLat = 1;
-                switch (opcode) {
-                    case XO(AAA):
-                    case XO(AAS):
-                    case XO(DAA):
-                    case XO(DAS):
-                        opLat = 3;
-                        break;
-                    case XO(AAD):
-                        opLat = 15;
-                        break;
-                    case XO(AAM):
-                        opLat = 20;
-                        break;
-                    default:
-                        panic("Invalid opcode for this class");
-                }
-                emitBasicOp(instr, uops, opLat, PORTS_015);
+        {
+            uint32_t opLat = 1;
+            switch (opcode) {
+                case XO(AAA):
+                case XO(AAS):
+                case XO(DAA):
+                case XO(DAS):
+                    opLat = 3;
+                    break;
+                case XO(AAD):
+                    opLat = 15;
+                    break;
+                case XO(AAM):
+                    opLat = 20;
+                    break;
+                default: panic("Invalid opcode for this class");
             }
+            emitBasicOp(instr, uops, opLat, PORTS_015);
+        }
             break;
         case XC(FLAGOP):
             switch (opcode) {
@@ -693,22 +697,21 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             switch (opcode) {
                 case XO(CMPXCHG):
                 case XO(CMPXCHG8B):
-                //case XO(CMPXCHG16B): //not tested...
+                    //case XO(CMPXCHG16B): //not tested...
                     emitCompareAndExchange(instr, uops);
                     break;
-                case XO(XADD):
-                    {
-                        uint32_t lats[] = {2, 2};
-                        uint8_t ports[] = {PORTS_015, PORTS_015};
-                        emitChainedOp(instr, uops, 2, lats, ports);
-                    }
+                case XO(XADD): {
+                    uint32_t lats[] = {2, 2};
+                    uint8_t ports[] = {PORTS_015, PORTS_015};
+                    emitChainedOp(instr, uops, 2, lats, ports);
+                }
                     break;
                 default:
                     inaccurate = true;
             }
             break;
 
-        /* FP, SSE and other extensions */
+            /* FP, SSE and other extensions */
         case /*XC(X)87_ALU*/ XC(X87_ALU):
             //emitBasicOp(instr, uops, 1, PORTS_015);
             break;
@@ -721,193 +724,192 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             //emitBasicOp(instr, uops, 1, PORTS_015);
             break;
 
-        case XC(SSE):
-            {
-                //TODO: Multi-uop BLENDVXX, DPXX
+        case XC(SSE): {
+            //TODO: Multi-uop BLENDVXX, DPXX
 
-                uint32_t lat = 1;
-                uint8_t ports = PORTS_015;
-                uint8_t extraSlots = 0;
-                switch (opcode) {
-                    case XO(ADDPD):
-                    case XO(ADDPS):
-                    case XO(ADDSD):
-                    case XO(ADDSS):
-                    case XO(SUBPD):
-                    case XO(SUBPS):
-                    case XO(SUBSD):
-                    case XO(SUBSS):
-                    case XO(ADDSUBPD):
-                    case XO(ADDSUBPS):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+            uint32_t lat = 1;
+            uint8_t ports = PORTS_015;
+            uint8_t extraSlots = 0;
+            switch (opcode) {
+                case XO(ADDPD):
+                case XO(ADDPS):
+                case XO(ADDSD):
+                case XO(ADDSS):
+                case XO(SUBPD):
+                case XO(SUBPS):
+                case XO(SUBSD):
+                case XO(SUBSS):
+                case XO(ADDSUBPD):
+                case XO(ADDSUBPS):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(BLENDPS):
-                    case XO(BLENDPD):
-                    case XO(SHUFPS):
-                    case XO(SHUFPD):
-                    case XO(UNPCKHPD):
-                    case XO(UNPCKHPS):
-                    case XO(UNPCKLPD):
-                    case XO(UNPCKLPS):
-                        lat = 1;
-                        ports = PORT_5;
-                        break;
+                case XO(BLENDPS):
+                case XO(BLENDPD):
+                case XO(SHUFPS):
+                case XO(SHUFPD):
+                case XO(UNPCKHPD):
+                case XO(UNPCKHPS):
+                case XO(UNPCKLPD):
+                case XO(UNPCKLPS):
+                    lat = 1;
+                    ports = PORT_5;
+                    break;
 
-                    case XO(CMPPD):
-                    case XO(CMPPS):
-                    case XO(CMPSD):
-                    case XO(CMPSS):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(CMPPD):
+                case XO(CMPPS):
+                case XO(CMPSD):
+                case XO(CMPSS):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(COMISD):
-                    case XO(COMISS):
-                    case XO(UCOMISD):
-                    case XO(UCOMISS):
-                        lat = 1+2; //writes rflags, always crossing xmm -> int domains
-                        ports = PORT_1;
-                        break;
+                case XO(COMISD):
+                case XO(COMISS):
+                case XO(UCOMISD):
+                case XO(UCOMISS):
+                    lat = 1 + 2; //writes rflags, always crossing xmm -> int domains
+                    ports = PORT_1;
+                    break;
 
-                    case XO(DIVPS):
-                    case XO(DIVSS):
-                        lat = 7; //from mubench
-                        ports = PORT_0;
-                        extraSlots = lat - 1; //non-pipelined
-                        break;
-                    case XO(DIVPD):
-                    case XO(DIVSD):
-                        lat = 7; //from mubench
-                        ports = PORT_0; //non-pipelined
-                        extraSlots = lat - 1;
-                        break;
+                case XO(DIVPS):
+                case XO(DIVSS):
+                    lat = 7; //from mubench
+                    ports = PORT_0;
+                    extraSlots = lat - 1; //non-pipelined
+                    break;
+                case XO(DIVPD):
+                case XO(DIVSD):
+                    lat = 7; //from mubench
+                    ports = PORT_0; //non-pipelined
+                    extraSlots = lat - 1;
+                    break;
 
-                    case XO(MAXPD):
-                    case XO(MAXPS):
-                    case XO(MAXSD):
-                    case XO(MAXSS):
-                    case XO(MINPD):
-                    case XO(MINPS):
-                    case XO(MINSD):
-                    case XO(MINSS):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(MAXPD):
+                case XO(MAXPS):
+                case XO(MAXSD):
+                case XO(MAXSS):
+                case XO(MINPD):
+                case XO(MINPS):
+                case XO(MINSD):
+                case XO(MINSS):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(MULSS):
-                    case XO(MULPS):
-                        lat = 4;
-                        ports = PORT_0;
-                        break;
-                    case XO(MULSD):
-                    case XO(MULPD):
-                        lat = 5;
-                        ports = PORT_0;
-                        break;
+                case XO(MULSS):
+                case XO(MULPS):
+                    lat = 4;
+                    ports = PORT_0;
+                    break;
+                case XO(MULSD):
+                case XO(MULPD):
+                    lat = 5;
+                    ports = PORT_0;
+                    break;
 
-                    case XO(RCPPS):
-                    case XO(RCPSS):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(RCPPS):
+                case XO(RCPSS):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(ROUNDPD):
-                    case XO(ROUNDPS):
-                    case XO(ROUNDSD):
-                    case XO(ROUNDSS):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(ROUNDPD):
+                case XO(ROUNDPS):
+                case XO(ROUNDSD):
+                case XO(ROUNDSS):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(RSQRTPS):
-                    case XO(RSQRTSS):
-                        lat = 3;
-                        ports = PORT_1;
-                        extraSlots = 1; //from mubench, has reciprocal thput of 2
-                        break;
+                case XO(RSQRTPS):
+                case XO(RSQRTSS):
+                    lat = 3;
+                    ports = PORT_1;
+                    extraSlots = 1; //from mubench, has reciprocal thput of 2
+                    break;
 
-                    case XO(SQRTSS):
-                    case XO(SQRTPS):
-                        lat = 7; //from mubench
-                        ports = PORT_0;
-                        extraSlots = lat-1; //unpiped
-                        break;
+                case XO(SQRTSS):
+                case XO(SQRTPS):
+                    lat = 7; //from mubench
+                    ports = PORT_0;
+                    extraSlots = lat - 1; //unpiped
+                    break;
 
-                    case XO(SQRTSD):
-                    case XO(SQRTPD):
-                        lat = 7; //from mubench
-                        ports = PORT_0;
-                        extraSlots = lat-1; //unpiped
-                        break;
+                case XO(SQRTSD):
+                case XO(SQRTPD):
+                    lat = 7; //from mubench
+                    ports = PORT_0;
+                    extraSlots = lat - 1; //unpiped
+                    break;
 
-                    case XO(POPCNT):
-                    case XO(CRC32):
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(POPCNT):
+                case XO(CRC32):
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
                     //Packed arith; these are rare, so I'm implementing only what I've seen used (and simple variants)
-                    case XO(PADDB):
-                    case XO(PADDD):
-                    case XO(PADDQ):
-                    case XO(PADDSB):
-                    case XO(PADDSW):
-                    case XO(PADDUSB):
-                    case XO(PADDUSW):
-                    case XO(PADDW):
-                    case XO(PSUBB):
-                    case XO(PSUBD):
-                    case XO(PSUBQ):
-                    case XO(PSUBSB):
-                    case XO(PSUBSW):
-                    case XO(PSUBUSB):
-                    case XO(PSUBUSW):
-                    case XO(PSUBW):
+                case XO(PADDB):
+                case XO(PADDD):
+                case XO(PADDQ):
+                case XO(PADDSB):
+                case XO(PADDSW):
+                case XO(PADDUSB):
+                case XO(PADDUSW):
+                case XO(PADDW):
+                case XO(PSUBB):
+                case XO(PSUBD):
+                case XO(PSUBQ):
+                case XO(PSUBSB):
+                case XO(PSUBSW):
+                case XO(PSUBUSB):
+                case XO(PSUBUSW):
+                case XO(PSUBW):
 
-                    case XO(PALIGNR):
+                case XO(PALIGNR):
 
-                    case XO(PCMPEQB):
-                    case XO(PCMPEQD):
-                    case XO(PCMPEQQ):
-                    case XO(PCMPEQW):
-                    case XO(PCMPGTB):
-                    case XO(PCMPGTD):
-                    case XO(PCMPGTW):
+                case XO(PCMPEQB):
+                case XO(PCMPEQD):
+                case XO(PCMPEQQ):
+                case XO(PCMPEQW):
+                case XO(PCMPGTB):
+                case XO(PCMPGTD):
+                case XO(PCMPGTW):
 
-                    case XO(PUNPCKHBW):
-                    case XO(PUNPCKHDQ):
-                    case XO(PUNPCKHQDQ):
-                    case XO(PUNPCKHWD):
-                    case XO(PUNPCKLBW):
-                    case XO(PUNPCKLDQ):
-                    case XO(PUNPCKLQDQ):
-                    case XO(PUNPCKLWD):
+                case XO(PUNPCKHBW):
+                case XO(PUNPCKHDQ):
+                case XO(PUNPCKHQDQ):
+                case XO(PUNPCKHWD):
+                case XO(PUNPCKLBW):
+                case XO(PUNPCKLDQ):
+                case XO(PUNPCKLQDQ):
+                case XO(PUNPCKLWD):
 
-                    case XO(PSHUFB):
-                    case XO(PSHUFD):
-                    case XO(PSHUFHW):
-                    case XO(PSHUFLW):
-                        lat = 1;
-                        ports = PORT_0 | PORT_5;
-                        break;
+                case XO(PSHUFB):
+                case XO(PSHUFD):
+                case XO(PSHUFHW):
+                case XO(PSHUFLW):
+                    lat = 1;
+                    ports = PORT_0 | PORT_5;
+                    break;
 
-                    case XO(PCMPGTQ): //weeeird, only packed comparison that's done differently
-                        lat = 3;
-                        ports = PORT_1;
-                        break;
+                case XO(PCMPGTQ): //weeeird, only packed comparison that's done differently
+                    lat = 3;
+                    ports = PORT_1;
+                    break;
 
-                    case XO(PMOVMSKB):
-                        lat = 2+2;
-                        ports = PORT_0;
-                        break;
+                case XO(PMOVMSKB):
+                    lat = 2 + 2;
+                    ports = PORT_0;
+                    break;
 
-                    default:
-                        inaccurate = true;
-                }
-                emitBasicOp(instr, uops, lat, ports, extraSlots);
+                default:
+                    inaccurate = true;
             }
+            emitBasicOp(instr, uops, lat, ports, extraSlots);
+        }
             break;
 
         case XC(STTNI): //SSE 4.2
@@ -928,34 +930,34 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
                 case XO(CVTDQ2PS):
                 case XO(CVTPS2DQ):
                 case XO(CVTTPS2DQ):
-                    emitBasicOp(instr, uops, 3+2 /*domain change*/, PORT_1);
+                    emitBasicOp(instr, uops, 3 + 2 /*domain change*/, PORT_1);
                     break;
                 case XO(CVTDQ2PD):
                 case XO(CVTPD2DQ):
                 case XO(CVTTPD2DQ):
-                    emitConvert2Op(instr, uops, 2, 2+2 /*domain change*/, PORT_1, PORT_5);
+                    emitConvert2Op(instr, uops, 2, 2 + 2 /*domain change*/, PORT_1, PORT_5);
                     break;
                 case XO(CVTPI2PS):
                 case XO(CVTPS2PI):
                 case XO(CVTTPS2PI):
-                    emitBasicOp(instr, uops, 3+2 /*domain change*/, PORT_1);
+                    emitBasicOp(instr, uops, 3 + 2 /*domain change*/, PORT_1);
                     break;
                 case XO(CVTPI2PD):
                 case XO(CVTPD2PI):
                 case XO(CVTTPD2PI):
-                    emitConvert2Op(instr, uops, 2, 2+2 /*domain change*/, PORT_1, PORT_0 | PORT_5);
+                    emitConvert2Op(instr, uops, 2, 2 + 2 /*domain change*/, PORT_1, PORT_0 | PORT_5);
                     break;
                 case XO(CVTSI2SS):
                 case XO(CVTSS2SI):
                 case XO(CVTTSS2SI):
-                    emitBasicOp(instr, uops, 3+2 /*domain change*/, PORT_1);
+                    emitBasicOp(instr, uops, 3 + 2 /*domain change*/, PORT_1);
                     break;
                 case XO(CVTSI2SD):
-                    emitConvert2Op(instr, uops, 2, 2+2 /*domain change*/, PORT_1, PORT_0);
+                    emitConvert2Op(instr, uops, 2, 2 + 2 /*domain change*/, PORT_1, PORT_0);
                     break;
                 case XO(CVTSD2SI):
                 case XO(CVTTSD2SI):
-                    emitBasicOp(instr, uops, 3+2 /*domain change*/, PORT_1);
+                    emitBasicOp(instr, uops, 3 + 2 /*domain change*/, PORT_1);
                     break;
                 case XO(CBW):
                 case XO(CWDE):
@@ -991,7 +993,7 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
         case XC(XSAVEOPT): //hold your horses, it's optimized!! (AVX)
             break;
 
-        /* Control flow ops (branches, jumps) */
+            /* Control flow ops (branches, jumps) */
         case XC(COND_BR):
         case XC(UNCOND_BR):
             // We model all branches and jumps with a latency of 1. Far jumps are really expensive, but they should be exceedingly rare (from Intel's manual, they are used for call gates, task switches, etc.)
@@ -999,13 +1001,14 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             if (opcode == XO(JMP_FAR)) inaccurate = true;
             break;
 
-        /* Stack operations */
+            /* Stack operations */
         case XC(CALL):
         case XC(RET):
             /* Call and ret are both unconditional branches and stack operations; however, Pin does not list RSP as source or destination for them */
             //dropStackRegister(instr); //stack engine kills accesses to RSP
             emitBasicOp(instr, uops, 1, PORT_5);
-            if (opcode != XO(CALL_NEAR) && opcode != XO(RET_NEAR)) inaccurate = true; //far call/ret or irets are far more complex
+            if (opcode != XO(CALL_NEAR) && opcode != XO(RET_NEAR))
+                inaccurate = true; //far call/ret or irets are far more complex
             break;
 
         case XC(POP):
@@ -1028,11 +1031,11 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
                 case XO(PUSHFD):
                 case XO(PUSHFQ):
                     //This one we can handle... 2 exec uops + store and reciprocal thput of 1
-                    {
-                        uint32_t lats[] = {1, 1};
-                        uint8_t ports[] = {PORTS_015, PORTS_015};
-                        emitChainedOp(instr, uops, 2, lats, ports);
-                    }
+                {
+                    uint32_t lats[] = {1, 1};
+                    uint8_t ports[] = {PORTS_015, PORTS_015};
+                    emitChainedOp(instr, uops, 2, lats, ports);
+                }
                     break;
 
                 default:
@@ -1040,14 +1043,14 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             }
             break;
 
-        /* Prefetches */
+            /* Prefetches */
         case XC(PREFETCH):
             //A prefetch is just a load that doesn't feed into any register (or REG_TEMP in this case)
             //NOTE: Not exactly, because this will serialize future loads under TSO
             emitLoads(instr, uops);
             break;
 
-        /* Stuff on the system side (some of these are privileged) */
+            /* Stuff on the system side (some of these are privileged) */
         case XC(INTERRUPT):
         case XC(SYSCALL):
         case XC(SYSRET):
@@ -1077,7 +1080,7 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             break;
 
 
-        /* String ops (I'm reading the manual and they seem just like others... wtf?) */
+            /* String ops (I'm reading the manual and they seem just like others... wtf?) */
         case XC(STRINGOP):
             switch (opcode) {
                 case XO(STOSB):
@@ -1116,8 +1119,8 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
                     //load [rsi], [rdi], compare them, and add the other 2
                     //Agner's tables say all exec uops can go anywhere, but I'm betting the comp op only goes in port5
                     emitLoad(instr, 0, uops, REG_LOAD_TEMP);
-                    emitLoad(instr, 0, uops, REG_LOAD_TEMP+1);
-                    emitExecUop(REG_LOAD_TEMP, REG_LOAD_TEMP+1, REG_RFLAGS, 0, uops, 1, PORT_5);
+                    emitLoad(instr, 0, uops, REG_LOAD_TEMP + 1);
+                    emitExecUop(REG_LOAD_TEMP, REG_LOAD_TEMP + 1, REG_RFLAGS, 0, uops, 1, PORT_5);
                     emitExecUop(REG_RSI, 0, REG_RSI, 0, uops, 1, PORTS_015);
                     emitExecUop(REG_RDI, 0, REG_RDI, 0, uops, 1, PORTS_015);
                     break;
@@ -1129,7 +1132,7 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             //TODO: These seem to make sense with REP, which Pin unfolds anyway. Are they used al all?
             break;
 
-        /* Stuff not even the Intel guys know how to classify :P */
+            /* Stuff not even the Intel guys know how to classify :P */
         case XC(MISC):
             if (opcode == XO(LEA)) {
                 emitBasicOp(instr, uops, 1, PORT_1);
@@ -1159,12 +1162,13 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
             //TODO
             break;
 
-        default: {}
+        default: {
+        }
             //panic("Invalid instruction category");
     }
 
     //Try to produce something approximate...
-    if (uops.size() - initialUops == isLocked? 1 : 0) { //if it's locked, we have the initial fence for an empty instr
+    if (uops.size() - initialUops == isLocked ? 1 : 0) { //if it's locked, we have the initial fence for an empty instr
         emitBasicOp(instr, uops, 1, PORTS_015, 0, false /* don't report unhandled cases */);
         inaccurate = true;
     }
@@ -1175,7 +1179,8 @@ bool Decoder::decodeInstr(INS ins, DynUopVec& uops) {
     //Add ld/st fence to all locked instructions
     if (isLocked) {
         //inaccurate = true; //this is now fairly accurate
-        emitFence(uops, 9); //locked ops introduce an additional uop and cache locking takes 14 cycles/instr per the perf counters; latencies match with 9 cycles of fence latency
+        emitFence(uops,
+                  9); //locked ops introduce an additional uop and cache locking takes 14 cycles/instr per the perf counters; latencies match with 9 cycles of fence latency
     }
 
     assert(uops.size() - initialUops < MAX_UOPS_PER_INSTR);
@@ -1222,7 +1227,7 @@ bool Decoder::canFuse(INS ins) {
     }
 }
 
-bool Decoder::decodeFusedInstrs(INS ins, DynUopVec& uops) {
+bool Decoder::decodeFusedInstrs(INS ins, DynUopVec &uops) {
     //assert(canFuse(ins)); //this better be true :)
 
     Instr instr(ins);
@@ -1230,9 +1235,8 @@ bool Decoder::decodeFusedInstrs(INS ins, DynUopVec& uops) {
 
     //instr should have 2 inputs (regs/mem), and 1 output (rflags), and branch should have 2 inputs (rip, rflags) and 1 output (rip)
 
-    if (instr.numOutRegs != 1  || instr.outRegs[0] != REG_RFLAGS ||
-        branch.numOutRegs != 1 || branch.outRegs[0] != REG_RIP)
-    {
+    if (instr.numOutRegs != 1 || instr.outRegs[0] != REG_RFLAGS ||
+        branch.numOutRegs != 1 || branch.outRegs[0] != REG_RIP) {
         reportUnhandledCase(instr, "decodeFusedInstrs");
         reportUnhandledCase(branch, "decodeFusedInstrs");
     } else {
@@ -1258,10 +1262,10 @@ static std::vector<uint32_t>* bblApproxOpcodes[MAX_BBLS];
 
 #endif
 
-BblInfo* Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
+BblInfo *Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
     uint32_t instrs = BBL_NumIns(bbl);
     uint32_t bytes = BBL_Size(bbl);
-    BblInfo* bblInfo;
+    BblInfo *bblInfo;
 
     if (oooDecoding) {
         //Decode BBL
@@ -1304,7 +1308,7 @@ BblInfo* Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
                 instrUops.push_back(0);
                 instrDesc.push_back(ins);
 
-                curIns+=2;
+                curIns += 2;
             } else {
                 inaccurate = Decoder::decodeInstr(ins, uopVec);
 
@@ -1397,7 +1401,8 @@ BblInfo* Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
 
             bool simple = (instrUops[i] == 1) && (instrBytes[i] < 8);
 
-            if ((simple && dsimple + dcomplex == 4) || (!simple && dcomplex == 1)) { // Do: (!simple /*&& dcomplex == 1*/) to be conservative?
+            if ((simple && dsimple + dcomplex == 4) ||
+                (!simple && dcomplex == 1)) { // Do: (!simple /*&& dcomplex == 1*/) to be conservative?
                 dcyc++;
                 dsimple = 0;
                 dcomplex = 0;
@@ -1419,10 +1424,10 @@ BblInfo* Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
 
         //Allocate
         uint32_t objBytes = offsetof(BblInfo, oooBbl) + DynBbl::bytes(uopVec.size());
-        bblInfo = static_cast<BblInfo*>(gm_malloc(objBytes));  // can't use type-safe interface
+        bblInfo = static_cast<BblInfo *>(gm_malloc(objBytes));  // can't use type-safe interface
 
         //Initialize ooo part
-        DynBbl& dynBbl = bblInfo->oooBbl[0];
+        DynBbl &dynBbl = bblInfo->oooBbl[0];
         dynBbl.addr = BBL_Address(bbl);
         dynBbl.uops = uopVec.size();
         dynBbl.approxInstrs = approxInstrs;

@@ -41,113 +41,127 @@ enum SyncedFastForwardMode {
 };
 
 class ProcessTreeNode : public GlobAlloc {
-    private:
-        g_vector<ProcessTreeNode*> children;
-        const char* patchRoot; //used in syscall patching
-        uint32_t procIdx;
-        const uint32_t groupIdx;
-        volatile uint32_t curChildren;
-        volatile uint64_t heartbeats;
-        bool started;
-        volatile bool inFastForward;
-        volatile bool inPause;
-        uint32_t restartsLeft;
-        const SyncedFastForwardMode syncedFastForward;
-        const uint32_t clockDomain;
-        const uint32_t portDomain;
-        const uint64_t dumpHeartbeats;
-        const bool dumpsResetHeartbeats;
-        const g_vector<bool> mask;
-        const g_vector<uint64_t> ffiPoints;
-        const g_string syscallBlacklistRegex;
+private:
+    g_vector<ProcessTreeNode *> children;
+    const char *patchRoot; //used in syscall patching
+    uint32_t procIdx;
+    const uint32_t groupIdx;
+    volatile uint32_t curChildren;
+    volatile uint64_t heartbeats;
+    bool started;
+    volatile bool inFastForward;
+    volatile bool inPause;
+    uint32_t restartsLeft;
+    const SyncedFastForwardMode syncedFastForward;
+    const uint32_t clockDomain;
+    const uint32_t portDomain;
+    const uint64_t dumpHeartbeats;
+    const bool dumpsResetHeartbeats;
+    const g_vector<bool> mask;
+    const g_vector<uint64_t> ffiPoints;
+    const g_string syscallBlacklistRegex;
 
-    public:
-        ProcessTreeNode(uint32_t _procIdx, uint32_t _groupIdx, bool _inFastForward, bool _inPause, const SyncedFastForwardMode& _syncedFastForward,
-                        uint32_t _clockDomain, uint32_t _portDomain, uint64_t _dumpHeartbeats, bool _dumpsResetHeartbeats, uint32_t _restarts,
-                        const g_vector<bool>& _mask, const g_vector<uint64_t>& _ffiPoints, const g_string& _syscallBlacklistRegex, const char*_patchRoot)
-            : patchRoot(_patchRoot), procIdx(_procIdx), groupIdx(_groupIdx), curChildren(0), heartbeats(0), started(false), inFastForward(_inFastForward),
-              inPause(_inPause), restartsLeft(_restarts), syncedFastForward(_syncedFastForward), clockDomain(_clockDomain), portDomain(_portDomain), dumpHeartbeats(_dumpHeartbeats), dumpsResetHeartbeats(_dumpsResetHeartbeats), mask(_mask), ffiPoints(_ffiPoints), syscallBlacklistRegex(_syscallBlacklistRegex) {}
+public:
+    ProcessTreeNode(uint32_t _procIdx, uint32_t _groupIdx, bool _inFastForward, bool _inPause,
+                    const SyncedFastForwardMode &_syncedFastForward,
+                    uint32_t _clockDomain, uint32_t _portDomain, uint64_t _dumpHeartbeats, bool _dumpsResetHeartbeats,
+                    uint32_t _restarts,
+                    const g_vector<bool> &_mask, const g_vector<uint64_t> &_ffiPoints,
+                    const g_string &_syscallBlacklistRegex, const char *_patchRoot)
+            : patchRoot(_patchRoot), procIdx(_procIdx), groupIdx(_groupIdx), curChildren(0), heartbeats(0),
+              started(false), inFastForward(_inFastForward),
+              inPause(_inPause), restartsLeft(_restarts), syncedFastForward(_syncedFastForward),
+              clockDomain(_clockDomain), portDomain(_portDomain), dumpHeartbeats(_dumpHeartbeats),
+              dumpsResetHeartbeats(_dumpsResetHeartbeats), mask(_mask), ffiPoints(_ffiPoints),
+              syscallBlacklistRegex(_syscallBlacklistRegex) {}
 
-        void addChild(ProcessTreeNode* child) {
-            children.push_back(child);
-        }
+    void addChild(ProcessTreeNode *child) {
+        children.push_back(child);
+    }
 
-        ProcessTreeNode* getNextChild() {
-            if (curChildren == children.size()) { //allocate a new child
-                uint32_t childProcIdx = __sync_fetch_and_add(&zinfo->numProcs, 1);
-                if (childProcIdx >= (uint32_t)zinfo->lineSize) {
-                    panic("Cannot simulate more than sys.lineSize=%d processes (to avoid aliasing), limit reached", zinfo->lineSize);
-                }
-                ProcessTreeNode* child = new ProcessTreeNode(*this);
-                child->procIdx = childProcIdx;
-                child->started = false;
-                child->curChildren = 0;
-                child->heartbeats = 0;
-                child->children.clear();
-                addChild(child);
-                zinfo->procArray[childProcIdx] = child;
-                info("Created child process %d on the fly, inheriting %d's config", childProcIdx, procIdx);
+    ProcessTreeNode *getNextChild() {
+        if (curChildren == children.size()) { //allocate a new child
+            uint32_t childProcIdx = __sync_fetch_and_add(&zinfo->numProcs, 1);
+            if (childProcIdx >= (uint32_t) zinfo->lineSize) {
+                panic("Cannot simulate more than sys.lineSize=%d processes (to avoid aliasing), limit reached",
+                      zinfo->lineSize);
             }
-
-            assert_msg(curChildren < children.size(), "ProcessTreeNode::getNextChild, procIdx=%d curChildren=%d numChildren=%ld", procIdx, curChildren, children.size());
-            return children[curChildren++];
+            ProcessTreeNode *child = new ProcessTreeNode(*this);
+            child->procIdx = childProcIdx;
+            child->started = false;
+            child->curChildren = 0;
+            child->heartbeats = 0;
+            child->children.clear();
+            addChild(child);
+            zinfo->procArray[childProcIdx] = child;
+            info("Created child process %d on the fly, inheriting %d's config", childProcIdx, procIdx);
         }
 
-        uint32_t getProcIdx() const {return procIdx;}
-        uint32_t getGroupIdx() const {return groupIdx;}
+        assert_msg(curChildren < children.size(),
+                   "ProcessTreeNode::getNextChild, procIdx=%d curChildren=%d numChildren=%ld", procIdx, curChildren,
+                   children.size());
+        return children[curChildren++];
+    }
 
-        //Returns true if this is an actual first start, false otherwise (e.g. an exec)
-        bool notifyStart();
+    uint32_t getProcIdx() const { return procIdx; }
 
-        //Returns true if this is the last process to end, false otherwise
-        bool notifyEnd() __attribute__((warn_unused_result));
+    uint32_t getGroupIdx() const { return groupIdx; }
 
-        void heartbeat();
+    //Returns true if this is an actual first start, false otherwise (e.g. an exec)
+    bool notifyStart();
 
-        const char* getPatchRoot() const {
-            return patchRoot;
-        }
+    //Returns true if this is the last process to end, false otherwise
+    bool notifyEnd() __attribute__((warn_unused_result));
 
-        inline bool isInFastForward() const { return inFastForward; }
-        inline bool isInPause() const { return inPause; }
-        inline bool getSyncedFastForward() const {
-            return syncedFastForward == SFF_ALWAYS || (syncedFastForward == SFF_MULTIPROCESS && zinfo->numProcs > 1);
-        }
+    void heartbeat();
 
-        //In cpp file, they need to access zinfo
-        void enterFastForward();
-        void exitFastForward();
+    const char *getPatchRoot() const {
+        return patchRoot;
+    }
 
-        inline uint32_t getClockDomain() const {
-            return clockDomain;
-        }
+    inline bool isInFastForward() const { return inFastForward; }
 
-        inline uint32_t getPortDomain() const {
-            return portDomain;
-        }
+    inline bool isInPause() const { return inPause; }
 
-        void exitPause() {
-            assert(inPause);
-            inPause = false;
-            __sync_synchronize();
-        }
+    inline bool getSyncedFastForward() const {
+        return syncedFastForward == SFF_ALWAYS || (syncedFastForward == SFF_MULTIPROCESS && zinfo->numProcs > 1);
+    }
 
-        const g_vector<bool>& getMask() const {
-            return mask;
-        }
+    //In cpp file, they need to access zinfo
+    void enterFastForward();
 
-        const g_vector<uint64_t>& getFFIPoints() const {
-            return ffiPoints;
-        }
+    void exitFastForward();
 
-        const g_string& getSyscallBlacklistRegex() const {
-            return syscallBlacklistRegex;
-        }
+    inline uint32_t getClockDomain() const {
+        return clockDomain;
+    }
 
-        //Currently there's no API to get back to a paused state; processes can start in a paused state, but once they are unpaused, they are unpaused for good
+    inline uint32_t getPortDomain() const {
+        return portDomain;
+    }
+
+    void exitPause() {
+        assert(inPause);
+        inPause = false;
+        __sync_synchronize();
+    }
+
+    const g_vector<bool> &getMask() const {
+        return mask;
+    }
+
+    const g_vector<uint64_t> &getFFIPoints() const {
+        return ffiPoints;
+    }
+
+    const g_string &getSyscallBlacklistRegex() const {
+        return syscallBlacklistRegex;
+    }
+
+    //Currently there's no API to get back to a paused state; processes can start in a paused state, but once they are unpaused, they are unpaused for good
 };
 
-void CreateProcessTree(Config& config);
+void CreateProcessTree(Config &config);
 
 
 #endif  // PROCESS_TREE_H_

@@ -35,74 +35,79 @@
 //#define TRACE_MSG(args...) info(args)
 
 class OOOIssueEvent : public TimingEvent {
-    private:
-        uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
-        OOOCoreRecorder* cRec;
-        uint64_t id;
+private:
+    uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
+    OOOCoreRecorder *cRec;
+    uint64_t id;
 
-    public:
-        OOOIssueEvent(uint32_t preDelay, uint64_t _zllStartCycle, OOOCoreRecorder* _cRec, int32_t domain = -1) : TimingEvent(preDelay, 0, domain), zllStartCycle(_zllStartCycle), cRec(_cRec) {}
+public:
+    OOOIssueEvent(uint32_t preDelay, uint64_t _zllStartCycle, OOOCoreRecorder *_cRec, int32_t domain = -1)
+            : TimingEvent(preDelay, 0, domain), zllStartCycle(_zllStartCycle), cRec(_cRec) {}
 
-        void simulate(uint64_t startCycle) {
-            TRACE_MSG("Issue %ld zllStartCycle %ld startCycle %ld minStartCycle %ld", id, zllStartCycle, startCycle, getMinStartCycle());
-            cRec->reportIssueEventSimulated(this, startCycle);
-            done(startCycle);
-        }
+    void simulate(uint64_t startCycle) {
+        TRACE_MSG("Issue %ld zllStartCycle %ld startCycle %ld minStartCycle %ld", id, zllStartCycle, startCycle,
+                  getMinStartCycle());
+        cRec->reportIssueEventSimulated(this, startCycle);
+        done(startCycle);
+    }
 
-        virtual std::string str() {
-            std::string res = "rec: ";
-            res += cRec->getName().c_str();
-            return res;
-        }
+    virtual std::string str() {
+        std::string res = "rec: ";
+        res += cRec->getName().c_str();
+        return res;
+    }
 
-        friend class OOOCoreRecorder;
+    friend class OOOCoreRecorder;
 };
 
 
 class OOODispatchEvent : public TimingEvent {
-    private:
-        uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
-        uint64_t id;
+private:
+    uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
+    uint64_t id;
 
-    public:
-        OOODispatchEvent(uint64_t preDelay, uint64_t _zllStartCycle, int32_t domain = -1) : TimingEvent(preDelay, 0, domain), zllStartCycle(_zllStartCycle) {}
+public:
+    OOODispatchEvent(uint64_t preDelay, uint64_t _zllStartCycle, int32_t domain = -1) : TimingEvent(preDelay, 0,
+                                                                                                    domain),
+                                                                                        zllStartCycle(_zllStartCycle) {}
 
-        void simulate(uint64_t startCycle) {
-            TRACE_MSG("Dispatch %ld zllStartCycle %ld startCycle %ld minStartCycle %ld", id, zllStartCycle, startCycle, getMinStartCycle());
-            done(startCycle);
-        }
+    void simulate(uint64_t startCycle) {
+        TRACE_MSG("Dispatch %ld zllStartCycle %ld startCycle %ld minStartCycle %ld", id, zllStartCycle, startCycle,
+                  getMinStartCycle());
+        done(startCycle);
+    }
 
-        friend class OOOCoreRecorder;
+    friend class OOOCoreRecorder;
 };
 
 class OOORespEvent : public TimingEvent {
-    private:
-        // Now tracked in FutureResponse wrapper, as event may go stale
-        //uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
-        OOOCoreRecorder* cRec;  // used to track whether event has finished
-        uint64_t id;
+private:
+    // Now tracked in FutureResponse wrapper, as event may go stale
+    //uint64_t zllStartCycle; //minStartCycle - gapCycles, stable across readjustments of gapCycles
+    OOOCoreRecorder *cRec;  // used to track whether event has finished
+    uint64_t id;
 
-    public:
-        OOORespEvent(uint64_t preDelay, OOOCoreRecorder* _cRec, int32_t domain = -1) : TimingEvent(preDelay, 0, domain), cRec(_cRec) {}
+public:
+    OOORespEvent(uint64_t preDelay, OOOCoreRecorder *_cRec, int32_t domain = -1) : TimingEvent(preDelay, 0, domain),
+                                                                                   cRec(_cRec) {}
 
-        void simulate(uint64_t _startCycle) {
-            TRACE_MSG("Resp %ld startCycle %ld minStartCycle %ld", id, startCycle, getMinStartCycle());
-            cRec = nullptr;
-            done(_startCycle);
-        }
+    void simulate(uint64_t _startCycle) {
+        TRACE_MSG("Resp %ld startCycle %ld minStartCycle %ld", id, startCycle, getMinStartCycle());
+        cRec = nullptr;
+        done(_startCycle);
+    }
 
-        friend class OOOCoreRecorder;
+    friend class OOOCoreRecorder;
 };
 
 //For the futureResponses min-heap
-bool OOOCoreRecorder::CompareRespEvents::operator()(const FutureResponse& e1, const FutureResponse& e2) const {
+bool OOOCoreRecorder::CompareRespEvents::operator()(const FutureResponse &e1, const FutureResponse &e2) const {
     return (e1.zllStartCycle > e2.zllStartCycle);
 }
 
 
-OOOCoreRecorder::OOOCoreRecorder(uint32_t _domain, g_string& _name)
-    : domain(_domain), name(_name + "-rec")
-{
+OOOCoreRecorder::OOOCoreRecorder(uint32_t _domain, g_string &_name)
+        : domain(_domain), name(_name + "-rec") {
     state = HALTED;
     gapCycles = 0;
     eventRecorder.setGapCycles(gapCycles);
@@ -130,7 +135,7 @@ uint64_t OOOCoreRecorder::notifyJoin(uint64_t curCycle) {
         assert(lastUnhaltedCycle <= curCycle);
         totalHaltedCycles += curCycle - lastUnhaltedCycle;
 
-        lastEvProduced = new (eventRecorder) OOOIssueEvent(0, curCycle - gapCycles, this, domain);
+        lastEvProduced = new(eventRecorder) OOOIssueEvent(0, curCycle - gapCycles, this, domain);
         lastEvProduced->id = curId++;
         lastEvProduced->setMinStartCycle(curCycle);
         lastEvProduced->queue(curCycle);
@@ -155,8 +160,9 @@ uint64_t OOOCoreRecorder::notifyJoin(uint64_t curCycle) {
 void OOOCoreRecorder::addIssueEvent(uint64_t evCycle) {
     assert(lastEvProduced);
     uint64_t zllCycle = evCycle - gapCycles;
-    assert_msg(zllCycle >= lastEvProduced->zllStartCycle, "zllCycle %ld last %ld", zllCycle, lastEvProduced->zllStartCycle);
-    OOOIssueEvent* ev = new (eventRecorder) OOOIssueEvent(0, zllCycle, this, domain);
+    assert_msg(zllCycle >= lastEvProduced->zllStartCycle, "zllCycle %ld last %ld", zllCycle,
+               lastEvProduced->zllStartCycle);
+    OOOIssueEvent *ev = new(eventRecorder) OOOIssueEvent(0, zllCycle, this, domain);
     ev->id = curId++;
     // 1. Link with prior (<) outstanding responses
     uint64_t maxCycle = 0;
@@ -173,13 +179,13 @@ void OOOCoreRecorder::addIssueEvent(uint64_t evCycle) {
         futureResponses.pop();
     }
 
-    uint32_t preDelay = maxCycle? ((maxCycle < zllCycle)? (zllCycle - maxCycle) : 0) : 0;
+    uint32_t preDelay = maxCycle ? ((maxCycle < zllCycle) ? (zllCycle - maxCycle) : 0) : 0;
     ev->setPreDelay(preDelay);
 
     //2. Link with prior issue event
     //We need a delay of at least the min-lat delay to avoid negative skews
     uint32_t issueDelay = zllCycle - lastEvProduced->zllStartCycle - preDelay;
-    DelayEvent* dIssue = new (eventRecorder) DelayEvent(issueDelay);
+    DelayEvent *dIssue = new(eventRecorder) DelayEvent(issueDelay);
     dIssue->setMinStartCycle(lastEvProduced->getMinStartCycle());
     lastEvProduced->addChild(dIssue, eventRecorder)->addChild(ev, eventRecorder);
 
@@ -203,10 +209,10 @@ void OOOCoreRecorder::notifyLeave(uint64_t curCycle) {
 }
 
 // See http://stackoverflow.com/questions/1185252/is-there-a-way-to-access-the-underlying-container-of-stl-container-adaptors
-template <class T, class S, class C>
-S& GetPrioQueueContainer(std::priority_queue<T, S, C>& q) {
+template<class T, class S, class C>
+S &GetPrioQueueContainer(std::priority_queue<T, S, C> &q) {
     struct PQE : private std::priority_queue<T, S, C> {
-        static S& Container(std::priority_queue<T, S, C>& q) {
+        static S &Container(std::priority_queue<T, S, C> &q) {
             return q.*&PQE::c;
         }
     };
@@ -224,43 +230,46 @@ void OOOCoreRecorder::recordAccess(uint64_t curCycle, uint64_t dispatchCycle, ui
         addIssueEvent(curCycle);
 
         //Delay
-        DelayEvent* dDisp = new (eventRecorder) DelayEvent(dispatchCycle - curCycle);
+        DelayEvent *dDisp = new(eventRecorder) DelayEvent(dispatchCycle - curCycle);
         dDisp->setMinStartCycle(curCycle);
 
         //Dispatch event
-        OOODispatchEvent* dispEv = new (eventRecorder) OOODispatchEvent(/*dispatchCycle - curCycle*/ 0, dispatchCycle);
+        OOODispatchEvent *dispEv = new(eventRecorder) OOODispatchEvent(/*dispatchCycle - curCycle*/ 0, dispatchCycle);
         dispEv->setMinStartCycle(dispatchCycle);
         dispEv->id = curId++;
 
         uint64_t zllDispatchCycle = dispatchCycle - gapCycles;
         //Traverse min heap, link with preceding resps...
-        for (FutureResponse& fr : GetPrioQueueContainer(futureResponses)) {
+        for (FutureResponse &fr : GetPrioQueueContainer(futureResponses)) {
             if (fr.zllStartCycle < zllDispatchCycle && fr.ev) {
-                DelayEvent* dl = new (eventRecorder) DelayEvent(zllDispatchCycle - fr.zllStartCycle);
+                DelayEvent *dl = new(eventRecorder) DelayEvent(zllDispatchCycle - fr.zllStartCycle);
                 fr.ev->addChild(dl, eventRecorder)->addChild(dispEv, eventRecorder);
             }
         }
         //Link request
-        DelayEvent* dUp = new (eventRecorder) DelayEvent(tr.reqCycle - dispatchCycle); //TODO: remove, postdelay in dispatch...
+        DelayEvent *dUp = new(eventRecorder) DelayEvent(
+                tr.reqCycle - dispatchCycle); //TODO: remove, postdelay in dispatch...
         dUp->setMinStartCycle(dispatchCycle);
-        lastEvProduced->addChild(dDisp, eventRecorder)->addChild(dispEv, eventRecorder)->addChild(dUp, eventRecorder)->addChild(tr.startEvent, eventRecorder);
+        lastEvProduced->addChild(dDisp, eventRecorder)->addChild(dispEv, eventRecorder)->addChild(dUp,
+                                                                                                  eventRecorder)->addChild(
+                tr.startEvent, eventRecorder);
 
         //Link response
         assert(respCycle >= tr.respCycle);
         uint32_t downDelay = respCycle - tr.respCycle;
         uint64_t zllStartCycle = respCycle - gapCycles;
-        OOORespEvent* respEvent = new (eventRecorder) OOORespEvent(downDelay, this, domain);
+        OOORespEvent *respEvent = new(eventRecorder) OOORespEvent(downDelay, this, domain);
         respEvent->id = curId++;
         respEvent->setMinStartCycle(respCycle);
         tr.endEvent->addChild(respEvent, eventRecorder);
-        TRACE_MSG("Adding resp zllCycle %ld delay %ld", respCycle - gapCycles, respCycle-curCycle);
+        TRACE_MSG("Adding resp zllCycle %ld delay %ld", respCycle - gapCycles, respCycle - curCycle);
         futureResponses.push({zllStartCycle, respEvent});
     } else {
         //info("Handling PUT: curCycle %ld", curCycle);
         assert(IsPut(tr.type));
 
         //Link request
-        DelayEvent* putUp = new (eventRecorder) DelayEvent(tr.reqCycle-curCycle);
+        DelayEvent *putUp = new(eventRecorder) DelayEvent(tr.reqCycle - curCycle);
         putUp->setMinStartCycle(curCycle);
         lastEvProduced->addChild(putUp, eventRecorder)->addChild(tr.startEvent, eventRecorder);
 
@@ -309,12 +318,15 @@ uint64_t OOOCoreRecorder::cSimEnd(uint64_t curCycle) {
     // Adjust curCycle to account for contention simulation delay
 
     // In our current clock, when did the last event start (1) before contention simulation, and (2) after contention simulation
-    uint64_t lastEvCycle1 = lastEvSimulatedZllStartCycle + gapCycles; //we add gapCycles because zllStartCycle is in zll clocks
+    uint64_t lastEvCycle1 =
+            lastEvSimulatedZllStartCycle + gapCycles; //we add gapCycles because zllStartCycle is in zll clocks
     uint64_t lastEvCycle2 = lastEvSimulatedStartCycle;
 
     assert(lastEvCycle1 <= curCycle);
     assert_msg(lastEvCycle2 <= curCycle, "[%s] lec2 %ld cc %ld, state %d", name.c_str(), lastEvCycle2, curCycle, state);
-    if (unlikely(lastEvCycle1 > lastEvCycle2)) panic("[%s] Contention simulation introduced a negative skew, curCycle %ld, lc1 %ld lc2 %ld, gapCycles %ld", name.c_str(), curCycle, lastEvCycle1, lastEvCycle2, gapCycles);
+    if (unlikely(lastEvCycle1 > lastEvCycle2)) panic(
+            "[%s] Contention simulation introduced a negative skew, curCycle %ld, lc1 %ld lc2 %ld, gapCycles %ld",
+            name.c_str(), curCycle, lastEvCycle1, lastEvCycle2, gapCycles);
 
     uint64_t skew = lastEvCycle2 - lastEvCycle1;
 
@@ -328,7 +340,8 @@ uint64_t OOOCoreRecorder::cSimEnd(uint64_t curCycle) {
 
     //NOTE: Suppose that we had a really long event, so long that in the next phase, lastEvSimulated is still the same. In this case, skew will be 0, so we do not need to remove it.
 
-    DEBUG_MSG("[%s] curCycle %ld zllCurCycle %ld lec1 %ld lec2 %ld skew %ld", name.c_str(), curCycle, curCycle-gapCycles, lastEvCycle1, lastEvCycle2, skew);
+    DEBUG_MSG("[%s] curCycle %ld zllCurCycle %ld lec1 %ld lec2 %ld skew %ld", name.c_str(), curCycle,
+              curCycle - gapCycles, lastEvCycle1, lastEvCycle2, skew);
 
     // Remove simulated responses
     // NOTE: This violates use-after-free rules, because we're dereferencing
@@ -336,7 +349,7 @@ uint64_t OOOCoreRecorder::cSimEnd(uint64_t curCycle) {
     // of the weave phase and we check every phase, their space should not have
     // been recycled. Fully solving this can be done if we allow the events to
     // clear their pointers themselves...
-    for (FutureResponse& fr : GetPrioQueueContainer(futureResponses)) {
+    for (FutureResponse &fr : GetPrioQueueContainer(futureResponses)) {
         if (fr.ev && fr.ev->cRec != this) {
             //info("Removed already-simulated response");
             fr.ev = nullptr;
@@ -345,17 +358,19 @@ uint64_t OOOCoreRecorder::cSimEnd(uint64_t curCycle) {
 
     if (!lastEvProduced) {
         //if we were RUNNING, the phase would have been tapered off
-        assert_msg(state == DRAINING, "[%s] state %d lastEvSimulated startCycle %ld curCycle %ld", name.c_str(), state, lastEvSimulatedStartCycle, curCycle);
+        assert_msg(state == DRAINING, "[%s] state %d lastEvSimulated startCycle %ld curCycle %ld", name.c_str(), state,
+                   lastEvSimulatedStartCycle, curCycle);
         lastUnhaltedCycle = lastEvSimulatedStartCycle; //the taper is a 0-delay event
         state = HALTED;
-        DEBUG_MSG("[%s] lastEvSimulated reached (startCycle %ld), DRAINING -> HALTED", name.c_str(), lastEvSimulatedStartCycle);
+        DEBUG_MSG("[%s] lastEvSimulated reached (startCycle %ld), DRAINING -> HALTED", name.c_str(),
+                  lastEvSimulatedStartCycle);
         assert(futureResponses.empty());
         // This works (because we flush on leave()) but would be inaccurate if we called leave() very frequently; now leave() only happens on blocking syscalls though
     }
     return curCycle;
 }
 
-void OOOCoreRecorder::reportIssueEventSimulated(OOOIssueEvent* ev, uint64_t startCycle) {
+void OOOCoreRecorder::reportIssueEventSimulated(OOOIssueEvent *ev, uint64_t startCycle) {
     lastEvSimulatedZllStartCycle = ev->zllStartCycle;
     lastEvSimulatedStartCycle = startCycle;
     if (lastEvProduced == ev) lastEvProduced = nullptr;
@@ -365,7 +380,7 @@ void OOOCoreRecorder::reportIssueEventSimulated(OOOIssueEvent* ev, uint64_t star
 //Stats
 uint64_t OOOCoreRecorder::getUnhaltedCycles(uint64_t curCycle) const {
     uint64_t cycle = MAX(curCycle, zinfo->globPhaseCycles);
-    uint64_t haltedCycles =  totalHaltedCycles + ((state == HALTED)? (cycle - lastUnhaltedCycle) : 0);
+    uint64_t haltedCycles = totalHaltedCycles + ((state == HALTED) ? (cycle - lastUnhaltedCycle) : 0);
     return cycle - haltedCycles;
 }
 

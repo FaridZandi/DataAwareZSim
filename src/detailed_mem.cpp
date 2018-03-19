@@ -72,7 +72,8 @@ MemRankBase::~MemRankBase() {
     gm_free(tFAWCycle);
 }
 
-void MemRankBase::access(uint64_t accessCycle, uint64_t issuedCycle, uint32_t row, uint32_t col, uint32_t bank, MemAccessType type) {
+void MemRankBase::access(uint64_t accessCycle, uint64_t issuedCycle, uint32_t row, uint32_t col, uint32_t bank,
+                         MemAccessType type) {
     // If the difference between read latency and write latency is large,
     // a latter access may overtake the prior one by the scheduling in intraIssueCycleble.
     // assert(lastAccessCycle < accessCycle);
@@ -101,7 +102,7 @@ void MemRankBase::refresh(uint64_t lastCycle) {
 uint32_t MemRankBase::GetActiveBankCount(void) {
     uint32_t count = 0;
     for (uint32_t i = 0; i < bankCount; i++) {
-        count += (bankinfo[i] == true)? 1 : 0;
+        count += (bankinfo[i] == true) ? 1 : 0;
     }
     return count;
 }
@@ -120,13 +121,13 @@ MemChannelBase::MemChannelBase(uint32_t _myId, MemParam *_mParam) {
 
     uint32_t rankCount = mParam->rankCount;
     ranks.resize(rankCount);
-    for(uint32_t i = 0; i< rankCount; i++) {
+    for (uint32_t i = 0; i < rankCount; i++) {
         ranks[i] = new MemRankBase(i, myId, mParam->bankCount);
     }
 }
 
 MemChannelBase::~MemChannelBase(void) {
-    for(uint32_t i = 0; i< mParam->rankCount; i++) {
+    for (uint32_t i = 0; i < mParam->rankCount; i++) {
         delete ranks[i];
     }
 }
@@ -173,7 +174,7 @@ uint32_t MemChannelBase::UpdateRefreshNum(uint32_t rank, uint64_t arrivalCycle) 
     uint64_t lastRefreshCycle = ranks[rank]->GetLastRefreshCycle();
     uint32_t refreshNum = 0;
     if (arrivalCycle >= lastRefreshCycle) {
-        refreshNum = (arrivalCycle - lastRefreshCycle)/mParam->tREFI;
+        refreshNum = (arrivalCycle - lastRefreshCycle) / mParam->tREFI;
     }
     uint32_t totalNum = ranks[rank]->GetRefreshNum() + refreshNum;
     ranks[rank]->SetRefreshNum(totalNum);
@@ -204,7 +205,8 @@ void MemChannelBase::UpdateDataBusCycle(uint64_t start, uint64_t end) {
     }
 }
 
-uint64_t MemChannelBase::CalcIntraIssueCycle(bool rowHit, uint32_t rank, MemAccessType type, uint64_t arrivalCycle, uint32_t refreshNum) {
+uint64_t MemChannelBase::CalcIntraIssueCycle(bool rowHit, uint32_t rank, MemAccessType type, uint64_t arrivalCycle,
+                                             uint32_t refreshNum) {
     uint32_t lastBank = ranks[rank]->GetLastBank();
     uint32_t lastType = ranks[rank]->GetLastType(lastBank);
 
@@ -218,10 +220,10 @@ uint64_t MemChannelBase::CalcIntraIssueCycle(bool rowHit, uint32_t rank, MemAcce
         ranks[rank]->SetAccessInRefresh(0);
     }
     if ((lastRefreshCycle != 0) &&
-       (refCycle >= refOverlap) && (lastAccessCycle >= lastRefreshCycle) ) {
+        (refCycle >= refOverlap) && (lastAccessCycle >= lastRefreshCycle)) {
         //2nd access is during refresh
         uint32_t accessInRefresh = ranks[rank]->GetAccessInRefresh();
-        ranks[rank]->SetAccessInRefresh(accessInRefresh+1);
+        ranks[rank]->SetAccessInRefresh(accessInRefresh + 1);
     } else {
         ranks[rank]->SetAccessInRefresh(0);
     }
@@ -257,7 +259,7 @@ uint64_t MemChannelBase::CalcInterIssueCycle(MemAccessType type, uint64_t arriva
     uint32_t tSlot = mParam->GetDataSlot(type) + mParam->tRTRS;
     uint64_t tStart = arrivalCycle + tWait;
     uint64_t tEnd = tStart + tSlot;
-    for(uint32_t i = 0; i < accessLog.size(); i++) {
+    for (uint32_t i = 0; i < accessLog.size(); i++) {
         uint64_t busStart = accessLog[i].first;
         uint64_t busEnd = accessLog[i].second + mParam->tRTRS;
         if (((busStart < tEnd) && (tEnd <= busEnd)) || ((busStart <= tStart) && (tStart < busEnd))) {
@@ -289,7 +291,7 @@ uint64_t MemChannelBase::CalcActConst(uint32_t rank, uint32_t bank, uint64_t iss
 
     // tRRD Constraint Check
     uint64_t latestActCycle = 0;
-    for(uint32_t i = 0; i < mParam->bankCount; i++) {
+    for (uint32_t i = 0; i < mParam->bankCount; i++) {
         uint64_t bankActCycle = ranks[rank]->GetLastActCycle(i);
         latestActCycle = std::max(latestActCycle, bankActCycle);
     }
@@ -346,7 +348,8 @@ void MemChannelBase::IssuePrecharge(uint32_t rank, uint32_t bank, uint64_t issue
         ranks[rank]->IncPrechargeCount();
 }
 
-uint64_t MemChannelBase::LatencySimulate(Address lineAddr, uint64_t arrivalCycle, uint64_t lastPhaseCycle, MemAccessType type) {
+uint64_t
+MemChannelBase::LatencySimulate(Address lineAddr, uint64_t arrivalCycle, uint64_t lastPhaseCycle, MemAccessType type) {
     uint32_t row, col, rank, bank;
     AddressMap(lineAddr, row, col, rank, bank);
 
@@ -359,8 +362,8 @@ uint64_t MemChannelBase::LatencySimulate(Address lineAddr, uint64_t arrivalCycle
     // save rowBufferHit at this point
     bool rowHit = IsRowBufferHit(row, rank, bank);
 
-    uint64_t preIssueCycle = (uint64_t)-1;
-    uint64_t actIssueCycle = (uint64_t)-1;
+    uint64_t preIssueCycle = (uint64_t) -1;
+    uint64_t actIssueCycle = (uint64_t) -1;
     bool continuous = false;
     if (mParam->IsOpenRowBufPolicy()) {
         // rowbuffer hit -> intra constraint for read write command
@@ -386,7 +389,7 @@ uint64_t MemChannelBase::LatencySimulate(Address lineAddr, uint64_t arrivalCycle
                                                 arrivalCycle, refreshNum);
         }
     }
-    if (actIssueCycle != (uint64_t)-1) {
+    if (actIssueCycle != (uint64_t) -1) {
         actIssueCycle = CalcActConst(rank, bank, actIssueCycle);
         IssueActivate(rank, bank, actIssueCycle);
         assert(actIssueCycle >= arrivalCycle);
@@ -394,7 +397,7 @@ uint64_t MemChannelBase::LatencySimulate(Address lineAddr, uint64_t arrivalCycle
 
     // Find Read Write command issue slot
     uint64_t rdwrStart = arrivalCycle;
-    if (actIssueCycle == (uint64_t)-1) {
+    if (actIssueCycle == (uint64_t) -1) {
         // read/write to read/write constraint check
         if (continuous == true) {
             rdwrStart = CalcRdWrConst(rank, type, arrivalCycle);
@@ -451,7 +454,8 @@ uint32_t MemChannelBase::GetPowerDownPenalty(uint32_t rank, uint64_t arrivalCycl
     return penalty;
 }
 
-void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, uint64_t lastPhaseCycle, uint32_t refreshNum) {
+void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, uint64_t lastPhaseCycle,
+                                          uint32_t refreshNum) {
     uint32_t powerDownCycle = mParam->powerDownCycle;
     if (powerDownCycle == 0)
         return;
@@ -482,7 +486,7 @@ void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, 
         } else {// Open Page Policy
             idle_sb_cycle += idlbanknum * diffPowerDownCycle / bankCount;
         }
-    } else  {
+    } else {
         uint64_t powerDownDuration = arrivalCycle - lastPowerDownCycle;
         if (mParam->IsCloseRowBufPolicy()) {
             idle_pd_cycle += powerDownDuration;
@@ -493,7 +497,7 @@ void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, 
             if (refreshNum == 0) {
                 idle_pd_cycle += idlbanknum * powerDownDuration / bankCount;
                 actv_pd_cycle += actbanknum * powerDownDuration / bankCount;
-                idle_sb_cycle += idlbanknum * powerDownCycle    / bankCount;
+                idle_sb_cycle += idlbanknum * powerDownCycle / bankCount;
             } else {
                 uint32_t tREFI = mParam->tREFI;
                 uint64_t lastRefreshCycle = ranks[rank]->GetLastRefreshCycle();
@@ -510,7 +514,7 @@ void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, 
                     diffRefreshCycle = refreshEndCycle1 - lastPowerDownCycle;
                 }
                 idle_pd_cycle += ((idlbanknum * diffRefreshCycle)
-                                  + (((refreshNum - 1) * tREFI ) + diffArrivalCycle)) / bankCount;
+                                  + (((refreshNum - 1) * tREFI) + diffArrivalCycle)) / bankCount;
                 actv_pd_cycle += (actbanknum * diffRefreshCycle) / bankCount;
                 idle_sb_cycle += idlbanknum * powerDownCycle / bankCount;
             }
@@ -525,7 +529,7 @@ void MemChannelBase::UpdatePowerDownCycle(uint32_t rank, uint64_t arrivalCycle, 
 }
 
 void MemChannelBase::PeriodicUpdatePower(uint64_t phaseCycle, uint64_t lastPhaseCycle) {
-    for(uint32_t i = 0; i < mParam->rankCount; i++) {
+    for (uint32_t i = 0; i < mParam->rankCount; i++) {
         if (ranks[i]->GetLastAccessCycle() < phaseCycle) {
             uint32_t refreshNum = UpdateRefreshNum(i, phaseCycle);
             UpdatePowerDownCycle(i, phaseCycle, lastPhaseCycle, refreshNum);
@@ -535,70 +539,70 @@ void MemChannelBase::PeriodicUpdatePower(uint64_t phaseCycle, uint64_t lastPhase
 }
 
 bool MemChannelBase::CheckContinuousAccess(uint64_t arrivalCycle, uint32_t rank, uint32_t bank, uint32_t row) {
-     //////////////////////////////////////////////////////////////////////
-     // Continuous Case in Close Policy ///////////////////////////////////
-     //////////////////////////////////////////////////////////////////////
-     //  # If next access comes before PRE, MEMC will not issue PRE and deal
-     //  # it as continuous (Limited Open Policy = w/o Precharge) access
-     //
-     // 1.last access is Write
-     //
-     //        ACT   WRT                 PRE
-     // last  --|-----|-------------------|--
-     //          tRCD  tCWD  tTrans   tWR |
-     //          <---> <--> ******** <--->|
-     //                        < - - - - >|  continuousLatency
-     //                      WRT           <---->PRE
-     // current ------*-------|-------------------|--
-     // (write)       |        tCWD  tTrans   tWR
-     //               |        <--> ******** <--->
-     //               |
-     //              arrivalCycle
-     //                             continuousLatency
-     //                W->R const  <-------->
-     //                 - - - - >RD         PRE
-     // current ------*----------|-----------|---
-     // (read)        |           tCAS  tTrans
-     //               |           <--> ********
-     //               |
-     //              arrivalCycle
-     //
-     // 2.last access is Read
-     //
-     //        ACT   RD<-------->PRE
-     // last  --|-----|----------|----------
-     //          tRCD  tCAS  tTrans
-     //          <---> <--> ********
-     //
-     //                R->W          continuousLatency
-     //               - - - >WRT    <------->    PRE
-     // current ------*-------|-------------------|--
-     // (write)       |         tCWD  tTrans   tWR
-     //               |        <---> ******** <--->
-     //               |
-     //              arrivalCycle
-     //
-     //                       RD        PRE
-     // current ------*-------|----------|--
-     // (read)        |        tCAS  tTrans
-     //               |        <--> ********
-     //               |             <------>
-     //              arrivalCycle    continuousLatency
-     //////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+    // Continuous Case in Close Policy ///////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+    //  # If next access comes before PRE, MEMC will not issue PRE and deal
+    //  # it as continuous (Limited Open Policy = w/o Precharge) access
+    //
+    // 1.last access is Write
+    //
+    //        ACT   WRT                 PRE
+    // last  --|-----|-------------------|--
+    //          tRCD  tCWD  tTrans   tWR |
+    //          <---> <--> ******** <--->|
+    //                        < - - - - >|  continuousLatency
+    //                      WRT           <---->PRE
+    // current ------*-------|-------------------|--
+    // (write)       |        tCWD  tTrans   tWR
+    //               |        <--> ******** <--->
+    //               |
+    //              arrivalCycle
+    //                             continuousLatency
+    //                W->R const  <-------->
+    //                 - - - - >RD         PRE
+    // current ------*----------|-----------|---
+    // (read)        |           tCAS  tTrans
+    //               |           <--> ********
+    //               |
+    //              arrivalCycle
+    //
+    // 2.last access is Read
+    //
+    //        ACT   RD<-------->PRE
+    // last  --|-----|----------|----------
+    //          tRCD  tCAS  tTrans
+    //          <---> <--> ********
+    //
+    //                R->W          continuousLatency
+    //               - - - >WRT    <------->    PRE
+    // current ------*-------|-------------------|--
+    // (write)       |         tCWD  tTrans   tWR
+    //               |        <---> ******** <--->
+    //               |
+    //              arrivalCycle
+    //
+    //                       RD        PRE
+    // current ------*-------|----------|--
+    // (read)        |        tCAS  tTrans
+    //               |        <--> ********
+    //               |             <------>
+    //              arrivalCycle    continuousLatency
+    //////////////////////////////////////////////////////////////////////
     if (mParam->mergeContinuous == false)
         return false;
 
-     uint64_t lastPreCycle = ranks[rank]->GetLastPreCycle(bank);
-     if ((arrivalCycle < lastPreCycle) &&
+    uint64_t lastPreCycle = ranks[rank]->GetLastPreCycle(bank);
+    if ((arrivalCycle < lastPreCycle) &&
         (ranks[rank]->GetLastRow(bank) == row)) { // w/o ACT
-         return true;
-     } else {
-         return false;
-     }
+        return true;
+    } else {
+        return false;
+    }
 }
 
 // See also MemControllerBase::ReturnChannel
-void MemChannelBase::AddressMap(Address addr, uint32_t& row, uint32_t& col, uint32_t& rank, uint32_t& bank) {
+void MemChannelBase::AddressMap(Address addr, uint32_t &row, uint32_t &col, uint32_t &rank, uint32_t &bank) {
     // FIXME (dsm): This is needlessly complex. See how addressing is done in DDRMemory (along with sizing)
     //
     // Address is cache line address. it has already shifted for containg process id.
@@ -620,7 +624,7 @@ void MemChannelBase::AddressMap(Address addr, uint32_t& row, uint32_t& col, uint
         addr >>= colLowWidth;
     }
 
-    uint32_t chnl = (uint32_t)-1;
+    uint32_t chnl = (uint32_t) -1;
     if (mParam->interleaveType >= 0 && mParam->interleaveType <= 5) {
         // for non-power of 2 channels
         chnl = addr % mParam->channelCount;
@@ -635,79 +639,79 @@ void MemChannelBase::AddressMap(Address addr, uint32_t& row, uint32_t& col, uint
         addr >>= colHighWidth;
     }
 
-    switch(mParam->interleaveType) {
-    case 0:
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        colHigh = addr & ((1L << colHighWidth) - 1);
-        addr >>= colHighWidth;
-        col = (colHigh << colLowWidth) | colLow;
-        break;
-    case 1:
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        colHigh = addr & ((1L << colHighWidth) - 1);
-        addr >>= colHighWidth;
-        col = (colHigh << colLowWidth) | colLow;
-        break;
-    case 2:
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        colHigh = addr & ((1L << colHighWidth) - 1);
-        addr >>= colHighWidth;
-        col = (colHigh << colLowWidth) | colLow;
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        break;
-    case 3:
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        colHigh = addr & ((1L << colHighWidth) - 1);
-        addr >>= colHighWidth;
-        col = (colHigh << colLowWidth) | colLow;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        break;
-    case 4:
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        break;
-    case 5:
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        break;
-    case 6:
-        chnl = addr % mParam->channelCount;
-        addr /= mParam->channelCount;
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        break;
-    case 7:
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        chnl = addr % mParam->channelCount;
-        addr /= mParam->channelCount;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        break;
-    case 8:
-        bank = addr & ((1L << mParam->bankWidth) - 1);
-        addr >>= mParam->bankWidth;
-        rank = addr & ((1L << mParam->rankWidth) - 1);
-        addr >>= mParam->rankWidth;
-        chnl = addr % mParam->channelCount;
-        addr /= mParam->channelCount;
-        break;
+    switch (mParam->interleaveType) {
+        case 0:
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            colHigh = addr & ((1L << colHighWidth) - 1);
+            addr >>= colHighWidth;
+            col = (colHigh << colLowWidth) | colLow;
+            break;
+        case 1:
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            colHigh = addr & ((1L << colHighWidth) - 1);
+            addr >>= colHighWidth;
+            col = (colHigh << colLowWidth) | colLow;
+            break;
+        case 2:
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            colHigh = addr & ((1L << colHighWidth) - 1);
+            addr >>= colHighWidth;
+            col = (colHigh << colLowWidth) | colLow;
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            break;
+        case 3:
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            colHigh = addr & ((1L << colHighWidth) - 1);
+            addr >>= colHighWidth;
+            col = (colHigh << colLowWidth) | colLow;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            break;
+        case 4:
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            break;
+        case 5:
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            break;
+        case 6:
+            chnl = addr % mParam->channelCount;
+            addr /= mParam->channelCount;
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            break;
+        case 7:
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            chnl = addr % mParam->channelCount;
+            addr /= mParam->channelCount;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            break;
+        case 8:
+            bank = addr & ((1L << mParam->bankWidth) - 1);
+            addr >>= mParam->bankWidth;
+            rank = addr & ((1L << mParam->rankWidth) - 1);
+            addr >>= mParam->rankWidth;
+            chnl = addr % mParam->channelCount;
+            addr /= mParam->channelCount;
+            break;
     }
 
     assert(myId == chnl);
@@ -723,7 +727,7 @@ void MemChannelBase::AddressMap(Address addr, uint32_t& row, uint32_t& col, uint
 uint64_t MemChannelBase::GetActivateCount(void) {
     uint64_t actCount = 0;
     for (uint32_t i = 0; i < mParam->rankCount; i++) {
-        actCount +=  ranks[i]->GetActivateCount();
+        actCount += ranks[i]->GetActivateCount();
     }
     return actCount;
 }
@@ -738,7 +742,7 @@ uint64_t MemChannelBase::GetPrechargeCount(void) {
 
 uint64_t MemChannelBase::GetRefreshCount(void) {
     uint64_t refnum = 0;
-    for(uint32_t i = 0; i < mParam->rankCount; i++) {
+    for (uint32_t i = 0; i < mParam->rankCount; i++) {
         refnum += ranks[i]->GetRefreshNum();
     }
     return refnum;
@@ -747,9 +751,9 @@ uint64_t MemChannelBase::GetRefreshCount(void) {
 uint64_t MemChannelBase::GetBurstEnergy(void) {
     uint64_t writeBurstCount = 0;
     uint64_t readBurstCount = 0;
-    for(uint32_t i = 0; i < mParam->rankCount; i++) {
+    for (uint32_t i = 0; i < mParam->rankCount; i++) {
         writeBurstCount += ranks[i]->GetWriteBurstCount();
-        readBurstCount  += ranks[i]->GetReadBurstCount();
+        readBurstCount += ranks[i]->GetReadBurstCount();
     }
 
     uint64_t burstPower = 0;
@@ -769,9 +773,9 @@ uint64_t MemChannelBase::GetActPreEnergy(void) {
     uint64_t actPrePower = 0;
     uint64_t actPrePower1;
     assert_msg((mParam->tRC >= mParam->tRAS), "tRC must be larger or equal than tRAS");
-    actPrePower1 = actPreCount * ( (mParam->IDD_VDD1.IDD0  * mParam->tRC)
-                                   - ((mParam->IDD_VDD1.IDD3N * mParam->tRAS)
-                                   + (mParam->IDD_VDD1.IDD2N * (mParam->tRC - mParam->tRAS))));
+    actPrePower1 = actPreCount * ((mParam->IDD_VDD1.IDD0 * mParam->tRC)
+                                  - ((mParam->IDD_VDD1.IDD3N * mParam->tRAS)
+                                     + (mParam->IDD_VDD1.IDD2N * (mParam->tRC - mParam->tRAS))));
     actPrePower += actPrePower1 * mParam->VDD1;
     actPrePower *= mParam->chipCountPerRank;
     actPrePower /= 1000; // uW -> mW
@@ -796,7 +800,7 @@ uint64_t MemChannelBase::GetBackGroundEnergy(uint64_t memCycle, uint64_t lastMem
     uint64_t tickCycle = bInstant ? (memCycle - lastMemCycle) : memCycle;
 
     uint64_t backgroundPower = 0;
-    for(uint32_t i = 0; i < mParam->rankCount; i++) {
+    for (uint32_t i = 0; i < mParam->rankCount; i++) {
         uint64_t lastAccessCycle = ranks[i]->GetLastAccessCycle();
         uint64_t idlePowerDownCycle;
         uint64_t actvPowerDownCycle;
@@ -804,7 +808,7 @@ uint64_t MemChannelBase::GetBackGroundEnergy(uint64_t memCycle, uint64_t lastMem
         if (mParam->powerDownCycle == 0) {
             idlePowerDownCycle = 0;
             actvPowerDownCycle = 0;
-            idleStandbyCycle= 0;
+            idleStandbyCycle = 0;
         } else if (bInstant == false) {
             idlePowerDownCycle = ranks[i]->GetIdlePowerDownCycle();
             actvPowerDownCycle = ranks[i]->GetActvPowerDownCycle();
@@ -820,7 +824,7 @@ uint64_t MemChannelBase::GetBackGroundEnergy(uint64_t memCycle, uint64_t lastMem
                 actvPowerDownCycle = ranks[i]->GetActvPowerDownCycle();
                 actvPowerDownCycle -= ranks[i]->GetPrevActvPowerDownCycle();
                 idleStandbyCycle = ranks[i]->GetIdleStandbyCycle();
-                idleStandbyCycle   -= ranks[i]->GetPrevIdleStandbyCycle();
+                idleStandbyCycle -= ranks[i]->GetPrevIdleStandbyCycle();
             }
             ranks[i]->SaveBackgroundCycles();
         }
@@ -830,8 +834,8 @@ uint64_t MemChannelBase::GetBackGroundEnergy(uint64_t memCycle, uint64_t lastMem
                    bInstant, tickCycle, idlePowerDownCycle, actvPowerDownCycle, idleStandbyCycle);
         uint64_t idlePowerDown = mParam->VDD1 * (idlePowerDownCycle * mParam->IDD_VDD1.IDD2P) / tickCycle;
         uint64_t actPowerDown = mParam->VDD1 * (actvPowerDownCycle * mParam->IDD_VDD1.IDD3P) / tickCycle;
-        uint64_t idleStandby = mParam->VDD1 * (idleStandbyCycle   * mParam->IDD_VDD1.IDD2N) / tickCycle;
-        uint64_t actvStandby = mParam->VDD1 * (actvStandbyCycle   * mParam->IDD_VDD1.IDD3N) / tickCycle;
+        uint64_t idleStandby = mParam->VDD1 * (idleStandbyCycle * mParam->IDD_VDD1.IDD2N) / tickCycle;
+        uint64_t actvStandby = mParam->VDD1 * (actvStandbyCycle * mParam->IDD_VDD1.IDD3N) / tickCycle;
         backgroundPower += (idlePowerDown + actPowerDown + idleStandby + actvStandby);
     }
     backgroundPower *= mParam->chipCountPerRank;
@@ -842,9 +846,8 @@ uint64_t MemChannelBase::GetBackGroundEnergy(uint64_t memCycle, uint64_t lastMem
 
 ////////////////////////////////////////////////////////////////////////
 // Default Memory Scheduler Class
-MemSchedulerDefault::MemSchedulerDefault(uint32_t id, MemParam* mParam, MemChannelBase* mChnl)
-    : MemSchedulerBase(id, mParam, mChnl)
-{
+MemSchedulerDefault::MemSchedulerDefault(uint32_t id, MemParam *mParam, MemChannelBase *mChnl)
+        : MemSchedulerBase(id, mParam, mChnl) {
     prioritizedAccessType = READ;
     wrQueueSize = mParam->schedulerQueueCount;
     wrQueueHighWatermark = mParam->schedulerQueueCount * 2 / 3;
@@ -853,10 +856,10 @@ MemSchedulerDefault::MemSchedulerDefault(uint32_t id, MemParam* mParam, MemChann
 
 MemSchedulerDefault::~MemSchedulerDefault() {}
 
-bool MemSchedulerDefault::CheckSetEvent(MemAccessEventBase* ev) {
+bool MemSchedulerDefault::CheckSetEvent(MemAccessEventBase *ev) {
     // Write Queue Hit Check
     g_vector<MemSchedQueueElem>::iterator it;
-    for(it = wrQueue.begin(); it != wrQueue.end(); it++) {
+    for (it = wrQueue.begin(); it != wrQueue.end(); it++) {
         if (it->second == ev->getAddr()) {
             if (ev->getType() == WRITE) {
                 wrQueue.erase(it);
@@ -867,7 +870,7 @@ bool MemSchedulerDefault::CheckSetEvent(MemAccessEventBase* ev) {
     }
 
     // Write Done Queue Hit Check
-    for(it = wrDoneQueue.begin(); it != wrDoneQueue.end(); it++) {
+    for (it = wrDoneQueue.begin(); it != wrDoneQueue.end(); it++) {
         if (it->second == ev->getAddr()) {
             if (ev->getType() == READ) {
                 // Update LRU
@@ -900,7 +903,7 @@ bool MemSchedulerDefault::CheckSetEvent(MemAccessEventBase* ev) {
     return false;
 }
 
-bool MemSchedulerDefault::GetEvent(MemAccessEventBase*& ev, Address& addr, MemAccessType& type) {
+bool MemSchedulerDefault::GetEvent(MemAccessEventBase *&ev, Address &addr, MemAccessType &type) {
     bool bRet = false;
 
     // Check Priority
@@ -940,11 +943,11 @@ bool MemSchedulerDefault::GetEvent(MemAccessEventBase*& ev, Address& addr, MemAc
     return bRet;
 }
 
-bool MemSchedulerDefault::FindBestRequest(g_vector<MemSchedQueueElem> *queue, uint32_t& idx) {
+bool MemSchedulerDefault::FindBestRequest(g_vector<MemSchedQueueElem> *queue, uint32_t &idx) {
     idx = 0;
     uint32_t tmpIdx = 0;
     g_vector<MemSchedQueueElem>::iterator it;
-    for(it = queue->begin(); it!= queue->end(); it++) {
+    for (it = queue->begin(); it != queue->end(); it++) {
         Address addr = it->second;
         uint32_t row, col, rank, bank;
         mChnl->AddressMap(addr, row, col, rank, bank);
@@ -960,84 +963,114 @@ bool MemSchedulerDefault::FindBestRequest(g_vector<MemSchedQueueElem> *queue, ui
 
 
 // Main Memory Class
-MemControllerBase::MemControllerBase(g_string _memCfg, uint32_t _cacheLineSize, uint32_t _sysFreqMHz, uint32_t _domain, g_string& _name) {
-    name = _name;
-    domain = _domain;
-    info("%s: domain %d", name.c_str(), domain);
+MemControllerBase::MemControllerBase(g_string
+_memCfg,
+uint32_t _cacheLineSize, uint32_t
+_sysFreqMHz,
+uint32_t _domain, g_string
+& _name) {
+name = _name;
+domain = _domain;
+info("%s: domain %d", name.c_str(), domain);
 
-    lastPhaseCycle = 0;
-    lastAccessedCycle = 0;
-    cacheLineSize = _cacheLineSize;
+lastPhaseCycle = 0;
+lastAccessedCycle = 0;
+cacheLineSize = _cacheLineSize;
 
-    futex_init(&updateLock);
+futex_init(&updateLock);
 
-    mParam = new MemParam();
-    mParam->LoadConfig(_memCfg, _cacheLineSize);
+mParam = new MemParam();
+mParam->
+LoadConfig(_memCfg, _cacheLineSize
+);
 
-    // Calculate Frequency
-    sysFreqKHz = _sysFreqMHz * 1000;
-    memFreqKHz = 1e9 / mParam->tCK / 1e3;
-    info("MemControllerBase: sysFreq = %ld KHz memFreq = %ld KHz", sysFreqKHz, memFreqKHz);
+// Calculate Frequency
+sysFreqKHz = _sysFreqMHz * 1000;
+memFreqKHz = 1e9 / mParam->tCK / 1e3;
+info("MemControllerBase: sysFreq = %ld KHz memFreq = %ld KHz", sysFreqKHz, memFreqKHz);
 
-    if (mParam->schedulerQueueCount != 0) {
-        //Processor tick, memory ticks only every Nth cycle where N is proc:mem freq ratio
-        // for Memory Scheduler
-        nextSysTick = std::max((uint64_t)1, memToSysCycle(1));
-    } else {
-        // for periodic performance report
-        // for avoiding tick scheduler limitation
-        nextSysTick = usecToSysCycle(10);// once every 10us
-    }
-    reportPeriodCycle = usecToSysCycle(mParam->reportPhase);
+if (mParam->schedulerQueueCount != 0) {
+//Processor tick, memory ticks only every Nth cycle where N is proc:mem freq ratio
+// for Memory Scheduler
+nextSysTick = std::max((uint64_t) 1, memToSysCycle(1));
+} else {
+// for periodic performance report
+// for avoiding tick scheduler limitation
+nextSysTick = usecToSysCycle(10);// once every 10us
+}
+reportPeriodCycle = usecToSysCycle(mParam->reportPhase);
 
-    // setup controller parameters
-    memMinLatency[0] = memToSysCycle(mParam->GetDataLatency(0));// Read
-    memMinLatency[1] = memToSysCycle(mParam->GetDataLatency(1));// Write
-    if (mParam->schedulerQueueCount == 0) {
-        minLatency[0] = mParam->GetDataLatency(0);// Read
-        minLatency[1] = mParam->GetDataLatency(1);// Write
-    } else {
-        minLatency[0] = 1;// scheduler queue hit case
-        minLatency[1] = 1;// scheduler queue hit case
-    }
-    minLatency[0] = memToSysCycle(minLatency[0]) + mParam->controllerLatency;
-    minLatency[1] = memToSysCycle(minLatency[1]) + mParam->controllerLatency;
-    preDelay[0] = minLatency[0] / 2;
-    preDelay[1] = minLatency[1] / 2;
-    postDelay[0] = minLatency[0] - preDelay[0];
-    postDelay[1] = minLatency[1] - preDelay[1];
-    info("Latency: read minLatency is %d, write minLatency is %d", minLatency[0], minLatency[1]);
+// setup controller parameters
+memMinLatency[0] =
+memToSysCycle(mParam
+->GetDataLatency(0));// Read
+memMinLatency[1] =
+memToSysCycle(mParam
+->GetDataLatency(1));// Write
+if (mParam->schedulerQueueCount == 0) {
+minLatency[0] = mParam->GetDataLatency(0);// Read
+minLatency[1] = mParam->GetDataLatency(1);// Write
+} else {
+minLatency[0] = 1;// scheduler queue hit case
+minLatency[1] = 1;// scheduler queue hit case
+}
+minLatency[0] =
+memToSysCycle(minLatency[0])
++ mParam->
+controllerLatency;
+minLatency[1] =
+memToSysCycle(minLatency[1])
++ mParam->
+controllerLatency;
+preDelay[0] = minLatency[0] / 2;
+preDelay[1] = minLatency[1] / 2;
+postDelay[0] = minLatency[0] - preDelay[0];
+postDelay[1] = minLatency[1] - preDelay[1];
+info("Latency: read minLatency is %d, write minLatency is %d", minLatency[0], minLatency[1]);
 
-    memset(&lastPower, 0, sizeof(powerValue));
-    lastAccesses = 0;
-    maxBandwidth = 0;
-    minBandwidth = (uint64_t)-1;
+memset(&lastPower,
+0, sizeof(powerValue));
+lastAccesses = 0;
+maxBandwidth = 0;
+minBandwidth = (uint64_t) -1;
 
-    chnls.resize(mParam->channelCount);
-    sches.resize(mParam->channelCount);
-    for(uint32_t i = 0; i < mParam->channelCount; i++) {
-        chnls[i] = new MemChannelBase (i, mParam);
-        sches[i] = new MemSchedulerDefault(i, mParam, chnls[i]);
-    }
+chnls.
+resize(mParam
+->channelCount);
+sches.
+resize(mParam
+->channelCount);
+for(
+uint32_t i = 0;
+i<mParam->
+channelCount;
+i++) {
+chnls[i] = new
+MemChannelBase (i, mParam
+);
+sches[i] = new
+MemSchedulerDefault(i, mParam, chnls[i]
+);
+}
 
-    if (mParam->schedulerQueueCount != 0) {
-        TickEvent<MemControllerBase >* tickEv = new TickEvent<MemControllerBase >(this, domain);
-        tickEv->queue(0); //start the sim at time 0
-        info("MemControllerBase::tick() will be call in each %ld sysCycle", nextSysTick);
-    }
+if (mParam->schedulerQueueCount != 0) {
+TickEvent<MemControllerBase> *tickEv = new TickEvent<MemControllerBase>(this, domain);
+tickEv->queue(0); //start the sim at time 0
+info("MemControllerBase::tick() will be call in each %ld sysCycle", nextSysTick);
+}
 
-    addrTraceLog = nullptr;
-    if (mParam->addrTrace == true) {
-        g_string gzFileName = g_string("ZsimMemAddrTrace_") + name.c_str() + ".gz";
-        addrTraceLog = gzopen(gzFileName.c_str(), "wb1");
-        if (addrTraceLog == nullptr)
-            panic("Fail to open file %s for addrTraceLog.", gzFileName.c_str());
-    }
+addrTraceLog = nullptr;
+if (mParam->addrTrace == true) {
+g_string gzFileName = g_string("ZsimMemAddrTrace_") + name.c_str() + ".gz";
+addrTraceLog = gzopen(gzFileName.c_str(), "wb1");
+if (addrTraceLog == nullptr)
+panic("Fail to open file %s for addrTraceLog.", gzFileName.c_str());
+}
 }
 
 MemControllerBase::~MemControllerBase() {
     if (mParam != nullptr) {
-        for(uint32_t i = 0; i < mParam->channelCount; i++) {
+        for (uint32_t i = 0; i < mParam->channelCount; i++) {
             delete chnls[i];
             delete sches[i];
         }
@@ -1045,7 +1078,7 @@ MemControllerBase::~MemControllerBase() {
     }
 }
 
-void MemControllerBase::enqueue(MemAccessEventBase* ev, uint64_t cycle) {
+void MemControllerBase::enqueue(MemAccessEventBase *ev, uint64_t cycle) {
     if (mParam->schedulerQueueCount == 0) {
         MemAccessType type = ev->getType();
         uint64_t startCycle = cycle - preDelay[type] + mParam->controllerLatency;
@@ -1083,9 +1116,9 @@ uint32_t MemControllerBase::tick(uint64_t sysCycle) {
 }
 
 void MemControllerBase::TickScheduler(uint64_t sysCycle) {
-    for(uint32_t i = 0; i < mParam->channelCount; i++) {
-        MemAccessEventBase* ev = nullptr;
-        Address  addr = 0;
+    for (uint32_t i = 0; i < mParam->channelCount; i++) {
+        MemAccessEventBase *ev = nullptr;
+        Address addr = 0;
         MemAccessType type = READ;
         bool bRet = sches[i]->GetEvent(ev, addr, type);
         if (bRet) {
@@ -1099,7 +1132,7 @@ void MemControllerBase::TickScheduler(uint64_t sysCycle) {
     }
 }
 
-uint64_t MemControllerBase::access(MemReq& req) {
+uint64_t MemControllerBase::access(MemReq &req) {
     switch (req.type) {
         case PUTS:
         case PUTX:
@@ -1124,9 +1157,9 @@ uint64_t MemControllerBase::access(MemReq& req) {
 
     if ((req.type != PUTS) && zinfo->eventRecorders[req.srcId]) {
         Address addr = req.lineAddr;
-        MemAccessEventBase* memEv =
-            new (zinfo->eventRecorders[req.srcId])
-            MemAccessEventBase(this, accessType, addr, domain, preDelay[accessType], postDelay[accessType]);
+        MemAccessEventBase *memEv =
+                new(zinfo->eventRecorders[req.srcId])
+                        MemAccessEventBase(this, accessType, addr, domain, preDelay[accessType], postDelay[accessType]);
         memEv->setMinStartCycle(req.cycle);
         TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
         zinfo->eventRecorders[req.srcId]->pushRecord(tr);
@@ -1134,8 +1167,8 @@ uint64_t MemControllerBase::access(MemReq& req) {
     return respCycle;
 }
 
-void MemControllerBase::initStats(AggregateStat* parentStat) {
-    AggregateStat* memStats = new AggregateStat();
+void MemControllerBase::initStats(AggregateStat *parentStat) {
+    AggregateStat *memStats = new AggregateStat();
     memStats->init(name.c_str(), "Memory controller stats");
 
     profActivate.init("act", "Activate command Times");
@@ -1150,43 +1183,43 @@ void MemControllerBase::initStats(AggregateStat* parentStat) {
     memStats->append(&profRefresh);
 
     if (mParam->accAvgPowerReport == true) {
-        AggregateStat* apStats = new AggregateStat();
+        AggregateStat *apStats = new AggregateStat();
         apStats->init("ap", "Cumulative Average Power Report");
-        profAccAvgPower[0].init("total",  "Total average power (mW)");
+        profAccAvgPower[0].init("total", "Total average power (mW)");
         profAccAvgPower[1].init("actpre", "ActPre average power (mW)");
-        profAccAvgPower[2].init("burst",  "Burst average power (mW)");
-        profAccAvgPower[3].init("refr",   "Refersh average power (mW)");
-        profAccAvgPower[4].init("bgnd",   "Background average power (mW)");
-        profAccAvgPower[5].init("dq",     "DQ average power (mW)");
-        profAccAvgPower[6].init("term",   "Terminate average power (mW)");
-        for(uint32_t i = 0; i < pwCounterNum; i++)
+        profAccAvgPower[2].init("burst", "Burst average power (mW)");
+        profAccAvgPower[3].init("refr", "Refersh average power (mW)");
+        profAccAvgPower[4].init("bgnd", "Background average power (mW)");
+        profAccAvgPower[5].init("dq", "DQ average power (mW)");
+        profAccAvgPower[6].init("term", "Terminate average power (mW)");
+        for (uint32_t i = 0; i < pwCounterNum; i++)
             apStats->append(&profAccAvgPower[i]);
         memStats->append(apStats);
     }
 
     if (mParam->curAvgPowerReport == true) {
-        AggregateStat* cpStats = new AggregateStat();
+        AggregateStat *cpStats = new AggregateStat();
         cpStats->init("cp", "Current Average Power Report");
-        profCurAvgPower[0].init("total",  "Total instant power (mW)");
+        profCurAvgPower[0].init("total", "Total instant power (mW)");
         profCurAvgPower[1].init("actpre", "ActPre instant power (mW)");
-        profCurAvgPower[2].init("burst",  "Burst instant power (mW)");
-        profCurAvgPower[3].init("refr",   "Refersh instant power (mW)");
-        profCurAvgPower[4].init("bgnd",   "Background instant power (mW)");
-        profCurAvgPower[5].init("dq",     "DQ instant power (mW)");
-        profCurAvgPower[6].init("term",   "Terminate instant power (mW)");
-        for(uint32_t i = 0; i < pwCounterNum; i++)
+        profCurAvgPower[2].init("burst", "Burst instant power (mW)");
+        profCurAvgPower[3].init("refr", "Refersh instant power (mW)");
+        profCurAvgPower[4].init("bgnd", "Background instant power (mW)");
+        profCurAvgPower[5].init("dq", "DQ instant power (mW)");
+        profCurAvgPower[6].init("term", "Terminate instant power (mW)");
+        for (uint32_t i = 0; i < pwCounterNum; i++)
             cpStats->append(&profCurAvgPower[i]);
         memStats->append(cpStats);
     }
 
     if (mParam->bandwidthReport == true) {
-        AggregateStat* bwStats = new AggregateStat();
+        AggregateStat *bwStats = new AggregateStat();
         bwStats->init("bw", "Bandwidth Report");
         profBandwidth[0].init("all", "Cumulative Average bandwidth (MB/s)");
         profBandwidth[1].init("cur", "Current Average bandwidth (MB/s)");
         profBandwidth[2].init("max", "Maximum bandwidth (MB/s)");
         profBandwidth[3].init("min", "Minimum bandwidth (MB/s)");
-        for(uint32_t i = 0; i < bwCounterNum; i++)
+        for (uint32_t i = 0; i < bwCounterNum; i++)
             bwStats->append(&profBandwidth[i]);
         memStats->append(bwStats);
     }
@@ -1198,7 +1231,7 @@ void MemControllerBase::initStats(AggregateStat* parentStat) {
 
     lhBinSize = 10;
     lhNumBins = 200;
-    latencyHist.init("mlh","latency histogram for memory requests", lhNumBins);
+    latencyHist.init("mlh", "latency histogram for memory requests", lhNumBins);
     memStats->append(&latencyHist);
 
     parentStat->append(memStats);
@@ -1223,9 +1256,8 @@ void MemControllerBase::finish(void) {
     uint64_t realTime = sysToMicroSec(endCycle);
     uint64_t lastRealTime = sysToMicroSec(lastPhaseCycle);
 
-    if (mParam->anyReport == true)
-        info("=== %s: Final Performance Report @ %ld usec (duration is %ld usec) ===",
-             name.c_str(), realTime, realTime - lastRealTime);
+    if (mParam->anyReport == true) info("=== %s: Final Performance Report @ %ld usec (duration is %ld usec) ===",
+                                        name.c_str(), realTime, realTime - lastRealTime);
     EstimatePowers(endCycle, true);
     EstimateBandwidth(realTime, lastRealTime, true);
     UpdateCmdCounters();
@@ -1256,25 +1288,24 @@ uint64_t MemControllerBase::ReturnChannel(Address addr) {
         case 4:
         case 5:
             // Cache block interleave
-            result  %= mParam->channelCount;
+            result %= mParam->channelCount;
             break;
         case 6:
             result >>= (mParam->colAddrWidth - colLowWidth);
-            result  %= mParam->channelCount;
+            result %= mParam->channelCount;
             break;
         case 7:
             result >>= (mParam->colAddrWidth - colLowWidth);
             result >>= mParam->bankWidth;
-            result  %= mParam->channelCount;
+            result %= mParam->channelCount;
             break;
         case 8:
             result >>= (mParam->colAddrWidth - colLowWidth);
             result >>= mParam->bankWidth;
             result >>= mParam->rankWidth;
-            result  %= mParam->channelCount;
+            result %= mParam->channelCount;
             break;
-        default:
-            panic("Invalid interleaveType!");
+        default: panic("Invalid interleaveType!");
     }
     return result;
 }
@@ -1285,14 +1316,14 @@ uint64_t MemControllerBase::LatencySimulate(Address lineAddr, uint64_t sysCycle,
     uint64_t lastMemCycle = sysToMemCycle(lastPhaseCycle);
     uint64_t memLatency = chnls[channel]->LatencySimulate(lineAddr, memCycle, lastMemCycle, type);
     uint64_t sysLatency = memToSysCycle(memLatency);
-    assert_msg(sysLatency  >= (memMinLatency[type]),
+    assert_msg(sysLatency >= (memMinLatency[type]),
                "Memory Model returned lower latency than memMinLatency! latency = %ld, memMinLatency = %d",
                sysLatency, memMinLatency[type]);
-    uint32_t bin = std::min(sysLatency/lhBinSize, (uint64_t)(lhNumBins-1));
+    uint32_t bin = std::min(sysLatency / lhBinSize, (uint64_t) (lhNumBins - 1));
     latencyHist.inc(bin);
 
     if (addrTraceLog != nullptr)
-        gzwrite(addrTraceLog, (char*)&lineAddr, sizeof(uint64_t));
+        gzwrite(addrTraceLog, (char *) &lineAddr, sizeof(uint64_t));
 
     if (type == WRITE) {
         profWrites.atomicInc();
@@ -1311,10 +1342,10 @@ void MemControllerBase::UpdateCmdCounters(void) {
     uint64_t activateCnt = 0;
     uint64_t prechargeCnt = 0;
     uint64_t refreshCnt = 0;
-    for(uint32_t i = 0; i < mParam->channelCount; i++) {
-        activateCnt   += chnls[i]->GetActivateCount();
-        prechargeCnt  += chnls[i]->GetPrechargeCount();
-        refreshCnt    += chnls[i]->GetRefreshCount();
+    for (uint32_t i = 0; i < mParam->channelCount; i++) {
+        activateCnt += chnls[i]->GetActivateCount();
+        prechargeCnt += chnls[i]->GetPrechargeCount();
+        refreshCnt += chnls[i]->GetRefreshCount();
     }
     profActivate.set(activateCnt);
     profPrecharge.set(prechargeCnt);
@@ -1333,23 +1364,25 @@ void MemControllerBase::EstimatePowers(uint64_t sysCycle, bool finish) {
     memset(&accPower, 0, sizeof(powerValue));
     powerValue curPower;
     memset(&curPower, 0, sizeof(powerValue));
-    for(uint32_t i = 0; i < mParam->channelCount; i++) {
+    for (uint32_t i = 0; i < mParam->channelCount; i++) {
         chnls[i]->PeriodicUpdatePower(memCycle, lastMemCycle);
 
-        accPower.actPre     += chnls[i]->GetActPreEnergy();
-        accPower.burst      += chnls[i]->GetBurstEnergy();
-        accPower.refresh    += chnls[i]->GetRefreshEnergy();
+        accPower.actPre += chnls[i]->GetActPreEnergy();
+        accPower.burst += chnls[i]->GetBurstEnergy();
+        accPower.refresh += chnls[i]->GetRefreshEnergy();
         accPower.background += chnls[i]->GetBackGroundEnergy(memCycle, lastMemCycle, false);
         if (mParam->curAvgPowerReport == true)
             curPower.background += chnls[i]->GetBackGroundEnergy(memCycle, lastMemCycle, true);
     }
 
-    uint64_t avgRdActivity = profReads.get()  * mParam->tTrans;
+    uint64_t avgRdActivity = profReads.get() * mParam->tTrans;
     uint64_t avgWrActivity = profWrites.get() * mParam->tTrans;
     // readDq, writeDq: uW, DQ power in current accessed rank, calculate from Whole Chip full usage power
-    accPower.dq = ((avgRdActivity * mParam->readDqPin) + (avgWrActivity * mParam->writeDqPin)) * mParam->chipCountPerRank;
+    accPower.dq =
+            ((avgRdActivity * mParam->readDqPin) + (avgWrActivity * mParam->writeDqPin)) * mParam->chipCountPerRank;
     // readTerm, writeTerm: uW, terminate power in the other ranks, calculate from Whole Chip full usage power
-    accPower.terminate = ((avgRdActivity * mParam->readTermPin) + (avgWrActivity * mParam->writeTermPin)) * mParam->chipCountPerRank;
+    accPower.terminate =
+            ((avgRdActivity * mParam->readTermPin) + (avgWrActivity * mParam->writeTermPin)) * mParam->chipCountPerRank;
     accPower.terminate *= (mParam->rankCount - 1);
 
     if (mParam->curAvgPowerReport == true) {
@@ -1360,7 +1393,8 @@ void MemControllerBase::EstimatePowers(uint64_t sysCycle, bool finish) {
         curPower.refresh = (accPower.refresh - lastPower.refresh) / instCycle;
         curPower.dq = CalcDQTermCur(accPower.dq, lastPower.dq, instCycle, memCycle, lastMemCycle);
         curPower.terminate = (accPower.terminate - lastPower.terminate) / instCycle / 1000;
-        curPower.total = curPower.burst + curPower.actPre + curPower.refresh + curPower.background + curPower.dq + curPower.terminate;
+        curPower.total = curPower.burst + curPower.actPre + curPower.refresh + curPower.background + curPower.dq +
+                         curPower.terminate;
 
         // assertion
         assert_msg((accPower.burst >= lastPower.burst), "Burst power calculation problem.");
@@ -1370,7 +1404,7 @@ void MemControllerBase::EstimatePowers(uint64_t sysCycle, bool finish) {
         assert_msg((accPower.terminate >= lastPower.terminate), "Terminate power calculation problem.");
 
         // profile update
-        for(uint32_t i =0; i < pwCounterNum; i++)
+        for (uint32_t i = 0; i < pwCounterNum; i++)
             profCurAvgPower[i].set(*(&curPower.total + i));
 
         // backup for next compute
@@ -1381,14 +1415,15 @@ void MemControllerBase::EstimatePowers(uint64_t sysCycle, bool finish) {
         // compute average power
         // Regarding memory which has VDDQ domain like LPDDRx, VDDQ power is added to dq power.
         accPower.actPre = accPower.actPre / memCycle;
-        accPower.burst = accPower.burst  / memCycle;
+        accPower.burst = accPower.burst / memCycle;
         accPower.refresh = accPower.refresh / memCycle;
         //accPower.background =accPower.background;
         accPower.dq = CalcDQTermAcc(accPower.dq, memCycle, lastMemCycle);
         accPower.terminate = accPower.terminate / memCycle / 1000;
-        accPower.total = accPower.burst + accPower.actPre + accPower.refresh + accPower.background + accPower.dq + accPower.terminate;
+        accPower.total = accPower.burst + accPower.actPre + accPower.refresh + accPower.background + accPower.dq +
+                         accPower.terminate;
         // profile update
-        for(uint32_t i =0; i < pwCounterNum; i++)
+        for (uint32_t i = 0; i < pwCounterNum; i++)
             profAccAvgPower[i].set(*(&accPower.total + i));
     }
 
@@ -1402,7 +1437,8 @@ void MemControllerBase::EstimatePowers(uint64_t sysCycle, bool finish) {
     //curPower.background, curPower.dq, curPower.terminate);
 }
 
-uint64_t MemControllerBase::CalcDQTermCur(uint64_t acc_dq, uint64_t last_dq, uint64_t instCycle, uint64_t memCycle, uint64_t lastMemCycle) {
+uint64_t MemControllerBase::CalcDQTermCur(uint64_t acc_dq, uint64_t last_dq, uint64_t instCycle, uint64_t memCycle,
+                                          uint64_t lastMemCycle) {
     // memCycle and lastMemCycle are used in LPDDRx mode
     return (acc_dq - last_dq) / instCycle / 1000;
 };

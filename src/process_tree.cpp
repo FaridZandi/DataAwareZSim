@@ -45,7 +45,7 @@ static string DefaultMaskStr() {
 }
 
 //Helper
-static void DumpEventualStats(uint32_t procIdx, const char* reason) {
+static void DumpEventualStats(uint32_t procIdx, const char *reason) {
     uint32_t p = zinfo->procArray[procIdx]->getGroupIdx();
     info("Dumping eventual stats for process GROUP %d (%s)", p, reason);
     zinfo->trigger = p;
@@ -64,7 +64,7 @@ bool ProcessTreeNode::notifyStart() {
         if (procIdx) {
             if (oldActiveProcs == 0) {
                 panic("Race! All processes finished before this one started, so stats have already been dumped and sim state may be partially deleted. "
-                    "You should serialize process creation and termination through the harness to avoid this.");
+                              "You should serialize process creation and termination through the harness to avoid this.");
             }
         } else { //first start
             assert(oldActiveProcs == 0);
@@ -122,11 +122,12 @@ void ProcessTreeNode::heartbeat() {
 
     //trigger stats if we've reached the limit
     class EventualStatsDumpEvent : public Event {
-        private:
-            uint32_t p;
-        public:
-            explicit EventualStatsDumpEvent(uint64_t _p) : Event(0 /*one-shot*/), p(_p) {}
-            void callback() { DumpEventualStats(p, "heartbeats"); }
+    private:
+        uint32_t p;
+    public:
+        explicit EventualStatsDumpEvent(uint64_t _p) : Event(0 /*one-shot*/), p(_p) {}
+
+        void callback() { DumpEventualStats(p, "heartbeats"); }
     };
 
     if (curBeats == dumpHeartbeats) { //never triggers if dumpHeartbeats == 0
@@ -140,9 +141,10 @@ void ProcessTreeNode::heartbeat() {
     }
 }
 
-static void PopulateLevel(Config& config, const std::string& prefix, std::vector<ProcessTreeNode*>& globProcVector, ProcessTreeNode* parent, uint32_t& procIdx, uint32_t& groupIdx) {
+static void PopulateLevel(Config &config, const std::string &prefix, std::vector<ProcessTreeNode *> &globProcVector,
+                          ProcessTreeNode *parent, uint32_t &procIdx, uint32_t &groupIdx) {
     uint32_t idx = 0;
-    std::vector<ProcessTreeNode*> children;
+    std::vector<ProcessTreeNode *> children;
     while (true) {
         std::stringstream p_ss;
         p_ss << prefix << "process" << idx;
@@ -152,18 +154,18 @@ static void PopulateLevel(Config& config, const std::string& prefix, std::vector
         }
 
         //Get patch root fs
-        std::string patchRoot = config.get<const char*>(p_ss.str() +  ".patchRoot", "");
+        std::string patchRoot = config.get<const char *>(p_ss.str() + ".patchRoot", "");
 
-        const char* gpr = nullptr;
+        const char *gpr = nullptr;
         if (patchRoot != "") {
             //In case this is a relpath, convert it to absolute
-            char* pathBuf = realpath(patchRoot.c_str(), nullptr); //mallocs the buffer
+            char *pathBuf = realpath(patchRoot.c_str(), nullptr); //mallocs the buffer
             assert(pathBuf);
             gpr = gm_strdup(pathBuf);
             free(pathBuf);
         }
 
-        bool groupWithPrevious = config.get<bool>(p_ss.str() +  ".groupWithPrevious", false);
+        bool groupWithPrevious = config.get<bool>(p_ss.str() + ".groupWithPrevious", false);
         if (groupWithPrevious) {
             if (procIdx == 0) panic("Can't group process0 with the previous one, there is not previous process");
             assert(groupIdx > 0);
@@ -171,27 +173,30 @@ static void PopulateLevel(Config& config, const std::string& prefix, std::vector
         }
 
 
-        bool startFastForwarded = config.get<bool>(p_ss.str() +  ".startFastForwarded", false);
-        g_string syncedFastForwardStr = config.get<const char*>(p_ss.str() +  ".syncedFastForward", "Multiprocess");
-        bool startPaused = config.get<bool>(p_ss.str() +  ".startPaused", false);
-        uint32_t clockDomain = config.get<uint32_t>(p_ss.str() +  ".clockDomain", 0);
-        uint32_t portDomain = config.get<uint32_t>(p_ss.str() +  ".portDomain", 0);
-        uint64_t dumpHeartbeats = config.get<uint64_t>(p_ss.str() +  ".dumpHeartbeats", 0);
-        bool dumpsResetHeartbeats = config.get<bool>(p_ss.str() +  ".dumpsResetHeartbeats", false);
-        uint64_t dumpInstrs = config.get<uint64_t>(p_ss.str() +  ".dumpInstrs", 0);
-        uint32_t restarts = config.get<uint32_t>(p_ss.str() +  ".restarts", 0);
-        g_string syscallBlacklistRegex = config.get<const char*>(p_ss.str() +  ".syscallBlacklistRegex", ".*");
+        bool startFastForwarded = config.get<bool>(p_ss.str() + ".startFastForwarded", false);
+        g_string syncedFastForwardStr = config.get<const char *>(p_ss.str() + ".syncedFastForward", "Multiprocess");
+        bool startPaused = config.get<bool>(p_ss.str() + ".startPaused", false);
+        uint32_t clockDomain = config.get<uint32_t>(p_ss.str() + ".clockDomain", 0);
+        uint32_t portDomain = config.get<uint32_t>(p_ss.str() + ".portDomain", 0);
+        uint64_t dumpHeartbeats = config.get<uint64_t>(p_ss.str() + ".dumpHeartbeats", 0);
+        bool dumpsResetHeartbeats = config.get<bool>(p_ss.str() + ".dumpsResetHeartbeats", false);
+        uint64_t dumpInstrs = config.get<uint64_t>(p_ss.str() + ".dumpInstrs", 0);
+        uint32_t restarts = config.get<uint32_t>(p_ss.str() + ".restarts", 0);
+        g_string syscallBlacklistRegex = config.get<const char *>(p_ss.str() + ".syscallBlacklistRegex", ".*");
         g_vector<bool> mask;
         if (!zinfo->traceDriven) {
-            mask = ParseMask(config.get<const char*>(p_ss.str() +  ".mask", DefaultMaskStr().c_str()), zinfo->numCores);
+            mask = ParseMask(config.get<const char *>(p_ss.str() + ".mask", DefaultMaskStr().c_str()), zinfo->numCores);
         }  //  else leave mask empty, no cores
-        g_vector<uint64_t> ffiPoints(ParseList<uint64_t>(config.get<const char*>(p_ss.str() +  ".ffiPoints", "")));
+        g_vector < uint64_t > ffiPoints(ParseList<uint64_t>(config.get<const char *>(p_ss.str() + ".ffiPoints", "")));
 
         if (dumpInstrs) {
-            if (dumpHeartbeats) warn("Dumping eventual stats on both heartbeats AND instructions; you won't be able to distinguish both!");
+            if (dumpHeartbeats) warn(
+                    "Dumping eventual stats on both heartbeats AND instructions; you won't be able to distinguish both!");
             auto getInstrs = [procIdx]() { return zinfo->processStats->getProcessInstrs(procIdx); };
             auto dumpStats = [procIdx]() { DumpEventualStats(procIdx, "instructions"); };
-            zinfo->eventQueue->insert(makeAdaptiveEvent(getInstrs, dumpStats, 0, dumpInstrs, MAX_IPC*zinfo->phaseLength*zinfo->numCores /*all cores can be on*/));
+            zinfo->eventQueue->insert(makeAdaptiveEvent(getInstrs, dumpStats, 0, dumpInstrs,
+                                                        MAX_IPC * zinfo->phaseLength *
+                                                        zinfo->numCores /*all cores can be on*/));
         } //NOTE: trivial to do the same with cycles
 
         if (clockDomain >= MAX_CLOCK_DOMAINS) panic("Invalid clock domain %d", clockDomain);
@@ -204,10 +209,12 @@ static void PopulateLevel(Config& config, const std::string& prefix, std::vector
             syncedFastForward = SFF_MULTIPROCESS;
         else if (syncedFastForwardStr == "Never")
             syncedFastForward = SFF_NEVER;
-        else
-            panic("Invalid synced fast forward mode %s", syncedFastForwardStr.c_str());
+        else panic("Invalid synced fast forward mode %s", syncedFastForwardStr.c_str());
 
-        ProcessTreeNode* ptn = new ProcessTreeNode(procIdx, groupIdx, startFastForwarded, startPaused, syncedFastForward, clockDomain, portDomain, dumpHeartbeats, dumpsResetHeartbeats, restarts, mask, ffiPoints, syscallBlacklistRegex, gpr);
+        ProcessTreeNode *ptn = new ProcessTreeNode(procIdx, groupIdx, startFastForwarded, startPaused,
+                                                   syncedFastForward, clockDomain, portDomain, dumpHeartbeats,
+                                                   dumpsResetHeartbeats, restarts, mask, ffiPoints,
+                                                   syscallBlacklistRegex, gpr);
         //info("Created ProcessTreeNode, procIdx %d", procIdx);
         parent->addChild(ptn);
         children.push_back(ptn);
@@ -220,7 +227,7 @@ static void PopulateLevel(Config& config, const std::string& prefix, std::vector
         idx++;
     }
 
-    for (uint32_t i = 0;  i < children.size(); i++) {
+    for (uint32_t i = 0; i < children.size(); i++) {
         std::stringstream p_ss;
         p_ss << prefix << "process" << i << ".";
         std::string childPrefix = p_ss.str();
@@ -228,21 +235,26 @@ static void PopulateLevel(Config& config, const std::string& prefix, std::vector
     }
 }
 
-void CreateProcessTree(Config& config) {
-    ProcessTreeNode* rootNode = new ProcessTreeNode(-1, -1, false, false, SFF_NEVER, 0, 0, 0, false, 0, g_vector<bool> {},  g_vector<uint64_t> {}, g_string {}, nullptr);
+void CreateProcessTree(Config &config) {
+    ProcessTreeNode *rootNode = new ProcessTreeNode(-1, -1, false, false, SFF_NEVER, 0, 0, 0, false, 0,
+                                                    g_vector < bool > {}, g_vector < uint64_t > {}, g_string {},
+                                                    nullptr);
     uint32_t procIdx = 0;
     uint32_t groupIdx = 0;
-    std::vector<ProcessTreeNode*> globProcVector;
+    std::vector<ProcessTreeNode *> globProcVector;
 
     PopulateLevel(config, std::string(""), globProcVector, rootNode, procIdx, groupIdx);
 
-    if (procIdx > (uint32_t)zinfo->lineSize) panic("Cannot simulate more than sys.lineSize=%d processes (address spaces will get aliased), %d specified", zinfo->lineSize, procIdx);
+    if (procIdx > (uint32_t) zinfo->lineSize) panic(
+            "Cannot simulate more than sys.lineSize=%d processes (address spaces will get aliased), %d specified",
+            zinfo->lineSize, procIdx);
 
     zinfo->procTree = rootNode;
     zinfo->numProcs = procIdx;
     zinfo->numProcGroups = groupIdx;
 
-    zinfo->procArray = gm_calloc<ProcessTreeNode*>(zinfo->lineSize /*max procs*/); //note we can add processes later, so we size it to the maximum
+    zinfo->procArray = gm_calloc<ProcessTreeNode *>(
+            zinfo->lineSize /*max procs*/); //note we can add processes later, so we size it to the maximum
     for (uint32_t i = 0; i < procIdx; i++) zinfo->procArray[i] = globProcVector[i];
 
     zinfo->procExited = gm_calloc<ProcExitStatus>(zinfo->lineSize /*max procs*/);

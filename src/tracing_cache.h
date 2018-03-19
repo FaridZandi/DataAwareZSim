@@ -30,15 +30,18 @@
 #include "cache.h"
 
 class TracingCache : public Cache {
-    private:
-        g_string tracefile;
-        AccessTraceWriter* atw;
-        lock_t traceLock;
+private:
+    g_string tracefile;
+    AccessTraceWriter *atw;
+    lock_t traceLock;
 
-    public:
-        TracingCache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, g_string& _tracefile, g_string& _name);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
-        uint64_t access(MemReq& req);
+public:
+    TracingCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat, uint32_t _invLat,
+                 g_string &_tracefile, g_string &_name);
+
+    void setChildren(const g_vector<BaseCache *> &children, Network *network);
+
+    uint64_t access(MemReq &req);
 };
 
 #endif

@@ -83,8 +83,9 @@ extern void EndOfPhaseActions(); //in zsim.cpp
  * follow the layout of zinfo, top-down.
  */
 
-BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, uint32_t bankSize, bool isTerminal, uint32_t domain) {
-    string type = config.get<const char*>(prefix + "type", "Simple");
+BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, uint32_t bankSize, bool isTerminal,
+                          uint32_t domain) {
+    string type = config.get<const char *>(prefix + "type", "Simple");
     // Shortcut for TraceDriven type
     if (type == "TraceDriven") {
         assert(zinfo->traceDriven);
@@ -96,13 +97,13 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     assert(lineSize > 0); //avoid config deps
     if (bankSize % lineSize != 0) panic("%s: Bank size must be a multiple of line size", name.c_str());
 
-    uint32_t numLines = bankSize/lineSize;
+    uint32_t numLines = bankSize / lineSize;
 
     //Array
     uint32_t numHashes = 1;
     uint32_t ways = config.get<uint32_t>(prefix + "array.ways", 4);
-    string arrayType = config.get<const char*>(prefix + "array.type", "SetAssoc");
-    uint32_t candidates = (arrayType == "Z")? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
+    string arrayType = config.get<const char *>(prefix + "array.type", "SetAssoc");
+    uint32_t candidates = (arrayType == "Z") ? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
 
     //Need to know number of hash functions before instantiating array
     if (arrayType == "SetAssoc") {
@@ -118,13 +119,15 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     }
 
     // Power of two sets check; also compute setBits, will be useful later
-    uint32_t numSets = numLines/ways;
+    uint32_t numSets = numLines / ways;
     uint32_t setBits = 31 - __builtin_clz(numSets);
-    if ((1u << setBits) != numSets) panic("%s: Number of sets must be a power of two (you specified %d sets)", name.c_str(), numSets);
+    if ((1u << setBits) != numSets) panic("%s: Number of sets must be a power of two (you specified %d sets)",
+                                          name.c_str(), numSets);
 
     //Hash function
-    HashFamily* hf = nullptr;
-    string hashType = config.get<const char*>(prefix + "array.hash", (arrayType == "Z")? "H3" : "None"); //zcaches must be hashed by default
+    HashFamily *hf = nullptr;
+    string hashType = config.get<const char *>(prefix + "array.hash",
+                                               (arrayType == "Z") ? "H3" : "None"); //zcaches must be hashed by default
     if (numHashes) {
         if (hashType == "None") {
             if (arrayType == "Z") panic("ZCaches must be hashed!"); //double check for stupid user
@@ -132,7 +135,7 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
             hf = new IdHashFamily;
         } else if (hashType == "H3") {
             //STL hash function
-            size_t seed = _Fnv_hash_bytes(prefix.c_str(), prefix.size()+1, 0xB4AC5B);
+            size_t seed = _Fnv_hash_bytes(prefix.c_str(), prefix.size() + 1, 0xB4AC5B);
             //info("%s -> %lx", prefix.c_str(), seed);
             hf = new H3HashFamily(numHashes, setBits, 0xCAC7EAFFA1 + seed /*make randSeed depend on prefix*/);
         } else if (hashType == "SHA1") {
@@ -143,8 +146,9 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     }
 
     //Replacement policy
-    string replType = config.get<const char*>(prefix + "repl.type", (arrayType == "IdealLRUPart")? "IdealLRUPart" : "LRU");
-    ReplPolicy* rp = nullptr;
+    string replType = config.get<const char *>(prefix + "repl.type",
+                                               (arrayType == "IdealLRUPart") ? "IdealLRUPart" : "LRU");
+    ReplPolicy *rp = nullptr;
 
     if (replType == "LRU" || replType == "LRUNoSh") {
         bool sharersAware = (replType == "LRU") && !isTerminal;
@@ -156,7 +160,7 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     } else if (replType == "LFU") {
         rp = new LFUReplPolicy(numLines);
     } else if (replType == "LRUProfViol") {
-        ProfViolReplPolicy< LRUReplPolicy<true> >* pvrp = new ProfViolReplPolicy< LRUReplPolicy<true> >(numLines);
+        ProfViolReplPolicy<LRUReplPolicy<true> > *pvrp = new ProfViolReplPolicy<LRUReplPolicy<true> >(numLines);
         pvrp->init(numLines);
         rp = pvrp;
     } else if (replType == "TreeLRU") {
@@ -170,10 +174,11 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
 
         //Partition mapper
         // TODO: One partition mapper per cache (not bank).
-        string partMapper = config.get<const char*>(prefix + "repl.partMapper", "Core");
-        PartMapper* pm = nullptr;
+        string partMapper = config.get<const char *>(prefix + "repl.partMapper", "Core");
+        PartMapper *pm = nullptr;
         if (partMapper == "Core") {
-            pm = new CorePartMapper(zinfo->numCores); //NOTE: If the cache is not fully shared, trhis will be inefficient...
+            pm = new CorePartMapper(
+                    zinfo->numCores); //NOTE: If the cache is not fully shared, trhis will be inefficient...
         } else if (partMapper == "InstrData") {
             pm = new InstrDataPartMapper();
         } else if (partMapper == "InstrDataCore") {
@@ -198,10 +203,10 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
             buckets = config.get<uint32_t>(prefix + "repl.buckets", 256);
         }
 
-        PartitionMonitor* mon = new UMonMonitor(numLines, umonLines, umonWays, pm->getNumPartitions(), buckets);
+        PartitionMonitor *mon = new UMonMonitor(numLines, umonLines, umonWays, pm->getNumPartitions(), buckets);
 
         //Finally, instantiate the repl policy
-        PartReplPolicy* prp;
+        PartReplPolicy *prp;
         double allocPortion = 1.0;
         if (replType == "WayPart") {
             //if set, drives partitioner but doesn't actually do partitioning
@@ -210,16 +215,17 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
         } else if (replType == "IdealLRUPart") {
             prp = new IdealLRUPartReplPolicy(mon, pm, numLines, buckets);
         } else { //Vantage
-            uint32_t assoc = (arrayType == "Z")? candidates : ways;
+            uint32_t assoc = (arrayType == "Z") ? candidates : ways;
             allocPortion = .85;
             bool smoothTransients = config.get<bool>(prefix + "repl.smoothTransients", false);
-            prp = new VantageReplPolicy(mon, pm, numLines, assoc, (uint32_t)(allocPortion * 100), 10, 50, buckets, smoothTransients);
+            prp = new VantageReplPolicy(mon, pm, numLines, assoc, (uint32_t) (allocPortion * 100), 10, 50, buckets,
+                                        smoothTransients);
         }
         rp = prp;
 
         // Partitioner
         // TODO: Depending on partitioner type, we want one per bank or one per cache.
-        Partitioner* p = new LookaheadPartitioner(prp, pm->getNumPartitions(), buckets, 1, allocPortion);
+        Partitioner *p = new LookaheadPartitioner(prp, pm->getNumPartitions(), buckets, 1, allocPortion);
 
         //Schedule its tick
         uint32_t interval = config.get<uint32_t>(prefix + "repl.interval", 5000); //phases
@@ -231,7 +237,7 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
 
 
     //Alright, build the array
-    CacheArray* array = nullptr;
+    CacheArray *array = nullptr;
     if (arrayType == "SetAssoc") {
         array = new SetAssocArray(numLines, ways, rp, hf);
     } else if (arrayType == "Z") {
@@ -239,12 +245,12 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     } else if (arrayType == "IdealLRU") {
         assert(replType == "LRU");
         assert(!hf);
-        IdealLRUArray* ila = new IdealLRUArray(numLines);
+        IdealLRUArray *ila = new IdealLRUArray(numLines);
         rp = ila->getRP();
         array = ila;
     } else if (arrayType == "IdealLRUPart") {
         assert(!hf);
-        IdealLRUPartReplPolicy* irp = dynamic_cast<IdealLRUPartReplPolicy*>(rp);
+        IdealLRUPartReplPolicy *irp = dynamic_cast<IdealLRUPartReplPolicy *>(rp);
         if (!irp) panic("IdealLRUPart array needs IdealLRUPart repl policy!");
         array = new IdealLRUPartArray(numLines, irp);
     } else {
@@ -253,7 +259,8 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
 
     //Latency
     uint32_t latency = config.get<uint32_t>(prefix + "latency", 10);
-    uint32_t accLat = (isTerminal)? 0 : latency; //terminal caches has no access latency b/c it is assumed accLat is hidden by the pipeline
+    uint32_t accLat = (isTerminal) ? 0
+                                   : latency; //terminal caches has no access latency b/c it is assumed accLat is hidden by the pipeline
     uint32_t invLat = latency;
 
     // Inclusion?
@@ -261,8 +268,8 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     if (nonInclusiveHack) assert(type == "Simple" && !isTerminal);
 
     // Finally, build the cache
-    Cache* cache;
-    CC* cc;
+    Cache *cache;
+    CC *cc;
     if (isTerminal) {
         cc = new MESITerminalCC(numLines, name);
     } else {
@@ -276,9 +283,10 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
             uint32_t mshrs = config.get<uint32_t>(prefix + "mshrs", 16);
             uint32_t tagLat = config.get<uint32_t>(prefix + "tagLat", 5);
             uint32_t timingCandidates = config.get<uint32_t>(prefix + "timingCandidates", candidates);
-            cache = new TimingCache(numLines, cc, array, rp, accLat, invLat, mshrs, tagLat, ways, timingCandidates, domain, name);
+            cache = new TimingCache(numLines, cc, array, rp, accLat, invLat, mshrs, tagLat, ways, timingCandidates,
+                                    domain, name);
         } else if (type == "Tracing") {
-            g_string traceFile = config.get<const char*>(prefix + "traceFile","");
+            g_string traceFile = config.get<const char *>(prefix + "traceFile", "");
             if (traceFile.empty()) traceFile = g_string(zinfo->outputDir) + "/" + name + ".trace";
             cache = new TracingCache(numLines, cc, array, rp, accLat, invLat, traceFile, name);
         } else {
@@ -287,7 +295,8 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     } else {
         //Filter cache optimization
         if (type != "Simple") panic("Terminal cache %s can only have type == Simple", name.c_str());
-        if (arrayType != "SetAssoc" || hashType != "None" || replType != "LRU") panic("Invalid FilterCache config %s", name.c_str());
+        if (arrayType != "SetAssoc" || hashType != "None" || replType != "LRU") panic("Invalid FilterCache config %s",
+                                                                                      name.c_str());
         cache = new FilterCache(numSets, numLines, cc, array, rp, accLat, invLat, name, config);
     }
 
@@ -300,12 +309,14 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
 }
 
 // NOTE: frequency is SYSTEM frequency; mem freq specified in tech
-DDRMemory* BuildDDRMemory(Config& config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string name, const string& prefix) {
+DDRMemory *BuildDDRMemory(Config &config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string name,
+                          const string &prefix) {
     uint32_t ranksPerChannel = config.get<uint32_t>(prefix + "ranksPerChannel", 4);
     uint32_t banksPerRank = config.get<uint32_t>(prefix + "banksPerRank", 8);  // DDR3 std is 8
-    uint32_t pageSize = config.get<uint32_t>(prefix + "pageSize", 8*1024);  // 1Kb cols, x4 devices
-    const char* tech = config.get<const char*>(prefix + "tech", "DDR3-1333-CL10");  // see cpp file for other techs
-    const char* addrMapping = config.get<const char*>(prefix + "addrMapping", "rank:col:bank");  // address splitter interleaves channels; row always on top
+    uint32_t pageSize = config.get<uint32_t>(prefix + "pageSize", 8 * 1024);  // 1Kb cols, x4 devices
+    const char *tech = config.get<const char *>(prefix + "tech", "DDR3-1333-CL10");  // see cpp file for other techs
+    const char *addrMapping = config.get<const char *>(prefix + "addrMapping",
+                                                       "rank:col:bank");  // address splitter interleaves channels; row always on top
 
     // If set, writes are deferred and bursted out to reduce WTR overheads
     bool deferWrites = config.get<bool>(prefix + "deferWrites", true);
@@ -320,23 +331,25 @@ DDRMemory* BuildDDRMemory(Config& config, uint32_t lineSize, uint32_t frequency,
     uint32_t controllerLatency = config.get<uint32_t>(prefix + "controllerLatency", 10);  // in system cycles
 
     auto mem = new DDRMemory(zinfo->lineSize, pageSize, ranksPerChannel, banksPerRank, frequency, tech,
-            addrMapping, controllerLatency, queueDepth, maxRowHits, deferWrites, closedPage, domain, name);
+                             addrMapping, controllerLatency, queueDepth, maxRowHits, deferWrites, closedPage, domain,
+                             name);
     return mem;
 }
 
-MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string& name) {
+MemObject *
+BuildMemoryController(Config &config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string &name) {
     //Type
-    string type = config.get<const char*>("sys.mem.type", "Simple");
+    string type = config.get<const char *>("sys.mem.type", "Simple");
 
     //Latency
-    uint32_t latency = (type == "DDR")? -1 : config.get<uint32_t>("sys.mem.latency", 100);
+    uint32_t latency = (type == "DDR") ? -1 : config.get<uint32_t>("sys.mem.latency", 100);
 
-    MemObject* mem = nullptr;
+    MemObject *mem = nullptr;
     if (type == "Simple") {
         mem = new SimpleMemory(latency, name, config);
     } else if (type == "DramCache") {
-		mem = new MemoryController(name, frequency, domain, config);	
-	} else if (type == "MD1") {
+        mem = new MemoryController(name, frequency, domain, config);
+    } else if (type == "MD1") {
         // The following params are for MD1 only
         // NOTE: Frequency (in MHz) -- note this is a sys parameter (not sys.mem). There is an implicit assumption of having
         // a single CCT across the system, and we are dealing with latencies in *core* clock cycles
@@ -357,14 +370,15 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
     } else if (type == "DRAMSim") {
         uint64_t cpuFreqHz = 1000000 * frequency;
         uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
-        string dramTechIni = config.get<const char*>("sys.mem.techIni");
-        string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
-        string outputDir = config.get<const char*>("sys.mem.outputDir");
-        string traceName = config.get<const char*>("sys.mem.traceName");
-        mem = new DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
+        string dramTechIni = config.get<const char *>("sys.mem.techIni");
+        string dramSystemIni = config.get<const char *>("sys.mem.systemIni");
+        string outputDir = config.get<const char *>("sys.mem.outputDir");
+        string traceName = config.get<const char *>("sys.mem.traceName");
+        mem = new DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain,
+                                name);
     } else if (type == "Detailed") {
         // FIXME(dsm): Don't use a separate config file... see DDRMemory
-        g_string mcfg = config.get<const char*>("sys.mem.paramFile", "");
+        g_string mcfg = config.get<const char *>("sys.mem.paramFile", "");
         mem = new MemControllerBase(mcfg, lineSize, frequency, domain, name);
     } else {
         panic("Invalid memory controller type %s", type.c_str());
@@ -372,21 +386,21 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
     return mem;
 }
 
-typedef vector<vector<BaseCache*>> CacheGroup;
+typedef vector<vector<BaseCache *>> CacheGroup;
 
-CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal) {
-    CacheGroup* cgp = new CacheGroup;
-    CacheGroup& cg = *cgp;
+CacheGroup *BuildCacheGroup(Config &config, const string &name, bool isTerminal) {
+    CacheGroup *cgp = new CacheGroup;
+    CacheGroup &cg = *cgp;
 
     string prefix = "sys.caches." + name + ".";
 
     bool isPrefetcher = config.get<bool>(prefix + "isPrefetcher", false);
     if (isPrefetcher) { //build a prefetcher group
         uint32_t prefetchers = config.get<uint32_t>(prefix + "prefetchers", 1);
-		uint32_t streamBuffers = config.get<uint32_t>(prefix + "buffers", 16);
+        uint32_t streamBuffers = config.get<uint32_t>(prefix + "buffers", 16);
         bool partitionBuffers = config.get<bool>(prefix + "partitionBuffers", false);
         cg.resize(prefetchers);
-        for (vector<BaseCache*>& bg : cg) bg.resize(1);
+        for (vector<BaseCache *> &bg : cg) bg.resize(1);
         for (uint32_t i = 0; i < prefetchers; i++) {
             stringstream ss;
             ss << name << "-" << i;
@@ -396,17 +410,17 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
         return cgp;
     }
 
-    uint32_t size = config.get<uint32_t>(prefix + "size", 64*1024);
+    uint32_t size = config.get<uint32_t>(prefix + "size", 64 * 1024);
     uint32_t banks = config.get<uint32_t>(prefix + "banks", 1);
     uint32_t caches = config.get<uint32_t>(prefix + "caches", 1);
 
-    uint32_t bankSize = size/banks;
+    uint32_t bankSize = size / banks;
     if (size % banks != 0) {
         panic("%s: banks (%d) does not divide the size (%d bytes)", name.c_str(), banks, size);
     }
 
     cg.resize(caches);
-    for (vector<BaseCache*>& bg : cg) bg.resize(banks);
+    for (vector<BaseCache *> &bg : cg) bg.resize(banks);
 
     for (uint32_t i = 0; i < caches; i++) {
         for (uint32_t j = 0; j < banks; j++) {
@@ -416,7 +430,8 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
                 ss << "b" << j;
             }
             g_string bankName(ss.str().c_str());
-            uint32_t domain = (i*banks + j)*zinfo->numDomains/(caches*banks); //(banks > 1)? nextDomain() : (i*banks + j)*zinfo->numDomains/(caches*banks);
+            uint32_t domain = (i * banks + j) * zinfo->numDomains / (caches *
+                                                                     banks); //(banks > 1)? nextDomain() : (i*banks + j)*zinfo->numDomains/(caches*banks);
             cg[i][j] = BuildCacheBank(config, prefix, bankName, bankSize, isTerminal, domain);
         }
     }
@@ -424,7 +439,7 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
     return cgp;
 }
 
-static void InitSystem(Config& config) {
+static void InitSystem(Config &config) {
     unordered_map<string, string> parentMap; //child -> parent
     unordered_map<string, vector<vector<string>>> childMap; //parent -> children (a parent may have multiple children)
 
@@ -439,40 +454,43 @@ static void InitSystem(Config& config) {
     };
 
     // If a network file is specified, build a Network
-    string networkFile = config.get<const char*>("sys.networkFile", "");
-    Network* network = (networkFile != "")? new Network(networkFile.c_str()) : nullptr;
+    string networkFile = config.get<const char *>("sys.networkFile", "");
+    Network *network = (networkFile != "") ? new Network(networkFile.c_str()) : nullptr;
 
     // Build the caches
-    vector<const char*> cacheGroupNames;
+    vector<const char *> cacheGroupNames;
     config.subgroups("sys.caches", cacheGroupNames);
     string prefix = "sys.caches.";
 
-    for (const char* grp : cacheGroupNames) {
+    for (const char *grp : cacheGroupNames) {
         string group(grp);
         if (group == "mem") panic("'mem' is an invalid cache group name");
         if (childMap.count(group)) panic("Duplicate cache group %s", (prefix + group).c_str());
 
-        string children = config.get<const char*>(prefix + group + ".children", "");
+        string children = config.get<const char *>(prefix + group + ".children", "");
         childMap[group] = parseChildren(children);
-        for (auto v : childMap[group]) for (auto child : v) {
-            if (parentMap.count(child)) {
-                panic("Cache group %s can have only one parent (%s and %s found)", child.c_str(), parentMap[child].c_str(), grp);
+        for (auto v : childMap[group])
+            for (auto child : v) {
+                if (parentMap.count(child)) {
+                    panic("Cache group %s can have only one parent (%s and %s found)", child.c_str(),
+                          parentMap[child].c_str(), grp);
+                }
+                parentMap[child] = group;
             }
-            parentMap[child] = group;
-        }
     }
 
     // Check that children are valid (another cache)
-    for (auto& it : parentMap) {
+    for (auto &it : parentMap) {
         bool found = false;
-        for (auto& grp : cacheGroupNames) found |= it.first == grp;
+        for (auto &grp : cacheGroupNames) found |= it.first == grp;
         if (!found) panic("%s has invalid child %s", it.second.c_str(), it.first.c_str());
     }
 
     // Get the (single) LLC
     vector<string> parentlessCacheGroups;
-    for (auto& it : childMap) if (!parentMap.count(it.first)) parentlessCacheGroups.push_back(it.first);
-    if (parentlessCacheGroups.size() != 1) panic("Only one last-level cache allowed, found: %s", Str(parentlessCacheGroups).c_str());
+    for (auto &it : childMap) if (!parentMap.count(it.first)) parentlessCacheGroups.push_back(it.first);
+    if (parentlessCacheGroups.size() != 1) panic("Only one last-level cache allowed, found: %s",
+                                                 Str(parentlessCacheGroups).c_str());
     string llc = parentlessCacheGroups[0];
 
     auto isTerminal = [&](string group) -> bool {
@@ -480,7 +498,7 @@ static void InitSystem(Config& config) {
     };
 
     // Build each of the groups, starting with the LLC
-    unordered_map<string, CacheGroup*> cMap;
+    unordered_map<string, CacheGroup *> cMap;
     list<string> fringe;  // FIFO
     fringe.push_back(llc);
     while (!fringe.empty()) {
@@ -488,11 +506,12 @@ static void InitSystem(Config& config) {
         fringe.pop_front();
         if (cMap.count(group)) panic("The cache 'tree' has a loop at %s", group.c_str());
         cMap[group] = BuildCacheGroup(config, group, isTerminal(group));
-        for (auto& childVec : childMap[group]) fringe.insert(fringe.end(), childVec.begin(), childVec.end());
+        for (auto &childVec : childMap[group]) fringe.insert(fringe.end(), childVec.begin(), childVec.end());
     }
 
     //Check single LLC
-    if (cMap[llc]->size() != 1) panic("Last-level cache %s must have caches = 1, but %ld were specified", llc.c_str(), cMap[llc]->size());
+    if (cMap[llc]->size() != 1) panic("Last-level cache %s must have caches = 1, but %ld were specified", llc.c_str(),
+                                      cMap[llc]->size());
 
     /* Since we have checked for no loops, parent is mandatory, and all parents are checked valid,
      * it follows that we have a fully connected tree finishing at the LLC.
@@ -502,7 +521,7 @@ static void InitSystem(Config& config) {
     uint32_t memControllers = config.get<uint32_t>("sys.mem.controllers", 1);
     assert(memControllers > 0);
 
-    g_vector<MemObject*> mems;
+    g_vector<MemObject *> mems;
     mems.resize(memControllers);
 
     for (uint32_t i = 0; i < memControllers; i++) {
@@ -510,14 +529,14 @@ static void InitSystem(Config& config) {
         ss << "mem-" << i;
         g_string name(ss.str().c_str());
         //uint32_t domain = nextDomain(); //i*zinfo->numDomains/memControllers;
-        uint32_t domain = i*zinfo->numDomains/memControllers;
+        uint32_t domain = i * zinfo->numDomains / memControllers;
         mems[i] = BuildMemoryController(config, zinfo->lineSize, zinfo->freqMHz, domain, name);
     }
 
     if (memControllers > 1) {
         bool splitAddrs = config.get<bool>("sys.mem.splitAddrs", true);
         if (splitAddrs) {
-            MemObject* splitter = new SplitAddrMemory(mems, "mem-splitter", config);
+            MemObject *splitter = new SplitAddrMemory(mems, "mem-splitter", config);
             mems.resize(1);
             mems[0] = splitter;
         }
@@ -528,15 +547,15 @@ static void InitSystem(Config& config) {
 
     // mem to llc is a bit special, only one llc
     uint32_t childId = 0;
-    for (BaseCache* llcBank : (*cMap[llc])[0]) {
+    for (BaseCache *llcBank : (*cMap[llc])[0]) {
         llcBank->setParents(childId++, mems, network);
     }
 
     // Rest of caches
-    for (const char* grp : cacheGroupNames) {
+    for (const char *grp : cacheGroupNames) {
         if (isTerminal(grp)) continue; //skip terminal caches
 
-        CacheGroup& parentCaches = *cMap[grp];
+        CacheGroup &parentCaches = *cMap[grp];
         uint32_t parents = parentCaches.size();
         assert(parents);
 
@@ -548,7 +567,8 @@ static void InitSystem(Config& config) {
             size_t vecSize = cMap[childVec[0]]->size();
             for (string child : childVec) {
                 if (cMap[child]->size() != vecSize) {
-                    panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(), child.c_str());
+                    panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(),
+                          child.c_str());
                 }
             }
 
@@ -565,22 +585,23 @@ static void InitSystem(Config& config) {
         uint32_t children = childCaches.size();
         assert(children);
 
-        uint32_t childrenPerParent = children/parents;
+        uint32_t childrenPerParent = children / parents;
         if (children % parents != 0) {
             panic("%s has %d caches and %d children, they are non-divisible. "
-                  "Use multiple groups for non-homogeneous children per parent!", grp, parents, children);
+                          "Use multiple groups for non-homogeneous children per parent!", grp, parents, children);
         }
 
-		printf("children = %d, parents=%d\n", children, parents);
+        printf("children = %d, parents=%d\n", children, parents);
         for (uint32_t p = 0; p < parents; p++) {
-            g_vector<MemObject*> parentsVec;
-            parentsVec.insert(parentsVec.end(), parentCaches[p].begin(), parentCaches[p].end()); //BaseCache* to MemObject* is a safe cast
+            g_vector<MemObject *> parentsVec;
+            parentsVec.insert(parentsVec.end(), parentCaches[p].begin(),
+                              parentCaches[p].end()); //BaseCache* to MemObject* is a safe cast
 
             uint32_t childId = 0;
-            g_vector<BaseCache*> childrenVec;
-            for (uint32_t c = p*childrenPerParent; c < (p+1)*childrenPerParent; c++) {
-                for (BaseCache* bank : childCaches[c]) {
-					//printf("bank=%s, parents.size=%ld\n", bank->getName(), parentsVec.size());
+            g_vector<BaseCache *> childrenVec;
+            for (uint32_t c = p * childrenPerParent; c < (p + 1) * childrenPerParent; c++) {
+                for (BaseCache *bank : childCaches[c]) {
+                    //printf("bank=%s, parents.size=%ld\n", bank->getName(), parentsVec.size());
                     bank->setParents(childId++, parentsVec, network);
                     childrenVec.push_back(bank);
                 }
@@ -589,24 +610,27 @@ static void InitSystem(Config& config) {
             if (printHierarchy) {
                 vector<string> cacheNames;
                 std::transform(childrenVec.begin(), childrenVec.end(), std::back_inserter(cacheNames),
-                        [](BaseCache* c) -> string { string s = c->getName(); return s; });
+                               [](BaseCache *c) -> string {
+                                   string s = c->getName();
+                                   return s;
+                               });
 
                 string parentName = parentCaches[p][0]->getName();
                 if (parentCaches[p].size() > 1) {
                     parentName += "..";
-                    parentName += parentCaches[p][parentCaches[p].size()-1]->getName();
+                    parentName += parentCaches[p][parentCaches[p].size() - 1]->getName();
                 }
                 info("Hierarchy: %s -> %s", Str(cacheNames).c_str(), parentName.c_str());
             }
 
-            for (BaseCache* bank : parentCaches[p]) {
+            for (BaseCache *bank : parentCaches[p]) {
                 bank->setChildren(childrenVec, network);
             }
         }
     }
 
     //Check that all the terminal caches have a single bank
-    for (const char* grp : cacheGroupNames) {
+    for (const char *grp : cacheGroupNames) {
         if (isTerminal(grp)) {
             uint32_t banks = (*cMap[grp])[0].size();
             if (banks != 1) panic("Terminal cache group %s needs to have a single bank, has %d", grp, banks);
@@ -615,30 +639,31 @@ static void InitSystem(Config& config) {
 
     //Tracks how many terminal caches have been allocated to cores
     unordered_map<string, uint32_t> assignedCaches;
-    for (const char* grp : cacheGroupNames) if (isTerminal(grp)) assignedCaches[grp] = 0;
+    for (const char *grp : cacheGroupNames) if (isTerminal(grp)) assignedCaches[grp] = 0;
 
     if (!zinfo->traceDriven) {
         //Instantiate the cores
-        vector<const char*> coreGroupNames;
-        unordered_map <string, vector<Core*>> coreMap;
+        vector<const char *> coreGroupNames;
+        unordered_map<string, vector<Core *>> coreMap;
         config.subgroups("sys.cores", coreGroupNames);
 
         uint32_t coreIdx = 0;
-        for (const char* group : coreGroupNames) {
-            if (parentMap.count(group)) panic("Core group name %s is invalid, a cache group already has that name", group);
+        for (const char *group : coreGroupNames) {
+            if (parentMap.count(group)) panic("Core group name %s is invalid, a cache group already has that name",
+                                              group);
 
-            coreMap[group] = vector<Core*>();
+            coreMap[group] = vector<Core *>();
 
             string prefix = string("sys.cores.") + group + ".";
             uint32_t cores = config.get<uint32_t>(prefix + "cores", 1);
-            string type = config.get<const char*>(prefix + "type", "Simple");
+            string type = config.get<const char *>(prefix + "type", "Simple");
 
             //Build the core group
             union {
-                SimpleCore* simpleCores;
-                TimingCore* timingCores;
-                OOOCore* oooCores;
-                NullCore* nullCores;
+                SimpleCore *simpleCores;
+                TimingCore *timingCores;
+                OOOCore *oooCores;
+                NullCore *nullCores;
             };
             if (type == "Simple") {
                 simpleCores = gm_memalign<SimpleCore>(CACHE_LINE_BYTES, cores);
@@ -654,8 +679,8 @@ static void InitSystem(Config& config) {
             }
 
             if (type != "Null") {
-                string icache = config.get<const char*>(prefix + "icache");
-                string dcache = config.get<const char*>(prefix + "dcache");
+                string icache = config.get<const char *>(prefix + "icache");
+                string dcache = config.get<const char *>(prefix + "dcache");
 
                 if (!assignedCaches.count(icache)) panic("%s: Invalid icache parameter %s", group, icache.c_str());
                 if (!assignedCaches.count(dcache)) panic("%s: Invalid dcache parameter %s", group, dcache.c_str());
@@ -664,41 +689,43 @@ static void InitSystem(Config& config) {
                     stringstream ss;
                     ss << group << "-" << j;
                     g_string name(ss.str().c_str());
-                    Core* core;
+                    Core *core;
 
                     //Get the caches
-                    CacheGroup& igroup = *cMap[icache];
-                    CacheGroup& dgroup = *cMap[dcache];
+                    CacheGroup &igroup = *cMap[icache];
+                    CacheGroup &dgroup = *cMap[dcache];
 
                     if (assignedCaches[icache] >= igroup.size()) {
-                        panic("%s: icache group %s (%ld caches) is fully used, can't connect more cores to it", name.c_str(), icache.c_str(), igroup.size());
+                        panic("%s: icache group %s (%ld caches) is fully used, can't connect more cores to it",
+                              name.c_str(), icache.c_str(), igroup.size());
                     }
-                    FilterCache* ic = dynamic_cast<FilterCache*>(igroup[assignedCaches[icache]][0]);
+                    FilterCache *ic = dynamic_cast<FilterCache *>(igroup[assignedCaches[icache]][0]);
                     assert(ic);
                     ic->setSourceId(coreIdx);
                     ic->setFlags(MemReq::IFETCH | MemReq::NOEXCL);
                     assignedCaches[icache]++;
 
                     if (assignedCaches[dcache] >= dgroup.size()) {
-                        panic("%s: dcache group %s (%ld caches) is fully used, can't connect more cores to it", name.c_str(), dcache.c_str(), dgroup.size());
+                        panic("%s: dcache group %s (%ld caches) is fully used, can't connect more cores to it",
+                              name.c_str(), dcache.c_str(), dgroup.size());
                     }
-                    FilterCache* dc = dynamic_cast<FilterCache*>(dgroup[assignedCaches[dcache]][0]);
+                    FilterCache *dc = dynamic_cast<FilterCache *>(dgroup[assignedCaches[dcache]][0]);
                     assert(dc);
                     dc->setSourceId(coreIdx);
                     assignedCaches[dcache]++;
 
                     //Build the core
                     if (type == "Simple") {
-                        core = new (&simpleCores[j]) SimpleCore(ic, dc, name);
+                        core = new(&simpleCores[j]) SimpleCore(ic, dc, name);
                     } else if (type == "Timing") {
-                        uint32_t domain = j*zinfo->numDomains/cores;
-                        TimingCore* tcore = new (&timingCores[j]) TimingCore(ic, dc, domain, name);
+                        uint32_t domain = j * zinfo->numDomains / cores;
+                        TimingCore *tcore = new(&timingCores[j]) TimingCore(ic, dc, domain, name);
                         zinfo->eventRecorders[coreIdx] = tcore->getEventRecorder();
                         zinfo->eventRecorders[coreIdx]->setSourceId(coreIdx);
                         core = tcore;
                     } else {
                         assert(type == "OOO");
-                        OOOCore* ocore = new (&oooCores[j]) OOOCore(ic, dc, name);
+                        OOOCore *ocore = new(&oooCores[j]) OOOCore(ic, dc, name);
                         zinfo->eventRecorders[coreIdx] = ocore->getEventRecorder();
                         zinfo->eventRecorders[coreIdx]->setSourceId(coreIdx);
                         core = ocore;
@@ -712,7 +739,7 @@ static void InitSystem(Config& config) {
                     stringstream ss;
                     ss << group << "-" << j;
                     g_string name(ss.str().c_str());
-                    Core* core = new (&nullCores[j]) NullCore(name);
+                    Core *core = new(&nullCores[j]) NullCore(name);
                     coreMap[group].push_back(core);
                     coreIdx++;
                 }
@@ -720,32 +747,33 @@ static void InitSystem(Config& config) {
         }
 
         //Check that all the terminal caches are fully connected
-        for (const char* grp : cacheGroupNames) {
+        for (const char *grp : cacheGroupNames) {
             if (isTerminal(grp) && assignedCaches[grp] != cMap[grp]->size()) {
-                panic("%s: Terminal cache group not fully connected, %ld caches, %d assigned", grp, cMap[grp]->size(), assignedCaches[grp]);
+                panic("%s: Terminal cache group not fully connected, %ld caches, %d assigned", grp, cMap[grp]->size(),
+                      assignedCaches[grp]);
             }
         }
 
         //Populate global core info
         assert(zinfo->numCores == coreIdx);
-        zinfo->cores = gm_memalign<Core*>(CACHE_LINE_BYTES, zinfo->numCores);
+        zinfo->cores = gm_memalign<Core *>(CACHE_LINE_BYTES, zinfo->numCores);
         coreIdx = 0;
-        for (const char* group : coreGroupNames) for (Core* core : coreMap[group]) zinfo->cores[coreIdx++] = core;
+        for (const char *group : coreGroupNames) for (Core *core : coreMap[group]) zinfo->cores[coreIdx++] = core;
 
         //Init stats: cores
-        for (const char* group : coreGroupNames) {
-            AggregateStat* groupStat = new AggregateStat(true);
+        for (const char *group : coreGroupNames) {
+            AggregateStat *groupStat = new AggregateStat(true);
             groupStat->init(gm_strdup(group), "Core stats");
-            for (Core* core : coreMap[group]) core->initStats(groupStat);
+            for (Core *core : coreMap[group]) core->initStats(groupStat);
             zinfo->rootStat->append(groupStat);
         }
     } else {  // trace-driven: create trace driver and proxy caches
-        vector<TraceDriverProxyCache*> proxies;
-        for (const char* grp : cacheGroupNames) {
+        vector<TraceDriverProxyCache *> proxies;
+        for (const char *grp : cacheGroupNames) {
             if (isTerminal(grp)) {
-                for (vector<BaseCache*> cv : *cMap[grp]) {
+                for (vector<BaseCache *> cv : *cMap[grp]) {
                     assert(cv.size() == 1);
-                    TraceDriverProxyCache* proxy = dynamic_cast<TraceDriverProxyCache*>(cv[0]);
+                    TraceDriverProxyCache *proxy = dynamic_cast<TraceDriverProxyCache *>(cv[0]);
                     assert(proxy);
                     proxies.push_back(proxy);
                 }
@@ -753,33 +781,34 @@ static void InitSystem(Config& config) {
         }
 
         //FIXME: For now, we assume we are driving a single-bank LLC
-        string traceFile = config.get<const char*>("sim.traceFile");
-        string retraceFile = config.get<const char*>("sim.retraceFile", ""); //leave empty to not retrace
+        string traceFile = config.get<const char *>("sim.traceFile");
+        string retraceFile = config.get<const char *>("sim.retraceFile", ""); //leave empty to not retrace
         zinfo->traceDriver = new TraceDriver(traceFile, retraceFile, proxies,
-                config.get<bool>("sim.useSkews", true), // incorporate skews in to playback and simulator results, not only the output trace
-                config.get<bool>("sim.playPuts", true),
-                config.get<bool>("sim.playAllGets", true));
+                                             config.get<bool>("sim.useSkews",
+                                                              true), // incorporate skews in to playback and simulator results, not only the output trace
+                                             config.get<bool>("sim.playPuts", true),
+                                             config.get<bool>("sim.playAllGets", true));
         zinfo->traceDriver->initStats(zinfo->rootStat);
     }
 
     //Init stats: caches, mem
-    for (const char* group : cacheGroupNames) {
-        AggregateStat* groupStat = new AggregateStat(true);
+    for (const char *group : cacheGroupNames) {
+        AggregateStat *groupStat = new AggregateStat(true);
         groupStat->init(gm_strdup(group), "Cache stats");
-        for (vector<BaseCache*>& banks : *cMap[group]) for (BaseCache* bank : banks) bank->initStats(groupStat);
+        for (vector<BaseCache *> &banks : *cMap[group]) for (BaseCache *bank : banks) bank->initStats(groupStat);
         zinfo->rootStat->append(groupStat);
     }
 
     //Initialize event recorders
     //for (uint32_t i = 0; i < zinfo->numCores; i++) eventRecorders[i] = new EventRecorder();
 
-    AggregateStat* memStat = new AggregateStat();
+    AggregateStat *memStat = new AggregateStat();
     memStat->init("mem", "Memory controller stats");
     for (auto mem : mems) mem->initStats(memStat);
     zinfo->rootStat->append(memStat);
 
     //Odds and ends: BuildCacheGroup new'd the cache groups, we need to delete them
-    for (pair<string, CacheGroup*> kv : cMap) delete kv.second;
+    for (pair<string, CacheGroup *> kv : cMap) delete kv.second;
     cMap.clear();
 
     info("Initialized system");
@@ -790,7 +819,7 @@ static void PreInitStats() {
     zinfo->rootStat->init("root", "Stats");
 }
 
-static void PostInitStats(bool perProcessDir, Config& config) {
+static void PostInitStats(bool perProcessDir, Config &config) {
     zinfo->rootStat->makeImmutable();
     zinfo->trigger = 15000;
 
@@ -798,25 +827,30 @@ static void PostInitStats(bool perProcessDir, Config& config) {
     pathStr += "/";
 
     // Absolute paths for stats files. Note these must be in the global heap.
-    const char* pStatsFile = gm_strdup((pathStr + "zsim.h5").c_str());
-    const char* evStatsFile = gm_strdup((pathStr + "zsim-ev.h5").c_str());
-    const char* cmpStatsFile = gm_strdup((pathStr + "zsim-cmp.h5").c_str());
-    const char* statsFile = gm_strdup((pathStr + "zsim.out").c_str());
+    const char *pStatsFile = gm_strdup((pathStr + "zsim.h5").c_str());
+    const char *evStatsFile = gm_strdup((pathStr + "zsim-ev.h5").c_str());
+    const char *cmpStatsFile = gm_strdup((pathStr + "zsim-cmp.h5").c_str());
+    const char *statsFile = gm_strdup((pathStr + "zsim.out").c_str());
 
     if (zinfo->statsPhaseInterval) {
-        const char* periodicStatsFilter = config.get<const char*>("sim.periodicStatsFilter", "");
-        AggregateStat* prStat = (!strlen(periodicStatsFilter))? zinfo->rootStat : FilterStats(zinfo->rootStat, periodicStatsFilter);
-        if (!prStat) panic("No stats match sim.periodicStatsFilter regex (%s)! Set interval to 0 to avoid periodic stats", periodicStatsFilter);
-        zinfo->periodicStatsBackend = new HDF5Backend(pStatsFile, prStat, (1 << 20) /* 1MB chunks */, zinfo->skipStatsVectors, zinfo->compactPeriodicStats);
+        const char *periodicStatsFilter = config.get<const char *>("sim.periodicStatsFilter", "");
+        AggregateStat *prStat = (!strlen(periodicStatsFilter)) ? zinfo->rootStat : FilterStats(zinfo->rootStat,
+                                                                                               periodicStatsFilter);
+        if (!prStat) panic(
+                "No stats match sim.periodicStatsFilter regex (%s)! Set interval to 0 to avoid periodic stats",
+                periodicStatsFilter);
+        zinfo->periodicStatsBackend = new HDF5Backend(pStatsFile, prStat, (1 << 20) /* 1MB chunks */,
+                                                      zinfo->skipStatsVectors, zinfo->compactPeriodicStats);
         zinfo->periodicStatsBackend->dump(true); //must have a first sample
 
         class PeriodicStatsDumpEvent : public Event {
-            public:
-                explicit PeriodicStatsDumpEvent(uint32_t period) : Event(period) {}
-                void callback() {
-                    zinfo->trigger = 10000;
-                    zinfo->periodicStatsBackend->dump(true /*buffered*/);
-                }
+        public:
+            explicit PeriodicStatsDumpEvent(uint32_t period) : Event(period) {}
+
+            void callback() {
+                zinfo->trigger = 10000;
+                zinfo->periodicStatsBackend->dump(true /*buffered*/);
+            }
         };
 
         zinfo->eventQueue->insert(new PeriodicStatsDumpEvent(zinfo->statsPhaseInterval));
@@ -825,7 +859,8 @@ static void PostInitStats(bool perProcessDir, Config& config) {
         zinfo->periodicStatsBackend = nullptr;
     }
 
-    zinfo->eventualStatsBackend = new HDF5Backend(evStatsFile, zinfo->rootStat, (1 << 17) /* 128KB chunks */, zinfo->skipStatsVectors, false /* don't sum regular aggregates*/);
+    zinfo->eventualStatsBackend = new HDF5Backend(evStatsFile, zinfo->rootStat, (1 << 17) /* 128KB chunks */,
+                                                  zinfo->skipStatsVectors, false /* don't sum regular aggregates*/);
     zinfo->eventualStatsBackend->dump(true); //must have a first sample
     zinfo->statsBackends->push_back(zinfo->eventualStatsBackend);
 
@@ -838,37 +873,40 @@ static void PostInitStats(bool perProcessDir, Config& config) {
                 zinfo->trigger = i;
                 zinfo->eventualStatsBackend->dump(true /*buffered*/);
             };
-            zinfo->eventQueue->insert(makeAdaptiveEvent(getInstrs, dumpStats, 0, zinfo->maxMinInstrs, MAX_IPC*zinfo->phaseLength));
+            zinfo->eventQueue->insert(
+                    makeAdaptiveEvent(getInstrs, dumpStats, 0, zinfo->maxMinInstrs, MAX_IPC * zinfo->phaseLength));
         }
     }
 
     // Convenience stats
-    StatsBackend* compactStats = new HDF5Backend(cmpStatsFile, zinfo->rootStat, 0 /* no aggregation, this is just 1 record */, zinfo->skipStatsVectors, true); //don't dump a first sample.
-    StatsBackend* textStats = new TextBackend(statsFile, zinfo->rootStat);
+    StatsBackend *compactStats = new HDF5Backend(cmpStatsFile, zinfo->rootStat,
+                                                 0 /* no aggregation, this is just 1 record */, zinfo->skipStatsVectors,
+                                                 true); //don't dump a first sample.
+    StatsBackend *textStats = new TextBackend(statsFile, zinfo->rootStat);
     zinfo->statsBackends->push_back(compactStats);
     zinfo->statsBackends->push_back(textStats);
 }
 
 static void InitGlobalStats() {
     zinfo->profSimTime = new TimeBreakdownStat();
-    const char* stateNames[] = {"init", "bound", "weave", "ff"};
+    const char *stateNames[] = {"init", "bound", "weave", "ff"};
     zinfo->profSimTime->init("time", "Simulator time breakdown", 4, stateNames);
     zinfo->rootStat->append(zinfo->profSimTime);
 
-    ProxyStat* triggerStat = new ProxyStat();
+    ProxyStat *triggerStat = new ProxyStat();
     triggerStat->init("trigger", "Reason for this stats dump", &zinfo->trigger);
     zinfo->rootStat->append(triggerStat);
 
-    ProxyStat* phaseStat = new ProxyStat();
+    ProxyStat *phaseStat = new ProxyStat();
     phaseStat->init("phase", "Simulated phases", &zinfo->numPhases);
     zinfo->rootStat->append(phaseStat);
 }
 
 
-void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
+void SimInit(const char *configFile, const char *outputDir, uint32_t shmid) {
     zinfo = gm_calloc<GlobSimInfo>();
     zinfo->outputDir = gm_strdup(outputDir);
-    zinfo->statsBackends = new g_vector<StatsBackend*>();
+    zinfo->statsBackends = new g_vector<StatsBackend *>();
 
     Config config(configFile);
 
@@ -893,9 +931,9 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
         // Get the number of cores
         // TODO: There is some duplication with the core creation code. This should be fixed eventually.
         uint32_t numCores = 0;
-        vector<const char*> groups;
+        vector<const char *> groups;
         config.subgroups("sys.cores", groups);
-        for (const char* group : groups) {
+        for (const char *group : groups) {
             uint32_t cores = config.get<uint32_t>(string("sys.cores.") + group + ".cores", 1);
             numCores += cores;
         }
@@ -906,12 +944,13 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     }
 
     zinfo->numDomains = config.get<uint32_t>("sim.domains", 1);
-    uint32_t numSimThreads = config.get<uint32_t>("sim.contentionThreads", MAX((uint32_t)1, zinfo->numDomains/2)); //gives a bit of parallelism, TODO tune
+    uint32_t numSimThreads = config.get<uint32_t>("sim.contentionThreads", MAX((uint32_t) 1, zinfo->numDomains /
+                                                                                             2)); //gives a bit of parallelism, TODO tune
     zinfo->contentionSim = new ContentionSim(zinfo->numDomains, numSimThreads);
     zinfo->contentionSim->initStats(zinfo->rootStat);
-    zinfo->eventRecorders = gm_calloc<EventRecorder*>(zinfo->numCores);
+    zinfo->eventRecorders = gm_calloc<EventRecorder *>(zinfo->numCores);
 
-    zinfo->traceWriters = new g_vector<AccessTraceWriter*>();
+    zinfo->traceWriters = new g_vector<AccessTraceWriter *>();
 
     // Global simulation values
     zinfo->numPhases = 0;
@@ -926,7 +965,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo->maxTotalInstrs = config.get<uint64_t>("sim.maxTotalInstrs", 0);
 
     uint64_t maxSimTime = config.get<uint32_t>("sim.maxSimTime", 0);
-    zinfo->maxSimTimeNs = maxSimTime*1000L*1000L*1000L;
+    zinfo->maxSimTimeNs = maxSimTime * 1000L * 1000L * 1000L;
 
     zinfo->maxProcEventualDumps = config.get<uint32_t>("sim.maxProcEventualDumps", 0);
     zinfo->procEventualDumps = 0;
@@ -937,7 +976,8 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     //Fast-forwarding and magic ops
     zinfo->ignoreHooks = config.get<bool>("sim.ignoreHooks", false);
     zinfo->ffReinstrument = config.get<bool>("sim.ffReinstrument", false);
-    if (zinfo->ffReinstrument) warn("sim.ffReinstrument = true, switching fast-forwarding on a multi-threaded process may be unstable");
+    if (zinfo->ffReinstrument) warn(
+            "sim.ffReinstrument = true, switching fast-forwarding on a multi-threaded process may be unstable");
 
     zinfo->registerThreads = config.get<bool>("sim.registerThreads", false);
     zinfo->globalPauseFlag = config.get<bool>("sim.startInGlobalPause", false);
@@ -946,7 +986,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
 
     if (!zinfo->traceDriven) {
         //Build the scheduler
-        uint32_t parallelism = config.get<uint32_t>("sim.parallelism", 2*sysconf(_SC_NPROCESSORS_ONLN));
+        uint32_t parallelism = config.get<uint32_t>("sim.parallelism", 2 * sysconf(_SC_NPROCESSORS_ONLN));
         if (parallelism < zinfo->numCores) info("Limiting concurrent threads to %d", parallelism);
         assert(parallelism > 0); //jeez...
 
@@ -965,7 +1005,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     InitGlobalStats();
 
     //Core stats (initialized here for cosmetic reasons, to be above cache stats)
-    AggregateStat* allCoreStats = new AggregateStat(false);
+    AggregateStat *allCoreStats = new AggregateStat(false);
     allCoreStats->init("core", "Core stats");
     zinfo->rootStat->append(allCoreStats);
 
@@ -981,7 +1021,9 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     CreateProcessTree(config);
     zinfo->procArray[0]->notifyStart(); //called here so that we can detect end-before-start races
 
-    zinfo->pinCmd = new PinCmd(&config, nullptr /*don't pass config file to children --- can go either way, it's optional*/, outputDir, shmid);
+    zinfo->pinCmd = new PinCmd(&config,
+                               nullptr /*don't pass config file to children --- can go either way, it's optional*/,
+                               outputDir, shmid);
 
     //Caches, cores, memory controllers
     InitSystem(config);
@@ -991,7 +1033,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
 
     zinfo->processStats = new ProcessStats(zinfo->rootStat);
 
-    const char* procStatsFilter = config.get<const char*>("sim.procStatsFilter", "");
+    const char *procStatsFilter = config.get<const char *>("sim.procStatsFilter", "");
     if (strlen(procStatsFilter)) {
         zinfo->procStats = new ProcStats(zinfo->rootStat, FilterStats(zinfo->rootStat, procStatsFilter));
     } else {

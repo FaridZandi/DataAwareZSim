@@ -34,98 +34,100 @@
 class TimingEvent;
 
 // Encodes an event that the core should capture for the contention simulation
-struct TimingRecord 
-{
+struct TimingRecord {
 public:
     Address addr;
     uint64_t reqCycle;
     uint64_t respCycle;
     AccessType type;
-    TimingEvent* startEvent;
-    TimingEvent* endEvent;
+    TimingEvent *startEvent;
+    TimingEvent *endEvent;
 
     bool isValid() const { return startEvent; }
+
     void clear() { startEvent = nullptr; }
 };
 
 //class CoreRecorder;
 class CrossingEvent;
-typedef g_vector<CrossingEvent*> CrossingStack;
+
+typedef g_vector<CrossingEvent *> CrossingStack;
 
 class EventRecorder : public GlobAlloc {
-    private:
-        slab::SlabAlloc slabAlloc;
-        TimingRecord tr;
-        CrossingStack crossingStack;
-        uint32_t srcId;
+private:
+    slab::SlabAlloc slabAlloc;
+    TimingRecord tr;
+    CrossingStack crossingStack;
+    uint32_t srcId;
 
-        volatile uint64_t lastGapCycles;
-        PAD();
-        volatile uint64_t lastStartSlack;
-        PAD();
+    volatile uint64_t lastGapCycles;
+    PAD();
+    volatile uint64_t lastStartSlack;
+    PAD();
 
-    public:
-        EventRecorder() {
-            tr.clear();
-        }
+public:
+    EventRecorder() {
+        tr.clear();
+    }
 
-        //Alloc interface
+    //Alloc interface
 
-        template <typename T>
-        T* alloc() {
-            return slabAlloc.alloc<T>();
-        }
+    template<typename T>
+    T *alloc() {
+        return slabAlloc.alloc<T>();
+    }
 
-        void* alloc(size_t sz) {
-            return slabAlloc.alloc(sz);
-        }
+    void *alloc(size_t sz) {
+        return slabAlloc.alloc(sz);
+    }
 
-        //Event recording interface
+    //Event recording interface
 
-        void pushRecord(const TimingRecord& rec) {
-            assert(!tr.isValid());
-            tr = rec;
-            assert(tr.isValid());
-        }
+    void pushRecord(const TimingRecord &rec) {
+        assert(!tr.isValid());
+        tr = rec;
+        assert(tr.isValid());
+    }
 
-        // Inline to avoid extra copy
-        inline TimingRecord popRecord() __attribute__((always_inline)) {
-            TimingRecord rec = tr;
-            tr.clear();
-            return rec;
-        }
+    // Inline to avoid extra copy
+    inline TimingRecord popRecord() __attribute__((always_inline)) {
+        TimingRecord rec = tr;
+        tr.clear();
+        return rec;
+    }
 
-        inline size_t hasRecord() const {
-            return tr.isValid();
-        }
+    inline size_t hasRecord() const {
+        return tr.isValid();
+    }
 
-        //Called by crossing events
-        inline uint64_t getSlack(uint64_t origStartCycle) const {
-            return origStartCycle + lastStartSlack;
-        }
+    //Called by crossing events
+    inline uint64_t getSlack(uint64_t origStartCycle) const {
+        return origStartCycle + lastStartSlack;
+    }
 
-        inline uint64_t getGapCycles() const {
-            return lastGapCycles;
-        }
+    inline uint64_t getGapCycles() const {
+        return lastGapCycles;
+    }
 
-        //Called by the core's recorder
-        //infrequently
-        void setGapCycles(uint64_t gapCycles) {
-            lastGapCycles = gapCycles;
-        }
+    //Called by the core's recorder
+    //infrequently
+    void setGapCycles(uint64_t gapCycles) {
+        lastGapCycles = gapCycles;
+    }
 
-        //frequently
-        inline void setStartSlack(uint64_t startSlack) {
-            //Avoid a write, it can cost a bunch of coherence misses
-            if (lastStartSlack != startSlack) lastStartSlack = startSlack;
-        }
+    //frequently
+    inline void setStartSlack(uint64_t startSlack) {
+        //Avoid a write, it can cost a bunch of coherence misses
+        if (lastStartSlack != startSlack) lastStartSlack = startSlack;
+    }
 
-        uint32_t getSourceId() const {return srcId;}
-        void setSourceId(uint32_t i) {srcId = i;}
+    uint32_t getSourceId() const { return srcId; }
 
-        inline CrossingStack& getCrossingStack() {
-            return crossingStack;
-        }
+    void setSourceId(uint32_t i) { srcId = i; }
+
+    inline CrossingStack &getCrossingStack() {
+        return crossingStack;
+    }
 };
 
 #endif  // EVENT_RECORDER_H_

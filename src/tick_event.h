@@ -31,38 +31,38 @@
 #include "zsim.h"
 
 //FIXME: Rearchitect this SENSIBLY
-template <class T>
+template<class T>
 class TickEvent : public TimingEvent, public GlobAlloc { //this one should be allocated from glob mem
-    private:
-        T* obj;
-        bool active;
+private:
+    T *obj;
+    bool active;
 
-    public:
-        TickEvent(T* _obj, int32_t domain) : TimingEvent(0, 0, domain), obj(_obj), active(false) {
-            setMinStartCycle(0);
+public:
+    TickEvent(T *_obj, int32_t domain) : TimingEvent(0, 0, domain), obj(_obj), active(false) {
+        setMinStartCycle(0);
+    }
+
+    void parentDone(uint64_t startCycle) {
+        panic("This is queued directly");
+    }
+
+    void queue(uint64_t startCycle) {
+        assert(!active);
+        active = true;
+        zinfo->contentionSim->enqueueSynced(this, startCycle);
+    }
+
+    void simulate(uint64_t startCycle) {
+        uint32_t delay = obj->tick(startCycle);
+        if (delay) {
+            requeue(startCycle + delay);
+        } else {
+            active = false;
         }
+    }
 
-        void parentDone(uint64_t startCycle) {
-            panic("This is queued directly");
-        }
-
-        void queue(uint64_t startCycle) {
-            assert(!active);
-            active = true;
-            zinfo->contentionSim->enqueueSynced(this, startCycle);
-        }
-
-        void simulate(uint64_t startCycle) {
-            uint32_t delay = obj->tick(startCycle);
-            if (delay) {
-                requeue(startCycle+delay);
-            } else {
-                active = false;
-            }
-        }
-
-        using GlobAlloc::operator new; //grrrrrrrrr
-        using GlobAlloc::operator delete;
+    using GlobAlloc::operator new; //grrrrrrrrr
+    using GlobAlloc::operator delete;
 };
 
 #endif  // TICK_EVENT_H_

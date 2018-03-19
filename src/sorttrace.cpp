@@ -40,11 +40,11 @@
 using namespace std;
 
 void printProgress(uint64_t read, uint64_t written, uint64_t total) {
-    printf("Read %3ld%% / Written %3ld%%\r", read*100/total, written*100/total);
+    printf("Read %3ld%% / Written %3ld%%\r", read * 100 / total, written * 100 / total);
     fflush(stdout);
 }
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char *argv[]) {
     InitLog(""); //no log header
     if (argc != 3) {
         info("Sorts an access trace");
@@ -52,18 +52,18 @@ int main(int argc, const char* argv[]) {
         exit(1);
     }
 
-    gm_init(32<<20 /*32 MB --- should be enough*/);
+    gm_init(32 << 20 /*32 MB --- should be enough*/);
 
-    AccessTraceReader* tr = new AccessTraceReader(argv[1]);
+    AccessTraceReader *tr = new AccessTraceReader(argv[1]);
     uint32_t numChildren = tr->getNumChildren();
-    AccessTraceWriter* tw = new AccessTraceWriter(argv[2], numChildren);
+    AccessTraceWriter *tw = new AccessTraceWriter(argv[2], numChildren);
 
-    deque<AccessRecord>* accs[numChildren];  // null if the child has no accesses
+    deque<AccessRecord> *accs[numChildren];  // null if the child has no accesses
     for (uint32_t i = 0; i < numChildren; i++) accs[i] = nullptr;
-    priority_queue< pair<int64_t, uint32_t> > heads; //(negative cycle, child); we use negative cycles because priority_queue sorts from largest to smallest
-    uint64_t readRecords  = 0;
-    uint64_t writtenRecords  = 0;
-    uint64_t totalRecords  = tr->getNumRecords();
+    priority_queue<pair<int64_t, uint32_t> > heads; //(negative cycle, child); we use negative cycles because priority_queue sorts from largest to smallest
+    uint64_t readRecords = 0;
+    uint64_t writtenRecords = 0;
+    uint64_t totalRecords = tr->getNumRecords();
     info("Sorting %ld records", totalRecords);
 
     while (!tr->empty() || heads.size() > 0) {

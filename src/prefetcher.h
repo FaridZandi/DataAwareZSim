@@ -33,17 +33,22 @@
  * latency as when it was first fetched (to avoid hit latencies on partial latency overlaps).
  */
 
-template <int32_t M, int32_t T, int32_t I>  // max value, threshold, initial
+template<int32_t M, int32_t T, int32_t I>  // max value, threshold, initial
 class SatCounter {
-    private:
-        int32_t count;
-    public:
-        SatCounter() : count(I) {}
-        void reset() { count = I; }
-        void dec() { count = MAX(count - 1, 0); }
-        void inc() { count = MIN(count + 1, M); }
-        bool pred() const { return count >= T; }
-        uint32_t counter() const { return count; }
+private:
+    int32_t count;
+public:
+    SatCounter() : count(I) {}
+
+    void reset() { count = I; }
+
+    void dec() { count = MAX(count - 1, 0); }
+
+    void inc() { count = MIN(count + 1, M); }
+
+    bool pred() const { return count >= T; }
+
+    uint32_t counter() const { return count; }
 };
 
 class PrefetchResponseEvent;
@@ -56,73 +61,82 @@ class PrefetchResponseEvent;
  * TODO: Adapt to use weave models
  */
 class StreamPrefetcher : public BaseCache {
-    private:
-        struct Entry {
-            // Two competing strides; at most one active
-            int32_t stride;
-            SatCounter<3, 2, 1> conf;
+private:
+    struct Entry {
+        // Two competing strides; at most one active
+        int32_t stride;
+        SatCounter<3, 2, 1> conf;
 
-            struct AccessTimes {
-                uint64_t startCycle;  // FIXME: Dead for now, we should use it for profiling
-                uint64_t respCycle;
+        struct AccessTimes {
+            uint64_t startCycle;  // FIXME: Dead for now, we should use it for profiling
+            uint64_t respCycle;
 
-                void fill(uint32_t s, uint64_t r) { startCycle = s; respCycle = r; }
-            };
-
-            AccessTimes times[64];
-            std::bitset<64> valid;
-
-            // Weave-phase end-of-access event. Used to avoid early responses with weave models.
-            // Self-cleaning (PrefetchResponseEvent sets this to nullptr when it fires),
-            // so can't be stale.
-            std::array<PrefetchResponseEvent*, 64> respEvents;
-
-            uint32_t lastPos;
-            uint32_t lastLastPos;
-            uint32_t lastPrefetchPos;
-            uint64_t lastCycle;  // updated on alloc and hit
-            uint64_t ts;
-
-            void alloc(uint64_t curCycle) {
-                stride = 1;
-                lastPos = 0;
-                lastLastPos = 0;
-                lastPrefetchPos = 0;
-                conf.reset();
-                valid.reset();
-                respEvents.fill(nullptr);
-                lastCycle = curCycle;
+            void fill(uint32_t s, uint64_t r) {
+                startCycle = s;
+                respCycle = r;
             }
         };
 
-        uint64_t timestamp;  // for LRU
-        Address* tag;
-        Entry* array;
+        AccessTimes times[64];
+        std::bitset<64> valid;
 
-        Counter profAccesses, profPrefetches, profDoublePrefetches, profPageHits, profHits, profShortHits, profStrideSwitches, profLowConfAccs;
+        // Weave-phase end-of-access event. Used to avoid early responses with weave models.
+        // Self-cleaning (PrefetchResponseEvent sets this to nullptr when it fires),
+        // so can't be stale.
+        std::array<PrefetchResponseEvent *, 64> respEvents;
 
-        MemObject* parent;
-        BaseCache* child;
-        uint32_t childId;
-        g_string name;
+        uint32_t lastPos;
+        uint32_t lastLastPos;
+        uint32_t lastPrefetchPos;
+        uint64_t lastCycle;  // updated on alloc and hit
+        uint64_t ts;
 
-        uint32_t numBuffers;
-        bool partitionBuffers; // partition stream buffer among data classes
-        uint32_t partitions;
-        static constexpr uint32_t MAX_PARTITIONS = 4;
+        void alloc(uint64_t curCycle) {
+            stride = 1;
+            lastPos = 0;
+            lastLastPos = 0;
+            lastPrefetchPos = 0;
+            conf.reset();
+            valid.reset();
+            respEvents.fill(nullptr);
+            lastCycle = curCycle;
+        }
+    };
 
-    public:
-        StreamPrefetcher(const g_string& _name, uint32_t _numBuffers, bool _partitionBuffers);
-        ~StreamPrefetcher();
-        void initStats(AggregateStat* parentStat);
-        const char* getName() { return name.c_str();}
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
+    uint64_t timestamp;  // for LRU
+    Address *tag;
+    Entry *array;
 
-        uint64_t access(MemReq& req);
-        uint64_t invalidate(const InvReq& req);
+    Counter profAccesses, profPrefetches, profDoublePrefetches, profPageHits, profHits, profShortHits, profStrideSwitches, profLowConfAccs;
 
-        void simulatePrefetchResponse(PrefetchResponseEvent* ev, uint64_t cycle);
+    MemObject *parent;
+    BaseCache *child;
+    uint32_t childId;
+    g_string name;
+
+    uint32_t numBuffers;
+    bool partitionBuffers; // partition stream buffer among data classes
+    uint32_t partitions;
+    static constexpr uint32_t MAX_PARTITIONS = 4;
+
+public:
+    StreamPrefetcher(const g_string &_name, uint32_t _numBuffers, bool _partitionBuffers);
+
+    ~StreamPrefetcher();
+
+    void initStats(AggregateStat *parentStat);
+
+    const char *getName() { return name.c_str(); }
+
+    void setParents(uint32_t _childId, const g_vector<MemObject *> &parents, Network *network);
+
+    void setChildren(const g_vector<BaseCache *> &children, Network *network);
+
+    uint64_t access(MemReq &req);
+
+    uint64_t invalidate(const InvReq &req);
+
+    void simulatePrefetchResponse(PrefetchResponseEvent *ev, uint64_t cycle);
 };
 
 #endif  // PREFETCHER_H_

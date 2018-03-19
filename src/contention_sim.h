@@ -44,126 +44,132 @@
 //#define PROFILE_CROSSINGS 1
 
 class TimingEvent;
+
 class DelayEvent;
+
 class CrossingEvent;
 
 #define PQ_BLOCKS 1024
 
 class ContentionSim : public GlobAlloc {
-    private:
-        struct CompareEvents : public std::binary_function<TimingEvent*, TimingEvent*, bool> {
-            bool operator()(TimingEvent* lhs, TimingEvent* rhs) const;
-        };
+private:
+    struct CompareEvents : public std::binary_function<TimingEvent *, TimingEvent *, bool> {
+        bool operator()(TimingEvent *lhs, TimingEvent *rhs) const;
+    };
 
-        struct CrossingEventInfo {
-            uint64_t cycle;
-            CrossingEvent* ev; //only valid if the source's curCycle < cycle (otherwise this may be already executed or recycled)
-        };
+    struct CrossingEventInfo {
+        uint64_t cycle;
+        CrossingEvent *ev; //only valid if the source's curCycle < cycle (otherwise this may be already executed or recycled)
+    };
 
-        CrossingEventInfo* lastCrossing; //indexed by [srcId*doms*doms + srcDom*doms + dstDom]
+    CrossingEventInfo *lastCrossing; //indexed by [srcId*doms*doms + srcDom*doms + dstDom]
 
-        struct DomainData : public GlobAlloc {
-            PrioQueue<TimingEvent, PQ_BLOCKS> pq;
+    struct DomainData : public GlobAlloc {
+        PrioQueue<TimingEvent, PQ_BLOCKS> pq;
 
-            PAD();
+        PAD();
 
-            volatile uint64_t curCycle;
-            lock_t pqLock; //used on phase 1 enqueues
-            //lock_t domainLock; //used by simulation thread
+        volatile uint64_t curCycle;
+        lock_t pqLock; //used on phase 1 enqueues
+        //lock_t domainLock; //used by simulation thread
 
-            uint32_t prio;
-            uint64_t queuePrio;
+        uint32_t prio;
+        uint64_t queuePrio;
 
-            PAD();
+        PAD();
 
-            ClockStat profTime;
+        ClockStat profTime;
 
 #if PROFILE_CROSSINGS
-            VectorCounter profIncomingCrossingSims;
-            VectorCounter profIncomingCrossings;
-            VectorCounter profIncomingCrossingHist;
+        VectorCounter profIncomingCrossingSims;
+        VectorCounter profIncomingCrossings;
+        VectorCounter profIncomingCrossingHist;
 #endif
-        };
+    };
 
-        struct CompareDomains : public std::binary_function<DomainData*, DomainData*, bool> {
-             bool operator()(DomainData* d1, DomainData* d2) const;
-        };
+    struct CompareDomains : public std::binary_function<DomainData *, DomainData *, bool> {
+        bool operator()(DomainData *d1, DomainData *d2) const;
+    };
 
-        struct SimThreadData {
-            lock_t wakeLock; //used to sleep/wake up simulation thread
-            uint32_t firstDomain;
-            uint32_t supDomain; //supreme, ie first not included
+    struct SimThreadData {
+        lock_t wakeLock; //used to sleep/wake up simulation thread
+        uint32_t firstDomain;
+        uint32_t supDomain; //supreme, ie first not included
 
-            std::vector<std::pair<uint64_t, TimingEvent*> > logVec;
-        };
+        std::vector<std::pair<uint64_t, TimingEvent *> > logVec;
+    };
 
-        //RO
-        DomainData* domains;
-        SimThreadData* simThreads;
+    //RO
+    DomainData *domains;
+    SimThreadData *simThreads;
 
-        PAD();
+    PAD();
 
-        uint32_t numDomains;
-        uint32_t numSimThreads;
-        bool skipContention;
+    uint32_t numDomains;
+    uint32_t numSimThreads;
+    bool skipContention;
 
-        PAD();
+    PAD();
 
-        //RW
-        lock_t waitLock;
-        volatile uint64_t limit;
-        volatile uint64_t lastLimit;
-        volatile bool terminate;
+    //RW
+    lock_t waitLock;
+    volatile uint64_t limit;
+    volatile uint64_t lastLimit;
+    volatile bool terminate;
 
-        volatile uint32_t threadsDone;
-        volatile uint32_t threadTicket; //used only at init
+    volatile uint32_t threadsDone;
+    volatile uint32_t threadTicket; //used only at init
 
-        volatile bool inCSim; //true when inside contention simulation
+    volatile bool inCSim; //true when inside contention simulation
 
-        PAD();
+    PAD();
 
-        //lock_t testLock;
-        lock_t postMortemLock;
+    //lock_t testLock;
+    lock_t postMortemLock;
 
-    public:
-        ContentionSim(uint32_t _numDomains, uint32_t _numSimThreads);
+public:
+    ContentionSim(uint32_t _numDomains, uint32_t _numSimThreads);
 
-        void initStats(AggregateStat* parentStat);
+    void initStats(AggregateStat *parentStat);
 
-        void postInit(); //must be called after the simulator is initialized
+    void postInit(); //must be called after the simulator is initialized
 
-        void enqueue(TimingEvent* ev, uint64_t cycle);
-        void enqueueSynced(TimingEvent* ev, uint64_t cycle);
-        void enqueueCrossing(CrossingEvent* ev, uint64_t cycle, uint32_t srcId, uint32_t srcDomain, uint32_t dstDomain, EventRecorder* evRec);
+    void enqueue(TimingEvent *ev, uint64_t cycle);
 
-        void simulatePhase(uint64_t limit);
+    void enqueueSynced(TimingEvent *ev, uint64_t cycle);
 
-        void finish();
+    void enqueueCrossing(CrossingEvent *ev, uint64_t cycle, uint32_t srcId, uint32_t srcDomain, uint32_t dstDomain,
+                         EventRecorder *evRec);
 
-        uint64_t getLastLimit() {return lastLimit;}
+    void simulatePhase(uint64_t limit);
 
-        uint64_t getCurCycle(uint32_t domain) {
-            assert(domain < numDomains);
-            uint64_t c = domains[domain].curCycle;
-            assert(((int64_t)c) >= 0);
-            return c;
-        }
+    void finish();
 
-        void setPrio(uint32_t domain, uint32_t prio) {domains[domain].prio = prio;}
+    uint64_t getLastLimit() { return lastLimit; }
+
+    uint64_t getCurCycle(uint32_t domain) {
+        assert(domain < numDomains);
+        uint64_t c = domains[domain].curCycle;
+        assert(((int64_t) c) >= 0);
+        return c;
+    }
+
+    void setPrio(uint32_t domain, uint32_t prio) { domains[domain].prio = prio; }
 
 #if PROFILE_CROSSINGS
-        void profileCrossing(uint32_t srcDomain, uint32_t dstDomain, uint32_t count) {
-            domains[dstDomain].profIncomingCrossings.inc(srcDomain);
-            domains[dstDomain].profIncomingCrossingSims.inc(srcDomain, count);
-            domains[dstDomain].profIncomingCrossingHist.inc(MIN(count, (unsigned)32));
-        }
+    void profileCrossing(uint32_t srcDomain, uint32_t dstDomain, uint32_t count) {
+        domains[dstDomain].profIncomingCrossings.inc(srcDomain);
+        domains[dstDomain].profIncomingCrossingSims.inc(srcDomain, count);
+        domains[dstDomain].profIncomingCrossingHist.inc(MIN(count, (unsigned)32));
+    }
 #endif
 
-    private:
-        void simThreadLoop(uint32_t thid);
-        void simulatePhaseThread(uint32_t thid);
+private:
+    void simThreadLoop(uint32_t thid);
 
-        static void SimThreadTrampoline(void* arg);
+    void simulatePhaseThread(uint32_t thid);
+
+    static void SimThreadTrampoline(void *arg);
 };
 
 #endif  // CONTENTION_SIM_H_

@@ -32,10 +32,10 @@
 #include "zsim.h"
 
 // Helper function
-static struct sockaddr_in* GetSockAddr(ADDRINT guestAddr, size_t guestSize) {
+static struct sockaddr_in *GetSockAddr(ADDRINT guestAddr, size_t guestSize) {
     if (guestSize != sizeof(struct sockaddr_in)) return nullptr;
-    struct sockaddr_in* res = (struct sockaddr_in*) malloc(sizeof(struct sockaddr_in));
-    if (!safeCopy((struct sockaddr_in*) guestAddr, res) || res->sin_family != AF_INET) {
+    struct sockaddr_in *res = (struct sockaddr_in *) malloc(sizeof(struct sockaddr_in));
+    if (!safeCopy((struct sockaddr_in *) guestAddr, res) || res->sin_family != AF_INET) {
         free(res);
         return nullptr;
     }
@@ -45,12 +45,12 @@ static struct sockaddr_in* GetSockAddr(ADDRINT guestAddr, size_t guestSize) {
 // Patch functions
 
 PostPatchFn PatchBind(PrePatchArgs args) {
-    CONTEXT* ctxt = args.ctxt;
+    CONTEXT *ctxt = args.ctxt;
     SYSCALL_STANDARD std = args.std;
 
     ADDRINT sAddrPtr = PIN_GetSyscallArgument(ctxt, std, 1);
     ADDRINT sLen = PIN_GetSyscallArgument(ctxt, std, 2);
-    struct sockaddr_in* servAddr = GetSockAddr(sAddrPtr, sLen);
+    struct sockaddr_in *servAddr = GetSockAddr(sAddrPtr, sLen);
     if (!servAddr) return NullPostPatch;  // invalid input or socketaddr family
 
     int port = ntohs(servAddr->sin_port);
@@ -65,14 +65,15 @@ PostPatchFn PatchBind(PrePatchArgs args) {
         } else {
             // There was a previous bind() on this port, so we reuse the translation
             // This should work in MOST cases, but may fail if the port is reused by something else and we conflict. Should be quite rare, since Linux tries to space out anonymous reassigns to the same port
-            warn("bind() to port %d, this port already has a translation %d, using it --- in rare cases this may fail when the unvirtualized case should succeed", port, prevPort);
+            warn("bind() to port %d, this port already has a translation %d, using it --- in rare cases this may fail when the unvirtualized case should succeed",
+                 port, prevPort);
             servAddr->sin_port = htons(prevPort);
         }
         PIN_SetSyscallArgument(ctxt, std, 1, (ADDRINT) servAddr);
 
         auto postFn = [sAddrPtr](PostPatchArgs args) {
-            struct sockaddr_in* servAddr = (struct sockaddr_in*) PIN_GetSyscallArgument(args.ctxt, args.std, 1);
-            int virtPort = ntohs(((struct sockaddr_in*)sAddrPtr)->sin_port);
+            struct sockaddr_in *servAddr = (struct sockaddr_in *) PIN_GetSyscallArgument(args.ctxt, args.std, 1);
+            int virtPort = ntohs(((struct sockaddr_in *) sAddrPtr)->sin_port);
 
             uint32_t portDomain = zinfo->procArray[procIdx]->getPortDomain();
             REG out = (REG) PIN_GetSyscallNumber(args.ctxt, args.std);
@@ -80,7 +81,7 @@ PostPatchFn PatchBind(PrePatchArgs args) {
                 int sockfd = PIN_GetSyscallArgument(args.ctxt, args.std, 0);
                 struct sockaddr_in sockName; //NOTE: sockaddr_in to sockaddr casts are fine
                 socklen_t sockLen = sizeof(sockName);
-                if (getsockname(sockfd, (struct sockaddr*)&sockName, &sockLen) != 0) {
+                if (getsockname(sockfd, (struct sockaddr *) &sockName, &sockLen) != 0) {
                     panic("bind() succeeded, but getsockname() failed...");
                 }
                 int realPort = ntohs(sockName.sin_port);
@@ -106,7 +107,7 @@ PostPatchFn PatchBind(PrePatchArgs args) {
 
 PostPatchFn PatchGetsockname(PrePatchArgs args) {
     return [](PostPatchArgs args) {
-        CONTEXT* ctxt = args.ctxt;
+        CONTEXT *ctxt = args.ctxt;
         SYSCALL_STANDARD std = args.std;
 
         REG out = (REG) PIN_GetSyscallNumber(ctxt, std);
@@ -114,16 +115,17 @@ PostPatchFn PatchGetsockname(PrePatchArgs args) {
             ADDRINT sockAddrPtr = PIN_GetSyscallArgument(ctxt, std, 1);
             struct sockaddr_in sockAddr;
             //safecopy may fail here and that's OK, it's just not a sockaddr_in, so not IPv4
-            if (safeCopy((struct sockaddr_in*) sockAddrPtr, &sockAddr) && sockAddr.sin_family == AF_INET) {
+            if (safeCopy((struct sockaddr_in *) sockAddrPtr, &sockAddr) && sockAddr.sin_family == AF_INET) {
                 int realPort = ntohs(sockAddr.sin_port);
                 uint32_t portDomain = zinfo->procArray[procIdx]->getPortDomain();
                 zinfo->portVirt[portDomain]->lock();
                 int virtPort = zinfo->portVirt[portDomain]->lookupVirt(realPort);
                 zinfo->portVirt[portDomain]->unlock();
                 if (virtPort != -1) {
-                    info("Virtualizing getsockname() on previously bound port, r: %d, v: %d (domain %d)", realPort, virtPort, portDomain);
+                    info("Virtualizing getsockname() on previously bound port, r: %d, v: %d (domain %d)", realPort,
+                         virtPort, portDomain);
                     sockAddr.sin_port = htons(virtPort);
-                    if (!safeCopy(&sockAddr, (struct sockaddr_in*) sockAddrPtr)) {
+                    if (!safeCopy(&sockAddr, (struct sockaddr_in *) sockAddrPtr)) {
                         panic("getsockname() virt fail");
                     }
                 }
@@ -134,12 +136,12 @@ PostPatchFn PatchGetsockname(PrePatchArgs args) {
 }
 
 PostPatchFn PatchConnect(PrePatchArgs args) {
-    CONTEXT* ctxt = args.ctxt;
+    CONTEXT *ctxt = args.ctxt;
     SYSCALL_STANDARD std = args.std;
 
     ADDRINT sAddrPtr = PIN_GetSyscallArgument(ctxt, std, 1);
     ADDRINT sLen = PIN_GetSyscallArgument(ctxt, std, 2);
-    struct sockaddr_in* servAddr = GetSockAddr(sAddrPtr, sLen);
+    struct sockaddr_in *servAddr = GetSockAddr(sAddrPtr, sLen);
     if (!servAddr) return NullPostPatch;  // invalid input or socketaddr family
 
     int virtPort = ntohs(servAddr->sin_port);

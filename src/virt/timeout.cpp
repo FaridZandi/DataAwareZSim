@@ -72,7 +72,7 @@ static int getTimeoutArg(int syscall) {
     return 3;  // futex, epoll_wait, epoll_pwait
 }
 
-static bool PrePatchTimeoutSyscall(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD std, int syscall) {
+static bool PrePatchTimeoutSyscall(uint32_t tid, CONTEXT *ctxt, SYSCALL_STANDARD std, int syscall) {
     assert(!inFakeTimeoutMode[tid]);  // canary: this will probably fail...
     int64_t waitNsec = 0;
 
@@ -81,14 +81,14 @@ static bool PrePatchTimeoutSyscall(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD
     if (syscall == SYS_futex) {
         // Check preconditions
         assert(timeoutArg == 3);
-        int* uaddr = (int*) PIN_GetSyscallArgument(ctxt, std, 0);
+        int *uaddr = (int *) PIN_GetSyscallArgument(ctxt, std, 0);
         int op = (int) PIN_GetSyscallArgument(ctxt, std, 1);
-        const struct timespec* timeout = (const struct timespec*) PIN_GetSyscallArgument(ctxt, std, 3);
+        const struct timespec *timeout = (const struct timespec *) PIN_GetSyscallArgument(ctxt, std, 3);
 
         //info("FUTEX op %d  waitOp %d uaddr %p ts %p", op, isFutexWaitOp(op), uaddr, timeout);
         if (!(uaddr && isFutexWaitOp(op) && timeout)) return false;  // not a timeout FUTEX_WAIT
 
-        waitNsec = timeout->tv_sec*1000000000L + timeout->tv_nsec;
+        waitNsec = timeout->tv_sec * 1000000000L + timeout->tv_nsec;
 
         if (op & FUTEX_CLOCK_REALTIME) {
             // NOTE: FUTEX_CLOCK_REALTIME is not a documented interface AFAIK, but looking at the Linux source code + with some verification, this is the xlat
@@ -96,14 +96,15 @@ static bool PrePatchTimeoutSyscall(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD
             uint64_t simNs = cyclesToNs(zinfo->globPhaseCycles);
             uint64_t offsetNs = simNs + zinfo->clockDomainInfo[domain].realtimeOffsetNs;
             //info(" REALTIME FUTEX: %ld %ld %ld %ld", waitNsec, simNs, offsetNs, waitNsec-offsetNs);
-            waitNsec = (waitNsec > (int64_t)offsetNs)? (waitNsec - offsetNs) : 0;
+            waitNsec = (waitNsec > (int64_t) offsetNs) ? (waitNsec - offsetNs) : 0;
         }
 
-        if (waitNsec <= 0) return false;  // while technically waiting, this does not block. I'm guessing this is done for trylocks? It's weird.
+        if (waitNsec <= 0)
+            return false;  // while technically waiting, this does not block. I'm guessing this is done for trylocks? It's weird.
 
         fakeTimeouts[tid].tv_sec = 0;
-        fakeTimeouts[tid].tv_nsec = 20*1000*1000;  // timeout every 20ms of actual host time
-        PIN_SetSyscallArgument(ctxt, std, 3, (ADDRINT)&fakeTimeouts[tid]);
+        fakeTimeouts[tid].tv_nsec = 20 * 1000 * 1000;  // timeout every 20ms of actual host time
+        PIN_SetSyscallArgument(ctxt, std, 3, (ADDRINT) & fakeTimeouts[tid]);
     } else {
         assert(syscall == SYS_epoll_wait || syscall == SYS_epoll_pwait || syscall == SYS_poll);
         int timeout = (int) PIN_GetSyscallArgument(ctxt, std, timeoutArg);
@@ -111,24 +112,27 @@ static bool PrePatchTimeoutSyscall(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD
         //info("[%d] pre-patch epoll_wait/pwait", tid);
 
         PIN_SetSyscallArgument(ctxt, std, timeoutArg, 20); // 20ms timeout
-        waitNsec = ((uint64_t)timeout)*1000*1000;  // timeout is in ms
+        waitNsec = ((uint64_t) timeout) * 1000 * 1000;  // timeout is in ms
     }
 
     //info("[%d] pre-patch %s (%d) waitNsec = %ld", tid, GetSyscallName(syscall), syscall, waitNsec);
 
-    uint64_t waitCycles = waitNsec*zinfo->freqMHz/1000;
-    uint64_t waitPhases = waitCycles/zinfo->phaseLength;
-    if (waitPhases < 2) waitPhases = 2;  // at least wait 2 phases; this should basically eliminate the chance that we get a SIGSYS before we start executing the syscal instruction
+    uint64_t waitCycles = waitNsec * zinfo->freqMHz / 1000;
+    uint64_t waitPhases = waitCycles / zinfo->phaseLength;
+    if (waitPhases < 2)
+        waitPhases = 2;  // at least wait 2 phases; this should basically eliminate the chance that we get a SIGSYS before we start executing the syscal instruction
     uint64_t wakeupPhase = zinfo->numPhases + waitPhases;
 
-    /*volatile uint32_t* futexWord =*/ zinfo->sched->markForSleep(procIdx, tid, wakeupPhase);  // we still want to mark for sleep, bear with me...
+    /*volatile uint32_t* futexWord =*/ zinfo->sched->markForSleep(procIdx, tid,
+                                                                  wakeupPhase);  // we still want to mark for sleep, bear with me...
     inFakeTimeoutMode[tid] = true;
     return true;
 }
 
-static bool PostPatchTimeoutSyscall(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD std, int syscall, ADDRINT prevIp, ADDRINT timeoutArgVal) {
+static bool PostPatchTimeoutSyscall(uint32_t tid, CONTEXT *ctxt, SYSCALL_STANDARD std, int syscall, ADDRINT prevIp,
+                                    ADDRINT timeoutArgVal) {
     assert(inFakeTimeoutMode[tid]);
-    int res = (int)PIN_GetSyscallNumber(ctxt, std);
+    int res = (int) PIN_GetSyscallNumber(ctxt, std);
 
     // Decide if it timed out
     bool timedOut;
@@ -186,7 +190,7 @@ struct FutexInfo {
     int val;
 };
 
-FutexInfo PrePatchFutex(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD std) {
+FutexInfo PrePatchFutex(uint32_t tid, CONTEXT *ctxt, SYSCALL_STANDARD std) {
     FutexInfo fi;
     fi.op = (int) PIN_GetSyscallArgument(ctxt, std, 1);
     fi.val = (int) PIN_GetSyscallArgument(ctxt, std, 2);
@@ -196,7 +200,7 @@ FutexInfo PrePatchFutex(uint32_t tid, CONTEXT* ctxt, SYSCALL_STANDARD std) {
     return fi;
 }
 
-void PostPatchFutex(uint32_t tid, FutexInfo fi, CONTEXT* ctxt, SYSCALL_STANDARD std) {
+void PostPatchFutex(uint32_t tid, FutexInfo fi, CONTEXT *ctxt, SYSCALL_STANDARD std) {
     int res = (int) PIN_GetSyscallNumber(ctxt, std);
     if (isFutexWaitOp(fi.op) && res == 0) {
         zinfo->sched->notifyFutexWaitWoken(procIdx, tid);
@@ -221,7 +225,7 @@ PostPatchFn PatchTimeoutSyscall(PrePatchArgs args) {
 
     int syscall = PIN_GetSyscallNumber(args.ctxt, args.std);
     assert_msg(syscall == SYS_futex || syscall == SYS_epoll_wait || syscall == SYS_epoll_pwait || syscall == SYS_poll,
-            "Invalid timeout syscall %d", syscall);
+               "Invalid timeout syscall %d", syscall);
 
     FutexInfo fi = {0, 0};
     if (syscall == SYS_futex) fi = PrePatchFutex(args.tid, args.ctxt, args.std);

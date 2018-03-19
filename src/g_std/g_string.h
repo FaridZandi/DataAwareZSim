@@ -34,6 +34,7 @@
 /* basic_string is actually an STL-mandated class, not an internal GCC thing.
  * This should work with other compilers
  */
-typedef std::basic_string<char, std::char_traits<char>, StlGlobAlloc<char> > g_string;
+typedef std::basic_string<char, std::char_traits<char>, StlGlobAlloc < char> >
+g_string;
 
 #endif  // G_STRING_H_

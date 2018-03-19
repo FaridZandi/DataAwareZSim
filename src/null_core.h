@@ -32,34 +32,42 @@
 #include "pad.h"
 
 class NullCore : public Core {
-    protected:
-        uint64_t instrs;
-        uint64_t curCycle;
-        uint64_t phaseEndCycle; //next stopping point
+protected:
+    uint64_t instrs;
+    uint64_t curCycle;
+    uint64_t phaseEndCycle; //next stopping point
 
-    public:
-        explicit NullCore(g_string& _name);
-        void initStats(AggregateStat* parentStat);
+public:
+    explicit NullCore(g_string &_name);
 
-        uint64_t getInstrs() const {return instrs;}
-        uint64_t getPhaseCycles() const;
-        uint64_t getCycles() const {return instrs; /*IPC=1*/ }
+    void initStats(AggregateStat *parentStat);
 
-        void contextSwitch(int32_t gid);
-        virtual void join();
+    uint64_t getInstrs() const { return instrs; }
 
-        InstrFuncPtrs GetFuncPtrs();
+    uint64_t getPhaseCycles() const;
 
-    protected:
-        inline void bbl(BblInfo* bblInstrs);
+    uint64_t getCycles() const { return instrs; /*IPC=1*/ }
 
-        static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo);
-        static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
-        static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+    void contextSwitch(int32_t gid);
 
-        static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
+    virtual void join();
+
+    InstrFuncPtrs GetFuncPtrs();
+
+protected:
+    inline void bbl(BblInfo *bblInstrs);
+
+    static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo);
+
+    static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
 } ATTR_LINE_ALIGNED; //This needs to take up a whole cache line, or false sharing will be extremely frequent
 
 #endif  // NULL_CORE_H_

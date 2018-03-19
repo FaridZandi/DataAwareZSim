@@ -34,24 +34,26 @@
  * stats must be static (and zeros compress great)
  */
 class ProcessStats : public GlobAlloc {
-    private:
-        g_vector<uint64_t> processCycles, processInstrs;
-        g_vector<uint64_t> lastCoreCycles, lastCoreInstrs;
-        uint64_t lastUpdatePhase;
+private:
+    g_vector<uint64_t> processCycles, processInstrs;
+    g_vector<uint64_t> lastCoreCycles, lastCoreInstrs;
+    uint64_t lastUpdatePhase;
 
-    public:
-        explicit ProcessStats(AggregateStat* parentStat); //includes initStats, called post-system init
+public:
+    explicit ProcessStats(AggregateStat *parentStat); //includes initStats, called post-system init
 
-        // May trigger a global update, should call ONLY when quiesced
-        uint64_t getProcessCycles(uint32_t p);
-        uint64_t getProcessInstrs(uint32_t p);
+    // May trigger a global update, should call ONLY when quiesced
+    uint64_t getProcessCycles(uint32_t p);
 
-        // Must be called by scheduler when descheduling; core must be quiesced
-        void notifyDeschedule(uint32_t cid, uint32_t outgoingPid);
+    uint64_t getProcessInstrs(uint32_t p);
 
-    private:
-        void updateCore(uint32_t cid, uint32_t p);
-        void update(); //transparent
+    // Must be called by scheduler when descheduling; core must be quiesced
+    void notifyDeschedule(uint32_t cid, uint32_t outgoingPid);
+
+private:
+    void updateCore(uint32_t cid, uint32_t p);
+
+    void update(); //transparent
 };
 
 #endif  // PROCESS_STATS_H_

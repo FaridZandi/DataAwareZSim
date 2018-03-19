@@ -30,28 +30,28 @@
 #define DEBUG_MSG(args...)
 //#define DEBUG_MSG(args...) info(args)
 
-TimingCore::TimingCore(FilterCache* _l1i, FilterCache* _l1d, uint32_t _domain, g_string& _name)
-    : Core(_name), l1i(_l1i), l1d(_l1d), instrs(0), curCycle(0), cRec(_domain, _name) {}
+TimingCore::TimingCore(FilterCache *_l1i, FilterCache *_l1d, uint32_t _domain, g_string &_name)
+        : Core(_name), l1i(_l1i), l1d(_l1d), instrs(0), curCycle(0), cRec(_domain, _name) {}
 
 uint64_t TimingCore::getPhaseCycles() const {
     return curCycle % zinfo->phaseLength;
 }
 
-void TimingCore::initStats(AggregateStat* parentStat) {
-    AggregateStat* coreStat = new AggregateStat();
+void TimingCore::initStats(AggregateStat *parentStat) {
+    AggregateStat *coreStat = new AggregateStat();
     coreStat->init(name.c_str(), "Core stats");
 
     auto x = [this]() { return cRec.getUnhaltedCycles(curCycle); };
-    LambdaStat<decltype(x)>* cyclesStat = new LambdaStat<decltype(x)>(x);
+    LambdaStat<decltype(x)> *cyclesStat = new LambdaStat<decltype(x)>(x);
     cyclesStat->init("cycles", "Simulated unhalted cycles");
     coreStat->append(cyclesStat);
 
     auto y = [this]() { return cRec.getContentionCycles(); };
-    LambdaStat<decltype(y)>* cCyclesStat = new LambdaStat<decltype(y)>(y);
+    LambdaStat<decltype(y)> *cCyclesStat = new LambdaStat<decltype(y)>(y);
     cCyclesStat->init("cCycles", "Cycles due to contention stalls");
     coreStat->append(cCyclesStat);
 
-    ProxyStat* instrsStat = new ProxyStat();
+    ProxyStat *instrsStat = new ProxyStat();
     instrsStat->init("instrs", "Simulated instructions", &instrs);
     coreStat->append(instrsStat);
 
@@ -89,33 +89,35 @@ void TimingCore::storeAndRecord(Address addr, Address pc /*Kasraa*/) {
     cRec.record(startCycle);
 }
 
-void TimingCore::bblAndRecord(Address bblAddr, BblInfo* bblInfo) {
+void TimingCore::bblAndRecord(Address bblAddr, BblInfo *bblInfo) {
     instrs += bblInfo->instrs;
     curCycle += bblInfo->instrs;
 
     Address endBblAddr = bblAddr + bblInfo->bytes;
-    for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr+=(1 << lineBits)) {
+    for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
         uint64_t startCycle = curCycle;
-        curCycle = l1i->load(fetchAddr, curCycle, fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/);
+        curCycle = l1i->load(fetchAddr, curCycle,
+                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/);
         cRec.record(startCycle);
     }
 }
 
 
 InstrFuncPtrs TimingCore::GetFuncPtrs() {
-    return {LoadAndRecordFunc, StoreAndRecordFunc, BblAndRecordFunc, BranchFunc, PredLoadAndRecordFunc, PredStoreAndRecordFunc, FPTR_ANALYSIS, {0}};
+    return {LoadAndRecordFunc, StoreAndRecordFunc, BblAndRecordFunc, BranchFunc, PredLoadAndRecordFunc,
+            PredStoreAndRecordFunc, FPTR_ANALYSIS, {0}};
 }
 
 void TimingCore::LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<TimingCore*>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/);
+    static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/);
 }
 
 void TimingCore::StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<TimingCore*>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/);
+    static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/);
 }
 
-void TimingCore::BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
-    TimingCore* core = static_cast<TimingCore*>(cores[tid]);
+void TimingCore::BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
+    TimingCore *core = static_cast<TimingCore *>(cores[tid]);
     core->bblAndRecord(bblAddr, bblInfo);
 
     while (core->curCycle > core->phaseEndCycle) {
@@ -127,10 +129,10 @@ void TimingCore::BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInf
 }
 
 void TimingCore::PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    if (pred) static_cast<TimingCore*>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/);
+    if (pred) static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/);
 }
 
 void TimingCore::PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    if (pred) static_cast<TimingCore*>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/);
+    if (pred) static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/);
 }
 

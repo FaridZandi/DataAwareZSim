@@ -38,13 +38,17 @@ enum PostPatchAction {
 };
 
 void VirtInit();  // per-process, not global
-void VirtSyscallEnter(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std, const char* patchRoot, bool isNopThread);
+void VirtSyscallEnter(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std, const char *patchRoot, bool isNopThread);
+
 PostPatchAction VirtSyscallExit(THREADID tid, CONTEXT *ctxt, SYSCALL_STANDARD std);
 
 // VDSO / external virt functions
 void VirtGettimeofday(uint32_t tid, ADDRINT arg0);
-void VirtTime(uint32_t tid, REG* retVal, ADDRINT arg0);
+
+void VirtTime(uint32_t tid, REG *retVal, ADDRINT arg0);
+
 void VirtClockGettime(uint32_t tid, ADDRINT arg0, ADDRINT arg1);
+
 void VirtGetcpu(uint32_t tid, uint32_t cpu, ADDRINT arg0, ADDRINT arg1);
 
 // Time virtualization direct functions

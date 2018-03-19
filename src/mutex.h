@@ -32,65 +32,66 @@
 
 // Until GCC is compliant with this, just inherit:
 class mutex : public GlobAlloc {
-    public:
-        mutex() {
-            futex_init(&futex);
-        }
+public:
+    mutex() {
+        futex_init(&futex);
+    }
 
-        void lock() {
-            futex_lock(&futex);
-        }
+    void lock() {
+        futex_lock(&futex);
+    }
 
-        void unlock() {
-            futex_unlock(&futex);
-        }
+    void unlock() {
+        futex_unlock(&futex);
+    }
 
-        bool haswaiters() {
-            return futex_haswaiters(&futex);
-        }
+    bool haswaiters() {
+        return futex_haswaiters(&futex);
+    }
 
-    private:
-        volatile uint32_t futex;
+private:
+    volatile uint32_t futex;
 };
 
-class aligned_mutex : public mutex {} ATTR_LINE_ALIGNED;
+class aligned_mutex : public mutex {
+} ATTR_LINE_ALIGNED;
 
 class scoped_mutex : public GlobAlloc {
-    public:
-        scoped_mutex(mutex& _mut)
-                : mut(&_mut) {
-            mut->lock();
-        }
+public:
+    scoped_mutex(mutex &_mut)
+            : mut(&_mut) {
+        mut->lock();
+    }
 
-        scoped_mutex(scoped_mutex&& that) {
-            mut = that.mut;
-            that.release();
-        }
+    scoped_mutex(scoped_mutex &&that) {
+        mut = that.mut;
+        that.release();
+    }
 
-        scoped_mutex()
-                : mut(0) {}
+    scoped_mutex()
+            : mut(0) {}
 
-        ~scoped_mutex() {
-            if (mut) mut->unlock();
-        }
+    ~scoped_mutex() {
+        if (mut) mut->unlock();
+    }
 
-        scoped_mutex& operator=(scoped_mutex&& that) {
-            this->~scoped_mutex();
-            mut = that.mut;
-            that.release();
-            return *this;
-        }
+    scoped_mutex &operator=(scoped_mutex &&that) {
+        this->~scoped_mutex();
+        mut = that.mut;
+        that.release();
+        return *this;
+    }
 
-        void release() {
-            mut = 0;
-        }
+    void release() {
+        mut = 0;
+    }
 
-        const mutex* get() const {
-            return mut;
-        }
+    const mutex *get() const {
+        return mut;
+    }
 
-    private:
-        mutex* mut;
+private:
+    mutex *mut;
 };
 
 /* Read-write mutex based on futex locks. Fair implementation, with read
@@ -98,87 +99,87 @@ class scoped_mutex : public GlobAlloc {
  * readers. Supports atomic downgrades from writer to reader.
  */
 class rwmutex : public GlobAlloc {
-    private:
-        mutex wq;
-        mutex rb;
-        volatile uint32_t readers;
+private:
+    mutex wq;
+    mutex rb;
+    volatile uint32_t readers;
 
-    public:
-        rwmutex() {
-            readers = 0;
-        }
+public:
+    rwmutex() {
+        readers = 0;
+    }
 
-        void rdLock() {
-            scoped_mutex r(rb);
-            if (xadd(1) == 0) wq.lock();  // first reader disables writers
-        }
+    void rdLock() {
+        scoped_mutex r(rb);
+        if (xadd(1) == 0) wq.lock();  // first reader disables writers
+    }
 
-        void rdUnlock() {
-            if (xadd(-1) == 1) wq.unlock();  // last reader enables writers
-        }
+    void rdUnlock() {
+        if (xadd(-1) == 1) wq.unlock();  // last reader enables writers
+    }
 
-        void wrLock() {
-            scoped_mutex r(rb);
-            wq.lock();
-        }
+    void wrLock() {
+        scoped_mutex r(rb);
+        wq.lock();
+    }
 
-        void wrUnlock() {
-            wq.unlock();
-        }
+    void wrUnlock() {
+        wq.unlock();
+    }
 
-        // NOTE: upgrade and downgrade have uncontended fastpaths. If this is a bottleneck, they could be optimized.
+    // NOTE: upgrade and downgrade have uncontended fastpaths. If this is a bottleneck, they could be optimized.
 
-        // rdlocker -> wrlocker
-        // MUST lose atomicity
-        void upgrade() {
-            rdUnlock();
-            wrLock();
-        }
+    // rdlocker -> wrlocker
+    // MUST lose atomicity
+    void upgrade() {
+        rdUnlock();
+        wrLock();
+    }
 
-        // wrlocker -> rdlocker
-        void downgrade() {
-            // This sequence does not drop atomically. We'd like to go from writer to reader without allowing intervening writers
+    // wrlocker -> rdlocker
+    void downgrade() {
+        // This sequence does not drop atomically. We'd like to go from writer to reader without allowing intervening writers
 #if 0
-            wrUnlock();
-            rdLock();
+        wrUnlock();
+        rdLock();
 #else
-            /* We want drops to be atomic, i.e., allow other readers to
-             * progress with us, but never allow an intervening writer. There
-             * are three possible situations:
-             *
-             * 1.- Nobody is blocked in anything else -> readers == 0, and we
-             * can just become the first reader and keep wrlock.
-             *
-             * 2.- A writer is blocked in wq, and is possibly blocking all the
-             * readers and writers on rb -> readers == 0, same.
-             *
-             * 3.- A *reader* is blocked in wq, and is possibly blocking all
-             * other readers and writers on rb -> readers == 1, if we unlock wq
-             * we'll let that reader and subsequent ones go through, and
-             * writers will still be locked.
-             *
-             * readers > 1 is impossible, as we have wq. Similarly, because
-             * both rdLock and wrLock are protected by rb, we cannot have more
-             * than one waiter (reader or writer) in wq.
-             */
+        /* We want drops to be atomic, i.e., allow other readers to
+         * progress with us, but never allow an intervening writer. There
+         * are three possible situations:
+         *
+         * 1.- Nobody is blocked in anything else -> readers == 0, and we
+         * can just become the first reader and keep wrlock.
+         *
+         * 2.- A writer is blocked in wq, and is possibly blocking all the
+         * readers and writers on rb -> readers == 0, same.
+         *
+         * 3.- A *reader* is blocked in wq, and is possibly blocking all
+         * other readers and writers on rb -> readers == 1, if we unlock wq
+         * we'll let that reader and subsequent ones go through, and
+         * writers will still be locked.
+         *
+         * readers > 1 is impossible, as we have wq. Similarly, because
+         * both rdLock and wrLock are protected by rb, we cannot have more
+         * than one waiter (reader or writer) in wq.
+         */
 
-            uint32_t oldReaders = xadd(1);
-            if (oldReaders == 0) {
-                // Cases 1, 2, or we raced with a reader but won first spot on xadd (which really is case 1)
-                // We have wq, nothing left to do
-            } else {
-                assert(oldReaders == 1);
-                // Case 3
-                wq.unlock();
-                // waiting reader will relock and proceed, and last of the bunch of concurrent readers will unlock
-            }
+        uint32_t oldReaders = xadd(1);
+        if (oldReaders == 0) {
+            // Cases 1, 2, or we raced with a reader but won first spot on xadd (which really is case 1)
+            // We have wq, nothing left to do
+        } else {
+            assert(oldReaders == 1);
+            // Case 3
+            wq.unlock();
+            // waiting reader will relock and proceed, and last of the bunch of concurrent readers will unlock
+        }
 #endif
-        }
+    }
 
-    private:
-        inline uint32_t xadd(uint32_t v) {
-            return __sync_fetch_and_add(&readers, v);
-        }
+private:
+    inline uint32_t xadd(uint32_t v) {
+        return __sync_fetch_and_add(&readers, v);
+    }
 };
 
 #endif  // MUTEX_H_

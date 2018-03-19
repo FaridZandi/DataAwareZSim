@@ -35,49 +35,63 @@
 class FilterCache;
 
 class TimingCore : public Core {
-    private:
-        FilterCache* l1i;
-        FilterCache* l1d;
+private:
+    FilterCache *l1i;
+    FilterCache *l1d;
 
-        uint64_t instrs;
+    uint64_t instrs;
 
-        uint64_t curCycle; //phase 1 clock
-        uint64_t phaseEndCycle; //phase 1 end clock
+    uint64_t curCycle; //phase 1 clock
+    uint64_t phaseEndCycle; //phase 1 end clock
 
-        CoreRecorder cRec;
+    CoreRecorder cRec;
 
-    public:
-        TimingCore(FilterCache* _l1i, FilterCache* _l1d, uint32_t domain, g_string& _name);
-        void initStats(AggregateStat* parentStat);
+public:
+    TimingCore(FilterCache *_l1i, FilterCache *_l1d, uint32_t domain, g_string &_name);
 
-        uint64_t getInstrs() const {return instrs;}
-        uint64_t getPhaseCycles() const;
-        uint64_t getCycles() const {return cRec.getUnhaltedCycles(curCycle);}
+    void initStats(AggregateStat *parentStat);
 
-        void contextSwitch(int32_t gid);
-        virtual void join();
-        virtual void leave();
+    uint64_t getInstrs() const { return instrs; }
 
-        InstrFuncPtrs GetFuncPtrs();
+    uint64_t getPhaseCycles() const;
 
-        //Contention simulation interface
-        inline EventRecorder* getEventRecorder() {return cRec.getEventRecorder();}
-        void cSimStart() {curCycle = cRec.cSimStart(curCycle);}
-        void cSimEnd() {curCycle = cRec.cSimEnd(curCycle);}
+    uint64_t getCycles() const { return cRec.getUnhaltedCycles(curCycle); }
 
-    private:
-        inline void loadAndRecord(Address addr, Address pc /*Kasraa*/);
-        inline void storeAndRecord(Address addr, Address pc /*Kasraa*/);
-        inline void bblAndRecord(Address bblAddr, BblInfo* bblInstrs);
-        inline void record(uint64_t startCycle);
+    void contextSwitch(int32_t gid);
 
-        static void LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
-        static void BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo);
-        static void PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
-        static void PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+    virtual void join();
 
-        static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
+    virtual void leave();
+
+    InstrFuncPtrs GetFuncPtrs();
+
+    //Contention simulation interface
+    inline EventRecorder *getEventRecorder() { return cRec.getEventRecorder(); }
+
+    void cSimStart() { curCycle = cRec.cSimStart(curCycle); }
+
+    void cSimEnd() { curCycle = cRec.cSimEnd(curCycle); }
+
+private:
+    inline void loadAndRecord(Address addr, Address pc /*Kasraa*/);
+
+    inline void storeAndRecord(Address addr, Address pc /*Kasraa*/);
+
+    inline void bblAndRecord(Address bblAddr, BblInfo *bblInstrs);
+
+    inline void record(uint64_t startCycle);
+
+    static void LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/);
+
+    static void BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo);
+
+    static void PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred);
+
+    static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
 } ATTR_LINE_ALIGNED;
 
 #endif  // TIMING_CORE_H_

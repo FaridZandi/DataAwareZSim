@@ -42,40 +42,44 @@ class Network;
  * controllers, since for now we only have MESI controllers
  */
 class Cache : public BaseCache {
-    protected:
-        CC* cc;
-        CacheArray* array;
-        ReplPolicy* rp;
+protected:
+    CC *cc;
+    CacheArray *array;
+    ReplPolicy *rp;
 
-        uint32_t numLines;
+    uint32_t numLines;
 
-        //Latencies
-        uint32_t accLat; //latency of a normal access (could split in get/put, probably not needed)
-        uint32_t invLat; //latency of an invalidation
+    //Latencies
+    uint32_t accLat; //latency of a normal access (could split in get/put, probably not needed)
+    uint32_t invLat; //latency of an invalidation
 
-        g_string name;
+    g_string name;
 
-    public:
-        Cache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, const g_string& _name);
+public:
+    Cache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat, uint32_t _invLat,
+          const g_string &_name);
 
-        const char* getName();
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
-        void initStats(AggregateStat* parentStat);
+    const char *getName();
 
-        virtual uint64_t access(MemReq& req);
+    void setParents(uint32_t _childId, const g_vector<MemObject *> &parents, Network *network);
 
-        //NOTE: reqWriteback is pulled up to true, but not pulled down to false.
-        virtual uint64_t invalidate(const InvReq& req) {
-            startInvalidate();
-            return finishInvalidate(req);
-        }
+    void setChildren(const g_vector<BaseCache *> &children, Network *network);
 
-    protected:
-        void initCacheStats(AggregateStat* cacheStat);
+    void initStats(AggregateStat *parentStat);
 
-        void startInvalidate(); // grabs cc's downLock
-        uint64_t finishInvalidate(const InvReq& req); // performs inv and releases downLock
+    virtual uint64_t access(MemReq &req);
+
+    //NOTE: reqWriteback is pulled up to true, but not pulled down to false.
+    virtual uint64_t invalidate(const InvReq &req) {
+        startInvalidate();
+        return finishInvalidate(req);
+    }
+
+protected:
+    void initCacheStats(AggregateStat *cacheStat);
+
+    void startInvalidate(); // grabs cc's downLock
+    uint64_t finishInvalidate(const InvReq &req); // performs inv and releases downLock
 };
 
 #endif  // CACHE_H_

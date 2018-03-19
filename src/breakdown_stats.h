@@ -35,39 +35,39 @@
  * because we extend VectorCounter (TODO: Move to VectorStat).
  */
 class CycleBreakdownStat : public VectorCounter {
-    private:
-        uint32_t curState;
-        uint64_t lastCycle;
+private:
+    uint32_t curState;
+    uint64_t lastCycle;
 
-    public:
-        CycleBreakdownStat() : VectorCounter() {}
+public:
+    CycleBreakdownStat() : VectorCounter() {}
 
-        virtual void init(const char* name, const char* desc, uint32_t size) {
-            VectorCounter::init(name, desc, size);
-            curState = 0;
-            lastCycle = 0;
-        }
+    virtual void init(const char *name, const char *desc, uint32_t size) {
+        VectorCounter::init(name, desc, size);
+        curState = 0;
+        lastCycle = 0;
+    }
 
-        // I need to define this even though it is completely unnecessary, but only if I override init. gcc bug or C++ oddity?
-        virtual void init(const char* name, const char* desc, uint32_t size, const char** names) {
-            VectorCounter::init(name, desc, size, names); // will call our init(name, desc, size)
-        }
+    // I need to define this even though it is completely unnecessary, but only if I override init. gcc bug or C++ oddity?
+    virtual void init(const char *name, const char *desc, uint32_t size, const char **names) {
+        VectorCounter::init(name, desc, size, names); // will call our init(name, desc, size)
+    }
 
-        void transition(uint32_t newState, uint64_t cycle) {
-            assert(curState < size());
-            assert(newState < size());
-            assert(lastCycle <= cycle);
-            inc(curState, cycle - lastCycle);
-            curState = newState;
-            lastCycle = cycle;
-        }
+    void transition(uint32_t newState, uint64_t cycle) {
+        assert(curState < size());
+        assert(newState < size());
+        assert(lastCycle <= cycle);
+        inc(curState, cycle - lastCycle);
+        curState = newState;
+        lastCycle = cycle;
+    }
 
-        // Accounts for time in current state, even if the last transition happened long ago
-        inline virtual uint64_t count(uint32_t idx) const {
-            uint64_t partial = VectorCounter::count(idx);
-            uint64_t curCycle = MAX(lastCycle, zinfo->globPhaseCycles);
-            return partial + ((idx == curState)? (curCycle - lastCycle) : 0);
-        }
+    // Accounts for time in current state, even if the last transition happened long ago
+    inline virtual uint64_t count(uint32_t idx) const {
+        uint64_t partial = VectorCounter::count(idx);
+        uint64_t curCycle = MAX(lastCycle, zinfo->globPhaseCycles);
+        return partial + ((idx == curState) ? (curCycle - lastCycle) : 0);
+    }
 };
 
 #endif  // BREAKDOWN_STATS_H_

@@ -96,73 +96,91 @@
 
 class MTRand : public GlobAlloc {
     // Data
-    public:
-        // typedef unsigned long uint32;  // unsigned integer type, at least 32 bits
-        // dsm: WTF??? In x86-64, unsigned long is 64 bits! Using uint32_t broke
-        // everything using this class, so I just turned all uint32 into uint64_t
+public:
+    // typedef unsigned long uint32;  // unsigned integer type, at least 32 bits
+    // dsm: WTF??? In x86-64, unsigned long is 64 bits! Using uint32_t broke
+    // everything using this class, so I just turned all uint32 into uint64_t
 
-        enum { N = 624 };       // length of state vector
-        enum { SAVE = N + 1 };  // length of array for save()
+    enum {
+        N = 624
+    };       // length of state vector
+    enum {
+        SAVE = N + 1
+    };  // length of array for save()
 
-    protected:
-        enum { M = 397 };  // period parameter
+protected:
+    enum {
+        M = 397
+    };  // period parameter
 
-        uint64_t state[N];   // internal state
-        uint64_t *pNext;     // next value to get from state
-        int left;          // number of values left before reload needed
+    uint64_t state[N];   // internal state
+    uint64_t *pNext;     // next value to get from state
+    int left;          // number of values left before reload needed
 
-        // Methods
-    public:
-        explicit MTRand(const uint64_t oneSeed);  // initialize with a simple uint64_t
-        MTRand(uint64_t *const bigSeed, uint64_t const seedLength = N);  // or array
-        MTRand();  // auto-initialize with /dev/urandom or time() and clock()
-        explicit MTRand(const MTRand& o);  // copy
+    // Methods
+public:
+    explicit MTRand(const uint64_t oneSeed);  // initialize with a simple uint64_t
+    MTRand(uint64_t *const bigSeed, uint64_t const seedLength = N);  // or array
+    MTRand();  // auto-initialize with /dev/urandom or time() and clock()
+    explicit MTRand(const MTRand &o);  // copy
 
-        // Do NOT use for CRYPTOGRAPHY without securely hashing several returned
-        // values together, otherwise the generator state can be learned after
-        // reading 624 consecutive values.
+    // Do NOT use for CRYPTOGRAPHY without securely hashing several returned
+    // values together, otherwise the generator state can be learned after
+    // reading 624 consecutive values.
 
-        // Access to 32-bit random numbers
-        uint64_t randInt();                     // integer in [0,2^32-1]
-        uint64_t randInt(const uint64_t n);     // integer in [0,n] for n < 2^32
-        double rand();                        // real number in [0,1]
-        double rand(const double n);        // real number in [0,n]
-        double randExc();                     // real number in [0,1)
-        double randExc(const double n);     // real number in [0,n)
-        double randDblExc();                  // real number in (0,1)
-        double randDblExc(const double n);  // real number in (0,n)
-        double operator()();                  // same as rand()
+    // Access to 32-bit random numbers
+    uint64_t randInt();                     // integer in [0,2^32-1]
+    uint64_t randInt(const uint64_t n);     // integer in [0,n] for n < 2^32
+    double rand();                        // real number in [0,1]
+    double rand(const double n);        // real number in [0,n]
+    double randExc();                     // real number in [0,1)
+    double randExc(const double n);     // real number in [0,n)
+    double randDblExc();                  // real number in (0,1)
+    double randDblExc(const double n);  // real number in (0,n)
+    double operator()();                  // same as rand()
 
-        // Access to 53-bit random numbers (capacity of IEEE double precision)
-        double rand53();  // real number in [0,1)
+    // Access to 53-bit random numbers (capacity of IEEE double precision)
+    double rand53();  // real number in [0,1)
 
-        // Access to nonuniform random number distributions
-        double randNorm(const double mean = 0.0, const double stddev = 1.0);
+    // Access to nonuniform random number distributions
+    double randNorm(const double mean = 0.0, const double stddev = 1.0);
 
-        // Re-seeding functions with same behavior as initializers
-        void seed(const uint64_t oneSeed);
-        void seed(uint64_t *const bigSeed, const uint64_t seedLength = N);
-        void seed();
+    // Re-seeding functions with same behavior as initializers
+    void seed(const uint64_t oneSeed);
 
-        // Saving and loading generator state
-        void save(uint64_t* saveArray) const;  // to array of size SAVE
-        void load(uint64_t *const loadArray);  // from such array
-        friend std::ostream& operator<<(std::ostream& os, const MTRand& mtrand);
-        friend std::istream& operator>>(std::istream& is, MTRand& mtrand);
-        MTRand& operator=(const MTRand& o);
+    void seed(uint64_t *const bigSeed, const uint64_t seedLength = N);
 
-    protected:
-        void initialize(const uint64_t oneSeed);
-        void reload();
-        uint64_t hiBit(const uint64_t u) const { return u & 0x80000000UL; }
-        uint64_t loBit(const uint64_t u) const { return u & 0x00000001UL; }
-        uint64_t loBits(const uint64_t u) const { return u & 0x7fffffffUL; }
-        uint64_t mixBits(const uint64_t u, const uint64_t v) const { return hiBit(u) | loBits(v); }
-        uint64_t magic(const uint64_t u) const { return loBit(u) ? 0x9908b0dfUL : 0x0UL; }
-        uint64_t twist(const uint64_t m, const uint64_t s0, const uint64_t s1) const {
-            return m ^ (mixBits(s0, s1)>>1) ^ magic(s1);
-        }
-        static uint64_t hash(time_t t, clock_t c);
+    void seed();
+
+    // Saving and loading generator state
+    void save(uint64_t *saveArray) const;  // to array of size SAVE
+    void load(uint64_t *const loadArray);  // from such array
+    friend std::ostream &operator<<(std::ostream &os, const MTRand &mtrand);
+
+    friend std::istream &operator>>(std::istream &is, MTRand &mtrand);
+
+    MTRand &operator=(const MTRand &o);
+
+protected:
+    void initialize(const uint64_t oneSeed);
+
+    void reload();
+
+    uint64_t hiBit(const uint64_t u) const { return u & 0x80000000UL; }
+
+    uint64_t loBit(const uint64_t u) const { return u & 0x00000001UL; }
+
+    uint64_t loBits(const uint64_t u) const { return u & 0x7fffffffUL; }
+
+    uint64_t mixBits(const uint64_t u, const uint64_t v) const { return hiBit(u) | loBits(v); }
+
+    uint64_t magic(const uint64_t u) const { return loBit(u) ? 0x9908b0dfUL : 0x0UL; }
+
+    uint64_t twist(const uint64_t m, const uint64_t s0, const uint64_t s1) const {
+        return m ^ (mixBits(s0, s1) >> 1) ^ magic(s1);
+    }
+
+    static uint64_t hash(time_t t, clock_t c);
 };
 
 // Functions are defined in order of usage to assist inlining
@@ -238,20 +256,27 @@ inline void MTRand::seed(uint64_t *const bigSeed, const uint64_t seedLength) {
     register int k = (N > seedLength ? N : seedLength);
     for (; k; --k) {
         state[i] =
-            state[i] ^ ((state[i-1] ^ (state[i-1] >> 30)) * 1664525UL);
+                state[i] ^ ((state[i - 1] ^ (state[i - 1] >> 30)) * 1664525UL);
         state[i] += (bigSeed[j] & 0xffffffffUL) + j;
         state[i] &= 0xffffffffUL;
-        ++i;  ++j;
-        if (i >= N) { state[0] = state[N-1];  i = 1; }
+        ++i;
+        ++j;
+        if (i >= N) {
+            state[0] = state[N - 1];
+            i = 1;
+        }
         if (j >= seedLength) j = 0;
     }
     for (k = N - 1; k; --k) {
         state[i] =
-            state[i] ^ ((state[i-1] ^ (state[i-1] >> 30)) * 1566083941UL);
+                state[i] ^ ((state[i - 1] ^ (state[i - 1] >> 30)) * 1566083941UL);
         state[i] -= i;
         state[i] &= 0xffffffffUL;
         ++i;
-        if (i >= N) { state[0] = state[N-1];  i = 1; }
+        if (i >= N) {
+            state[0] = state[N - 1];
+            i = 1;
+        }
     }
     state[0] = 0x80000000UL;  // MSB is 1, assuring non-zero initial array
     reload();
@@ -262,7 +287,7 @@ inline void MTRand::seed() {
     // Otherwise use a hash of time() and clock() values
 
     // First try getting an array from /dev/urandom
-    FILE* urandom = fopen("/dev/urandom", "rb");
+    FILE *urandom = fopen("/dev/urandom", "rb");
     if (urandom) {
         uint64_t bigSeed[N];
         register uint64_t *s = bigSeed;
@@ -271,7 +296,10 @@ inline void MTRand::seed() {
         while (success && i--)
             success = fread(s++, sizeof(uint64_t), 1, urandom);
         fclose(urandom);
-        if (success) { seed(bigSeed, N); return; }
+        if (success) {
+            seed(bigSeed, N);
+            return;
+        }
     }
 
     // Was not successful, so use time() and clock() instead
@@ -286,13 +314,13 @@ inline MTRand::MTRand(uint64_t *const bigSeed, const uint64_t seedLength) {
 
 inline MTRand::MTRand() { seed(); }
 
-inline MTRand::MTRand(const MTRand& o) {
+inline MTRand::MTRand(const MTRand &o) {
     register const uint64_t *t = o.state;
     register uint64_t *s = state;
     register int i = N;
     for (; i--; *s++ = *t++) {}
     left = o.left;
-    pNext = &state[N-left];
+    pNext = &state[N - left];
 }
 
 inline uint64_t MTRand::randInt() {
@@ -305,7 +333,7 @@ inline uint64_t MTRand::randInt() {
     register uint64_t s1;
     s1 = *pNext++;
     s1 ^= (s1 >> 11);
-    s1 ^= (s1 <<  7) & 0x9d2c5680UL;
+    s1 ^= (s1 << 7) & 0x9d2c5680UL;
     s1 ^= (s1 << 15) & 0xefc60000UL;
     return (s1 ^ (s1 >> 18));
 }
@@ -328,21 +356,21 @@ inline uint64_t MTRand::randInt(const uint64_t n) {
     return i;
 }
 
-inline double MTRand::rand() { return double(randInt()) * (1.0/4294967295.0); }
+inline double MTRand::rand() { return double(randInt()) * (1.0 / 4294967295.0); }
 
 inline double MTRand::rand(const double n) { return rand() * n; }
 
-inline double MTRand::randExc() { return double(randInt()) * (1.0/4294967296.0); }
+inline double MTRand::randExc() { return double(randInt()) * (1.0 / 4294967296.0); }
 
 inline double MTRand::randExc(const double n) { return randExc() * n; }
 
-inline double MTRand::randDblExc() { return (double(randInt()) + 0.5) * (1.0/4294967296.0); }
+inline double MTRand::randDblExc() { return (double(randInt()) + 0.5) * (1.0 / 4294967296.0); }
 
 inline double MTRand::randDblExc(const double n) { return randDblExc() * n; }
 
 inline double MTRand::rand53() {
     uint64_t a = randInt() >> 5, b = randInt() >> 6;
-    return (a * 67108864.0 + b) * (1.0/9007199254740992.0);  // by Isaku Wada
+    return (a * 67108864.0 + b) * (1.0 / 9007199254740992.0);  // by Isaku Wada
 }
 
 inline double MTRand::randNorm(const double mean, const double stddev) {
@@ -362,7 +390,7 @@ inline double MTRand::operator()() {
     return rand();
 }
 
-inline void MTRand::save(uint64_t* saveArray) const {
+inline void MTRand::save(uint64_t *saveArray) const {
     register const uint64_t *s = state;
     register uint64_t *sa = saveArray;
     register int i = N;
@@ -376,33 +404,33 @@ inline void MTRand::load(uint64_t *const loadArray) {
     register int i = N;
     for (; i--; *s++ = *la++) {}
     left = *la;
-    pNext = &state[N-left];
+    pNext = &state[N - left];
 }
 
-inline std::ostream& operator<<(std::ostream& os, const MTRand& mtrand) {
+inline std::ostream &operator<<(std::ostream &os, const MTRand &mtrand) {
     register const uint64_t *s = mtrand.state;
     register int i = mtrand.N;
     for (; i--; os << *s++ << "\t") {}
     return os << mtrand.left;
 }
 
-inline std::istream& operator>>(std::istream& is, MTRand& mtrand) {
+inline std::istream &operator>>(std::istream &is, MTRand &mtrand) {
     register uint64_t *s = mtrand.state;
     register int i = mtrand.N;
     for (; i--; is >> *s++) {}
     is >> mtrand.left;
-    mtrand.pNext = &mtrand.state[mtrand.N-mtrand.left];
+    mtrand.pNext = &mtrand.state[mtrand.N - mtrand.left];
     return is;
 }
 
-inline MTRand& MTRand::operator=(const MTRand& o) {
+inline MTRand &MTRand::operator=(const MTRand &o) {
     if (this == &o) return (*this);
     register const uint64_t *t = o.state;
     register uint64_t *s = state;
     register int i = N;
     for (; i--; *s++ = *t++) {}
     left = o.left;
-    pNext = &state[N-left];
+    pNext = &state[N - left];
     return (*this);
 }
 

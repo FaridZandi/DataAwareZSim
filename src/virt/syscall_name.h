@@ -26,6 +26,6 @@
 #ifndef VIRT_SYSCALL_NAME_H_
 #define VIRT_SYSCALL_NAME_H_
 
-const char* GetSyscallName(uint32_t syscall);
+const char *GetSyscallName(uint32_t syscall);
 
 #endif  // VIRT_SYSCALL_NAME_H_

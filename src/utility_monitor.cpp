@@ -32,16 +32,16 @@
 UMon::UMon(uint32_t _bankLines, uint32_t _umonLines, uint32_t _buckets) {
     umonLines = _umonLines;
     buckets = _buckets;
-    samplingFactor = _bankLines/umonLines;
-    sets = umonLines/buckets;
+    samplingFactor = _bankLines / umonLines;
+    sets = umonLines / buckets;
 
-    heads = gm_calloc<Node*>(sets);
-    array = gm_calloc<Node*>(sets);
+    heads = gm_calloc<Node *>(sets);
+    array = gm_calloc<Node *>(sets);
     for (uint32_t i = 0; i < sets; i++) {
         array[i] = gm_calloc<Node>(buckets);
         heads[i] = &array[i][0];
-        for (uint32_t j = 0; j < buckets-1; j++) {
-            array[i][j].next = &array[i][j+1];
+        for (uint32_t j = 0; j < buckets - 1; j++) {
+            array[i][j].next = &array[i][j + 1];
         }
     }
 
@@ -59,15 +59,17 @@ UMon::UMon(uint32_t _bankLines, uint32_t _umonLines, uint32_t _buckets) {
     while (tmp >>= 1) setsBits++;
 }
 
-void UMon::initStats(AggregateStat* parentStat) {
-    profWayHits.init("hits", "Sampled hits per bucket", buckets); parentStat->append(&profWayHits);
-    profMisses.init("misses", "Sampled misses"); parentStat->append(&profMisses);
+void UMon::initStats(AggregateStat *parentStat) {
+    profWayHits.init("hits", "Sampled hits per bucket", buckets);
+    parentStat->append(&profWayHits);
+    profMisses.init("misses", "Sampled misses");
+    parentStat->append(&profMisses);
 }
 
 
 void UMon::access(Address lineAddr) {
     //1. Hash to decide if it should go in the cache
-    uint64_t sampleMask = ~(((uint64_t)-1LL) << samplingFactorBits);
+    uint64_t sampleMask = ~(((uint64_t) -1LL) << samplingFactorBits);
     uint64_t sampleSel = (hf->hash(0, lineAddr)) & sampleMask;
 
     //info("0x%lx 0x%lx", sampleMask, sampleSel);
@@ -77,12 +79,12 @@ void UMon::access(Address lineAddr) {
     }
 
     //2. Insert; hit or miss?
-    uint64_t setMask = ~(((uint64_t)-1LL) << setsBits);
+    uint64_t setMask = ~(((uint64_t) -1LL) << setsBits);
     uint64_t set = (hf->hash(1, lineAddr)) & setMask;
 
     // Check hit
-    Node* prev = nullptr;
-    Node* cur = heads[set];
+    Node *prev = nullptr;
+    Node *cur = heads[set];
     bool hit = false;
     for (uint32_t b = 0; b < buckets; b++) {
         if (cur->addr == lineAddr) { //Hit at position b, profile
@@ -91,7 +93,7 @@ void UMon::access(Address lineAddr) {
             curWayHits[b]++;
             hit = true;
             break;
-        } else if (b < buckets-1) {
+        } else if (b < buckets - 1) {
             prev = cur;
             cur = cur->next;
         }
@@ -121,7 +123,7 @@ uint64_t UMon::getNumAccesses() const {
     return total;
 }
 
-void UMon::getMisses(uint64_t* misses) {
+void UMon::getMisses(uint64_t *misses) {
     uint64_t total = curMisses;
     for (uint32_t i = 0; i < buckets; i++) {
         misses[buckets - i] = total;
@@ -136,9 +138,9 @@ void UMon::getMisses(uint64_t* misses) {
 
 
 void UMon::startNextInterval() {
-curMisses = 0;
-                for (uint32_t b = 0; b < buckets; b++) {
-                    curWayHits[b] = 0;
-                }
+    curMisses = 0;
+    for (uint32_t b = 0; b < buckets; b++) {
+        curWayHits[b] = 0;
+    }
 }
 

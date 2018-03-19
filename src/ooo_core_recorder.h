@@ -33,92 +33,95 @@
 #include "g_std/g_vector.h"
 
 class OOOIssueEvent;
+
 class OOORespEvent;
 
 class OOOCoreRecorder {
-    private:
-        typedef enum {
-            HALTED, //Not scheduled, no events left. Initial state. join() --> RUNNING
-            RUNNING, //Scheduled. leave() --> DRAINING
-            DRAINING //Not scheduled, but events remain. join() --> RUNNING; all events done --> HALTED
-        } State;
+private:
+    typedef enum {
+        HALTED, //Not scheduled, no events left. Initial state. join() --> RUNNING
+        RUNNING, //Scheduled. leave() --> DRAINING
+        DRAINING //Not scheduled, but events remain. join() --> RUNNING; all events done --> HALTED
+    } State;
 
-        uint64_t curId;
+    uint64_t curId;
 
-        State state;
+    State state;
 
-        /* There are 2 clocks:
-         *  - phase 1 clock = curCycle and is maintained by the bound phase contention-free core model
-         *  - phase 2 clock = curCycle - gapCycles is the zll clock
-         *  We maintain gapCycles, and only get curCycle on function calls. Some of those calls also
-         *  need to change curCycle, so they just return an updated version that the bound phase model
-         *  needs to take. However, **we have no idea about curCycle outside of those calls**.
-         *  Defend this invariant with your life or you'll find this horrible to reason about.
-         */
-        uint64_t gapCycles; //phase 2 clock == curCycle - gapCycles
+    /* There are 2 clocks:
+     *  - phase 1 clock = curCycle and is maintained by the bound phase contention-free core model
+     *  - phase 2 clock = curCycle - gapCycles is the zll clock
+     *  We maintain gapCycles, and only get curCycle on function calls. Some of those calls also
+     *  need to change curCycle, so they just return an updated version that the bound phase model
+     *  needs to take. However, **we have no idea about curCycle outside of those calls**.
+     *  Defend this invariant with your life or you'll find this horrible to reason about.
+     */
+    uint64_t gapCycles; //phase 2 clock == curCycle - gapCycles
 
-        //Event bookkeeping
-        EventRecorder eventRecorder;
+    //Event bookkeeping
+    EventRecorder eventRecorder;
 
-        //Here goes what's different from CoreRecorder
+    //Here goes what's different from CoreRecorder
 
-        //Recording phase
-        OOOIssueEvent* lastEvProduced;
+    //Recording phase
+    OOOIssueEvent *lastEvProduced;
 
-        // Future response tracking
-        struct FutureResponse {
-            uint64_t zllStartCycle;
-            OOORespEvent* ev;  // may be stale if we've gone over zllStartCycle
-        };
+    // Future response tracking
+    struct FutureResponse {
+        uint64_t zllStartCycle;
+        OOORespEvent *ev;  // may be stale if we've gone over zllStartCycle
+    };
 
-        struct CompareRespEvents : public std::binary_function<const FutureResponse&, const FutureResponse&, bool> {
-            bool operator()(const FutureResponse& lhs, const FutureResponse& rhs) const;
-        };
+    struct CompareRespEvents : public std::binary_function<const FutureResponse &, const FutureResponse &, bool> {
+        bool operator()(const FutureResponse &lhs, const FutureResponse &rhs) const;
+    };
 
-        std::priority_queue<FutureResponse, g_vector<FutureResponse>, CompareRespEvents> futureResponses;
+    std::priority_queue<FutureResponse, g_vector<FutureResponse>, CompareRespEvents> futureResponses;
 
-        uint64_t lastEvSimulatedZllStartCycle;
-        uint64_t lastEvSimulatedStartCycle;
+    uint64_t lastEvSimulatedZllStartCycle;
+    uint64_t lastEvSimulatedStartCycle;
 
-        //Cycle accounting
-        uint64_t totalGapCycles; //does not include gapCycles
-        uint64_t totalHaltedCycles; //does not include cycles since last transition to HALTED
-        uint64_t lastUnhaltedCycle; //set on transition to HALTED
+    //Cycle accounting
+    uint64_t totalGapCycles; //does not include gapCycles
+    uint64_t totalHaltedCycles; //does not include cycles since last transition to HALTED
+    uint64_t lastUnhaltedCycle; //set on transition to HALTED
 
-        uint32_t domain;
-        g_string name;
+    uint32_t domain;
+    g_string name;
 
-    public:
-        OOOCoreRecorder(uint32_t _domain, g_string& _name);
+public:
+    OOOCoreRecorder(uint32_t _domain, g_string &_name);
 
-        //Methods called in the bound phase
-        uint64_t notifyJoin(uint64_t curCycle); //returns th updated curCycle, if it needs updating
-        void notifyLeave(uint64_t curCycle);
+    //Methods called in the bound phase
+    uint64_t notifyJoin(uint64_t curCycle); //returns th updated curCycle, if it needs updating
+    void notifyLeave(uint64_t curCycle);
 
-        //This better be inlined 100% of the time, it's called on EVERY access
-        inline void record(uint64_t curCycle, uint64_t dispatchCycle, uint64_t respCycle) {
-            if (unlikely(eventRecorder.hasRecord())) recordAccess(curCycle, dispatchCycle, respCycle);
-        }
+    //This better be inlined 100% of the time, it's called on EVERY access
+    inline void record(uint64_t curCycle, uint64_t dispatchCycle, uint64_t respCycle) {
+        if (unlikely(eventRecorder.hasRecord())) recordAccess(curCycle, dispatchCycle, respCycle);
+    }
 
-        //Methods called between the bound and weave phases
-        uint64_t cSimStart(uint64_t curCycle); //returns updated curCycle
-        uint64_t cSimEnd(uint64_t curCycle); //returns updated curCycle
+    //Methods called between the bound and weave phases
+    uint64_t cSimStart(uint64_t curCycle); //returns updated curCycle
+    uint64_t cSimEnd(uint64_t curCycle); //returns updated curCycle
 
-        //Methods called in the weave phase
-        inline void reportIssueEventSimulated(OOOIssueEvent* ev, uint64_t startCycle);
+    //Methods called in the weave phase
+    inline void reportIssueEventSimulated(OOOIssueEvent *ev, uint64_t startCycle);
 
-        //Misc
-        inline EventRecorder* getEventRecorder() {return &eventRecorder;}
+    //Misc
+    inline EventRecorder *getEventRecorder() { return &eventRecorder; }
 
-        //Stats (called fully synchronized)
-        uint64_t getUnhaltedCycles(uint64_t curCycle) const;
-        uint64_t getContentionCycles() const;
+    //Stats (called fully synchronized)
+    uint64_t getUnhaltedCycles(uint64_t curCycle) const;
 
-        const g_string& getName() const {return name;}
+    uint64_t getContentionCycles() const;
 
-    private:
-        void recordAccess(uint64_t curCycle, uint64_t dispatchCycle, uint64_t respCycle);
-        void addIssueEvent(uint64_t evCycle);
+    const g_string &getName() const { return name; }
+
+private:
+    void recordAccess(uint64_t curCycle, uint64_t dispatchCycle, uint64_t respCycle);
+
+    void addIssueEvent(uint64_t evCycle);
 };
 
 #endif  // OOO_CORE_RECORDER_H_

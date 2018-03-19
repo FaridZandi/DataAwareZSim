@@ -33,19 +33,28 @@
 //template <typename T> typedef std::vector<T, StlGlobAlloc<T> > g_vector;
 
 // Until GCC is compliant with this, just inherit:
-template <typename T> class g_vector : public std::vector<T, StlGlobAlloc<T> >, public GlobAlloc {
-    public:
-        g_vector() = default;
+template<typename T> class g_vector : public std::vector<T, StlGlobAlloc < T>
 
-        g_vector(const std::vector<T>& v) {
-            this->resize(v.size());
-            for (size_t i = 0; i < v.size(); i++) {
-                (*this)[i] = v[i];
-            }
-        }
+>, public GlobAlloc {
+public:
 
-        g_vector(std::initializer_list<T> list) : std::vector<T, StlGlobAlloc<T>>(list) {}
-        g_vector(size_t n, const T& t = T()) : std::vector<T, StlGlobAlloc<T>>(n, t) {}
+g_vector() = default;
+
+g_vector(const std::vector<T> &v) {
+    this->resize(v.size());
+    for (size_t i = 0; i < v.size(); i++) {
+        (*this)[i] = v[i];
+    }
+}
+
+g_vector(std::initializer_list<T>
+list) : std::vector<T, StlGlobAlloc < T>>(list) {
+}
+g_vector(size_t
+n,
+const T &t = T()
+) : std::vector<T, StlGlobAlloc < T>>(n, t) {
+}
 };
 
 /* Some pointers on template typedefs:

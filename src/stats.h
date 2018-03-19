@@ -80,222 +80,223 @@
 #include "log.h"
 
 class Stat : public GlobAlloc {
-    protected:
-        const char* _name;
-        const char* _desc;
+protected:
+    const char *_name;
+    const char *_desc;
 
-    public:
-        Stat() : _name(nullptr), _desc(nullptr) {}
+public:
+    Stat() : _name(nullptr), _desc(nullptr) {}
 
-        virtual ~Stat() {}
+    virtual ~Stat() {}
 
-        const char* name() const {
-            assert(_name);
-            return _name;
-        }
+    const char *name() const {
+        assert(_name);
+        return _name;
+    }
 
-        const char* desc() const {
-            assert(_desc);
-            return _desc;
-        }
+    const char *desc() const {
+        assert(_desc);
+        return _desc;
+    }
 
-    protected:
-        virtual void initStat(const char* name, const char* desc) {
-            assert(name);
-            assert(desc);
-            assert(!_name);
-            assert(!_desc);
-            _name = name;
-            _desc = desc;
-        }
+protected:
+    virtual void initStat(const char *name, const char *desc) {
+        assert(name);
+        assert(desc);
+        assert(!_name);
+        assert(!_desc);
+        _name = name;
+        _desc = desc;
+    }
 };
 
 class AggregateStat : public Stat {
-    private:
-        g_vector<Stat*> _children;
-        bool _isMutable;
-        bool _isRegular;
+private:
+    g_vector<Stat *> _children;
+    bool _isMutable;
+    bool _isRegular;
 
-    public:
-        /* An aggregate stat is regular if all its children are 1) aggregate and 2) of the same type (e.g. all the threads).
-         * This lets us express all the subtypes of instances of a common datatype, and this collection as an array. It is
-         * useful with HDF5, where we would otherwise be forced to have huge compund datatypes, which HDF5 can't do after some
-         * point.
-         */
-        explicit AggregateStat(bool isRegular = false) : Stat(), _isMutable(true), _isRegular(isRegular) {}
+public:
+    /* An aggregate stat is regular if all its children are 1) aggregate and 2) of the same type (e.g. all the threads).
+     * This lets us express all the subtypes of instances of a common datatype, and this collection as an array. It is
+     * useful with HDF5, where we would otherwise be forced to have huge compund datatypes, which HDF5 can't do after some
+     * point.
+     */
+    explicit AggregateStat(bool isRegular = false) : Stat(), _isMutable(true), _isRegular(isRegular) {}
 
-        void init(const char* name, const char* desc) {
-            assert(_isMutable);
-            initStat(name, desc);
-        }
+    void init(const char *name, const char *desc) {
+        assert(_isMutable);
+        initStat(name, desc);
+    }
 
-        //Returns true if it is a non-empty type, false otherwise. Empty types are culled by the parent.
-        bool makeImmutable() {
-            assert(_isMutable);
-            assert(_name != nullptr); //Should have been initialized
-            _isMutable = false;
-            g_vector<Stat*>::iterator it;
-            g_vector<Stat*> newChildren;
-            for (it = _children.begin(); it != _children.end(); it++) {
-                Stat* s = *it;
-                AggregateStat* as = dynamic_cast<AggregateStat*>(s);
-                if (as) {
-                    bool emptyChild = as->makeImmutable();
-                    if (!emptyChild) newChildren.push_back(s);
-                } else {
-                    newChildren.push_back(s);
-                }
+    //Returns true if it is a non-empty type, false otherwise. Empty types are culled by the parent.
+    bool makeImmutable() {
+        assert(_isMutable);
+        assert(_name != nullptr); //Should have been initialized
+        _isMutable = false;
+        g_vector<Stat *>::iterator it;
+        g_vector<Stat *> newChildren;
+        for (it = _children.begin(); it != _children.end(); it++) {
+            Stat *s = *it;
+            AggregateStat *as = dynamic_cast<AggregateStat *>(s);
+            if (as) {
+                bool emptyChild = as->makeImmutable();
+                if (!emptyChild) newChildren.push_back(s);
+            } else {
+                newChildren.push_back(s);
             }
-            _children = newChildren;
-            return _children.size() == 0;
         }
+        _children = newChildren;
+        return _children.size() == 0;
+    }
 
-        void append(Stat* child) {
-            assert(_isMutable);
-            _children.push_back(child);
-        }
+    void append(Stat *child) {
+        assert(_isMutable);
+        _children.push_back(child);
+    }
 
-        uint32_t size() const {
-            assert(!_isMutable);
-            return _children.size();
-        }
+    uint32_t size() const {
+        assert(!_isMutable);
+        return _children.size();
+    }
 
-        bool isRegular() const {
-            return _isRegular;
-        }
+    bool isRegular() const {
+        return _isRegular;
+    }
 
-        Stat* get(uint32_t idx) const {
-            return _children[idx];
-        }
+    Stat *get(uint32_t idx) const {
+        return _children[idx];
+    }
 
-        // Access-while-mutable interface
-        uint32_t curSize() const {
-            return _children.size();
-        }
+    // Access-while-mutable interface
+    uint32_t curSize() const {
+        return _children.size();
+    }
 
 };
 
 /*  General scalar & vector classes */
 
 class ScalarStat : public Stat {
-    public:
-        ScalarStat() : Stat() {}
+public:
+    ScalarStat() : Stat() {}
 
-        virtual void init(const char* name, const char* desc) {
-            initStat(name, desc);
-        }
+    virtual void init(const char *name, const char *desc) {
+        initStat(name, desc);
+    }
 
-        virtual uint64_t get() const = 0;
+    virtual uint64_t get() const = 0;
 };
 
 class VectorStat : public Stat {
-    protected:
-        const char** _counterNames;
+protected:
+    const char **_counterNames;
 
-    public:
-        VectorStat() : _counterNames(nullptr) {}
+public:
+    VectorStat() : _counterNames(nullptr) {}
 
-        virtual uint64_t count(uint32_t idx) const = 0;
-        virtual uint32_t size() const = 0;
+    virtual uint64_t count(uint32_t idx) const = 0;
 
-        inline bool hasCounterNames() {
-            return (_counterNames != nullptr);
-        }
+    virtual uint32_t size() const = 0;
 
-        inline const char* counterName(uint32_t idx) const {
-            return (_counterNames == nullptr)? nullptr : _counterNames[idx];
-        }
+    inline bool hasCounterNames() {
+        return (_counterNames != nullptr);
+    }
 
-        virtual void init(const char* name, const char* desc) {
-            initStat(name, desc);
-        }
+    inline const char *counterName(uint32_t idx) const {
+        return (_counterNames == nullptr) ? nullptr : _counterNames[idx];
+    }
+
+    virtual void init(const char *name, const char *desc) {
+        initStat(name, desc);
+    }
 };
 
 
 class Counter : public ScalarStat {
-    private:
-        uint64_t _count;
+private:
+    uint64_t _count;
 
-    public:
-        Counter() : ScalarStat(), _count(0) {}
+public:
+    Counter() : ScalarStat(), _count(0) {}
 
-        void init(const char* name, const char* desc) {
-            initStat(name, desc);
-            _count = 0;
-        }
+    void init(const char *name, const char *desc) {
+        initStat(name, desc);
+        _count = 0;
+    }
 
-        inline void inc(uint64_t delta) {
-            _count += delta;
-        }
+    inline void inc(uint64_t delta) {
+        _count += delta;
+    }
 
-        inline void inc() {
-            _count++;
-        }
+    inline void inc() {
+        _count++;
+    }
 
-        inline void atomicInc(uint64_t delta) {
-            __sync_fetch_and_add(&_count, delta);
-        }
+    inline void atomicInc(uint64_t delta) {
+        __sync_fetch_and_add(&_count, delta);
+    }
 
-        inline void atomicInc() {
-            __sync_fetch_and_add(&_count, 1);
-        }
+    inline void atomicInc() {
+        __sync_fetch_and_add(&_count, 1);
+    }
 
-        uint64_t get() const {
-            return _count;
-        }
+    uint64_t get() const {
+        return _count;
+    }
 
-        inline void set(uint64_t data) {
-            _count = data;
-        }
+    inline void set(uint64_t data) {
+        _count = data;
+    }
 };
 
 class VectorCounter : public VectorStat {
-    private:
-        g_vector<uint64_t> _counters;
+private:
+    g_vector<uint64_t> _counters;
 
-    public:
-        VectorCounter() : VectorStat() {}
+public:
+    VectorCounter() : VectorStat() {}
 
-        /* Without counter names */
-        virtual void init(const char* name, const char* desc, uint32_t size) {
-            initStat(name, desc);
-            assert(size > 0);
-            _counters.resize(size);
-            for (uint32_t i = 0; i < size; i++) _counters[i] = 0;
-            _counterNames = nullptr;
-        }
+    /* Without counter names */
+    virtual void init(const char *name, const char *desc, uint32_t size) {
+        initStat(name, desc);
+        assert(size > 0);
+        _counters.resize(size);
+        for (uint32_t i = 0; i < size; i++) _counters[i] = 0;
+        _counterNames = nullptr;
+    }
 
-        /* With counter names */
-        virtual void init(const char* name, const char* desc, uint32_t size, const char** counterNames) {
-            init(name, desc, size);
-            assert(counterNames);
-            _counterNames = gm_dup<const char*>(counterNames, size);
-        }
+    /* With counter names */
+    virtual void init(const char *name, const char *desc, uint32_t size, const char **counterNames) {
+        init(name, desc, size);
+        assert(counterNames);
+        _counterNames = gm_dup<const char *>(counterNames, size);
+    }
 
-        inline void inc(uint32_t idx, uint64_t value) {
-			//assert(_counters);
-            _counters[idx] += value;
-        }
+    inline void inc(uint32_t idx, uint64_t value) {
+        //assert(_counters);
+        _counters[idx] += value;
+    }
 
-        inline void inc(uint32_t idx) {
-             _counters[idx]++;
-        }
+    inline void inc(uint32_t idx) {
+        _counters[idx]++;
+    }
 
-        inline void atomicInc(uint32_t idx, uint64_t delta) {
-            __sync_fetch_and_add(&_counters[idx], delta);
-        }
+    inline void atomicInc(uint32_t idx, uint64_t delta) {
+        __sync_fetch_and_add(&_counters[idx], delta);
+    }
 
-        inline void atomicInc(uint32_t idx) {
-            __sync_fetch_and_add(&_counters[idx], 1);
-        }
+    inline void atomicInc(uint32_t idx) {
+        __sync_fetch_and_add(&_counters[idx], 1);
+    }
 
-        inline virtual uint64_t count(uint32_t idx) const {
-            return _counters[idx];
-        }
+    inline virtual uint64_t count(uint32_t idx) const {
+        return _counters[idx];
+    }
 
-        inline uint32_t size() const {
-            return _counters.size();
-        }
+    inline uint32_t size() const {
+        return _counters.size();
+    }
 };
 
 /*
@@ -305,40 +306,40 @@ class Histogram : public Stat {
 */
 
 class ProxyStat : public ScalarStat {
-    private:
-        uint64_t* _statPtr;
+private:
+    uint64_t *_statPtr;
 
-    public:
-        ProxyStat() : ScalarStat(), _statPtr(nullptr) {}
+public:
+    ProxyStat() : ScalarStat(), _statPtr(nullptr) {}
 
-        void init(const char* name, const char* desc, uint64_t* ptr) {
-            initStat(name, desc);
-            _statPtr = ptr;
-        }
+    void init(const char *name, const char *desc, uint64_t *ptr) {
+        initStat(name, desc);
+        _statPtr = ptr;
+    }
 
-        uint64_t get() const {
-            assert(_statPtr);  // TODO: we may want to make this work only with volatiles...
-            return *_statPtr;
-        }
+    uint64_t get() const {
+        assert(_statPtr);  // TODO: we may want to make this work only with volatiles...
+        return *_statPtr;
+    }
 };
 
 
 class ProxyFuncStat : public ScalarStat {
-    private:
-        uint64_t (*_func)();
+private:
+    uint64_t (*_func)();
 
-    public:
-        ProxyFuncStat() : ScalarStat(), _func(nullptr) {}
+public:
+    ProxyFuncStat() : ScalarStat(), _func(nullptr) {}
 
-        void init(const char* name, const char* desc, uint64_t (*func)()) {
-            initStat(name, desc);
-            _func = func;
-        }
+    void init(const char *name, const char *desc, uint64_t (*func)()) {
+        initStat(name, desc);
+        _func = func;
+    }
 
-        uint64_t get() const {
-            assert(_func);
-            return _func();
-        }
+    uint64_t get() const {
+        assert(_func);
+        return _func();
+    }
 };
 
 /*
@@ -350,69 +351,77 @@ class ProxyFuncStat : public ScalarStat {
  *  LambdaStat<decltype(x)>* cyclesStat = new LambdaStat<decltype(x)>(x); //instantiate the templated stat. Each lambda has a unique type, which you get with decltype
  *  cyclesStat->init("cycles", "Simulated cycles"); //etc. Use as an usual stat!
  */
-template <typename F>
+template<typename F>
 class LambdaStat : public ScalarStat {
-    private:
-        F f;
+private:
+    F f;
 
-    public:
-        explicit LambdaStat(F _f) : f(_f) {} //copy the lambda
-        uint64_t get() const {return f();}
+public:
+    explicit LambdaStat(F _f) : f(_f) {} //copy the lambda
+    uint64_t get() const { return f(); }
 };
 
 template<typename F>
 class LambdaVectorStat : public VectorStat {
-    private:
-        F f;
-        uint32_t s;
+private:
+    F f;
+    uint32_t s;
 
-    public:
-        LambdaVectorStat(F _f, uint32_t _s) : VectorStat(), f(_f), s(_s) {}
-        uint32_t size() const { return s; }
-        uint64_t count(uint32_t idx) const { //dsm: Interestingly, this compiles even if f() is not const. gcc may catch this eventually...
-            assert(idx < s);
-            return f(idx);
-        }
+public:
+    LambdaVectorStat(F _f, uint32_t _s) : VectorStat(), f(_f), s(_s) {}
+
+    uint32_t size() const { return s; }
+
+    uint64_t
+    count(uint32_t idx) const { //dsm: Interestingly, this compiles even if f() is not const. gcc may catch this eventually...
+        assert(idx < s);
+        return f(idx);
+    }
 };
 
 // Convenience creation functions
-template <typename F>
-LambdaStat<F>* makeLambdaStat(F f) { return new LambdaStat<F>(f); }
+template<typename F>
+LambdaStat<F> *makeLambdaStat(F f) { return new LambdaStat<F>(f); }
 
 template<typename F>
-LambdaVectorStat<F>* makeLambdaVectorStat(F f, uint32_t size) { return new LambdaVectorStat<F>(f, size); }
+LambdaVectorStat<F> *makeLambdaVectorStat(F f, uint32_t size) { return new LambdaVectorStat<F>(f, size); }
 
 //Stat Backends declarations.
 
 class StatsBackend : public GlobAlloc {
-    public:
-        StatsBackend() {}
-        virtual ~StatsBackend() {}
-        virtual void dump(bool buffered)=0;
+public:
+    StatsBackend() {}
+
+    virtual ~StatsBackend() {}
+
+    virtual void dump(bool buffered)=0;
 };
 
 
 class TextBackendImpl;
 
 class TextBackend : public StatsBackend {
-    private:
-        TextBackendImpl* backend;
+private:
+    TextBackendImpl *backend;
 
-    public:
-        TextBackend(const char* filename, AggregateStat* rootStat);
-        virtual void dump(bool buffered);
+public:
+    TextBackend(const char *filename, AggregateStat *rootStat);
+
+    virtual void dump(bool buffered);
 };
 
 
 class HDF5BackendImpl;
 
 class HDF5Backend : public StatsBackend {
-    private:
-        HDF5BackendImpl* backend;
+private:
+    HDF5BackendImpl *backend;
 
-    public:
-        HDF5Backend(const char* filename, AggregateStat* rootStat, size_t bytesPerWrite, bool skipVectors, bool sumRegularAggregates);
-        virtual void dump(bool buffered);
+public:
+    HDF5Backend(const char *filename, AggregateStat *rootStat, size_t bytesPerWrite, bool skipVectors,
+                bool sumRegularAggregates);
+
+    virtual void dump(bool buffered);
 };
 
 #endif  // STATS_H_

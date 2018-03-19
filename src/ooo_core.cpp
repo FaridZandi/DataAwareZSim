@@ -55,7 +55,8 @@
 #define ISSUES_PER_CYCLE 4
 #define RF_READS_PER_CYCLE 3
 
-OOOCore::OOOCore(FilterCache* _l1i, FilterCache* _l1d, g_string& _name) : Core(_name), l1i(_l1i), l1d(_l1d), cRec(0, _name) {
+OOOCore::OOOCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name) : Core(_name), l1i(_l1i), l1d(_l1d),
+                                                                          cRec(0, _name) {
     decodeCycle = DECODE_STAGE;  // allow subtracting from it
     curCycle = 0;
     phaseEndCycle = zinfo->phaseLength;
@@ -73,30 +74,30 @@ OOOCore::OOOCore(FilterCache* _l1i, FilterCache* _l1d, g_string& _name) : Core(_
 
     instrs = uops = bbls = approxInstrs = mispredBranches = 0;
 
-    for (uint32_t i = 0; i < FWD_ENTRIES; i++) fwdArray[i].set((Address)(-1L), 0);
+    for (uint32_t i = 0; i < FWD_ENTRIES; i++) fwdArray[i].set((Address) (-1L), 0);
 }
 
-void OOOCore::initStats(AggregateStat* parentStat) {
-    AggregateStat* coreStat = new AggregateStat();
+void OOOCore::initStats(AggregateStat *parentStat) {
+    AggregateStat *coreStat = new AggregateStat();
     coreStat->init(name.c_str(), "Core stats");
 
     auto x = [this]() { return cRec.getUnhaltedCycles(curCycle); };
-    LambdaStat<decltype(x)>* cyclesStat = new LambdaStat<decltype(x)>(x);
+    LambdaStat<decltype(x)> *cyclesStat = new LambdaStat<decltype(x)>(x);
     cyclesStat->init("cycles", "Simulated unhalted cycles");
 
     auto y = [this]() { return cRec.getContentionCycles(); };
-    LambdaStat<decltype(y)>* cCyclesStat = new LambdaStat<decltype(y)>(y);
+    LambdaStat<decltype(y)> *cCyclesStat = new LambdaStat<decltype(y)>(y);
     cCyclesStat->init("cCycles", "Cycles due to contention stalls");
 
-    ProxyStat* instrsStat = new ProxyStat();
+    ProxyStat *instrsStat = new ProxyStat();
     instrsStat->init("instrs", "Simulated instructions", &instrs);
-    ProxyStat* uopsStat = new ProxyStat();
+    ProxyStat *uopsStat = new ProxyStat();
     uopsStat->init("uops", "Retired micro-ops", &uops);
-    ProxyStat* bblsStat = new ProxyStat();
+    ProxyStat *bblsStat = new ProxyStat();
     bblsStat->init("bbls", "Basic blocks", &bbls);
-    ProxyStat* approxInstrsStat = new ProxyStat();
+    ProxyStat *approxInstrsStat = new ProxyStat();
     approxInstrsStat->init("approxInstrs", "Instrs with approx uop decoding", &approxInstrs);
-    ProxyStat* mispredBranchesStat = new ProxyStat();
+    ProxyStat *mispredBranchesStat = new ProxyStat();
     mispredBranchesStat->init("mispredBranches", "Mispredicted branches", &mispredBranches);
 
     coreStat->append(cyclesStat);
@@ -116,8 +117,9 @@ void OOOCore::initStats(AggregateStat* parentStat) {
     parentStat->append(coreStat);
 }
 
-uint64_t OOOCore::getInstrs() const {return instrs;}
-uint64_t OOOCore::getPhaseCycles() const {return curCycle % zinfo->phaseLength;}
+uint64_t OOOCore::getInstrs() const { return instrs; }
+
+uint64_t OOOCore::getPhaseCycles() const { return curCycle % zinfo->phaseLength; }
 
 void OOOCore::contextSwitch(int32_t gid) {
     if (gid == -1) {
@@ -131,7 +133,9 @@ void OOOCore::contextSwitch(int32_t gid) {
 }
 
 
-InstrFuncPtrs OOOCore::GetFuncPtrs() {return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};}
+InstrFuncPtrs OOOCore::GetFuncPtrs() {
+    return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};
+}
 
 inline void OOOCore::load(Address addr, Address pc /*Kasraa*/) {  //Kasraa: I heavily modified this function
     uint32_t currIdx = loads;
@@ -170,7 +174,7 @@ void OOOCore::branch(Address pc, bool taken, Address takenNpc, Address notTakenN
     branchNotTakenNpc = notTakenNpc;
 }
 
-inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
+inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
     if (!prevBbl) {
         // This is the 1st BBL since scheduled, nothing to simulate
         prevBbl = bblInfo;
@@ -182,7 +186,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
     /* Simulate execution of previous BBL */
 
     uint32_t bblInstrs = prevBbl->instrs;
-    DynBbl* bbl = &(prevBbl->oooBbl[0]);
+    DynBbl *bbl = &(prevBbl->oooBbl[0]);
     prevBbl = bblInfo;
 
     uint32_t loadIdx = 0;
@@ -193,7 +197,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
 
     // Run dispatch/IW
     for (uint32_t i = 0; i < bbl->uops; i++) {
-        DynUop* uop = &(bbl->uop[i]);
+        DynUop *uop = &(bbl->uop[i]);
 
         // Decode stalls
         uint32_t decDiff = uop->decCycle - prevDecCycle;
@@ -232,7 +236,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
 
         // RF read stalls
         // if srcs are not available at issue time, we have to go thru the RF
-        curCycleRFReads += ((c0 < curCycle)? 1 : 0) + ((c1 < curCycle)? 1 : 0);
+        curCycleRFReads += ((c0 < curCycle) ? 1 : 0) + ((c1 < curCycle) ? 1 : 0);
         if (curCycleRFReads > RF_READS_PER_CYCLE) {
             curCycleRFReads -= RF_READS_PER_CYCLE;
             curCycleIssuedUops = 0;  // or 1? that's probably a 2nd-order detail
@@ -266,84 +270,82 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
                 commitCycle = dispatchCycle + uop->lat;
                 break;
 
-            case UOP_LOAD:
-                {
-                    // dispatchCycle = MAX(loadQueue.minAllocCycle(), dispatchCycle);
-                    uint64_t lqCycle = loadQueue.minAllocCycle();
-                    if (lqCycle > dispatchCycle) {
+            case UOP_LOAD: {
+                // dispatchCycle = MAX(loadQueue.minAllocCycle(), dispatchCycle);
+                uint64_t lqCycle = loadQueue.minAllocCycle();
+                if (lqCycle > dispatchCycle) {
 #ifdef LSU_IW_BACKPRESSURE
-                        insWindow.poisonRange(curCycle, lqCycle, 0x4 /*PORT_2, loads*/);
+                    insWindow.poisonRange(curCycle, lqCycle, 0x4 /*PORT_2, loads*/);
 #endif
-                        dispatchCycle = lqCycle;
-                    }
-
-                    // Wait for all previous store addresses to be resolved
-                    dispatchCycle = MAX(lastStoreAddrCommitCycle+1, dispatchCycle);
-
-                    //Kasraa [Begin]
-                    uint64_t loadsCurrIdx = loadIdx;
-                    loadIdx++;
-                    assert_msg(loadIdx != 0, "Kasraa: As loadIdx is never decremented, loadIdx cannot be 0 here!");
-                    Address addr = loadAddrs[loadsCurrIdx];
-                    Address pc = loadPCs[loadsCurrIdx];
-                    //Kasraa [End]
-
-                    uint64_t reqSatisfiedCycle = dispatchCycle;
-                    if (addr != ((Address)-1L)) {
-                        reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
-                        cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
-                    }
-
-                    // Enforce st-ld forwarding
-                    uint32_t fwdIdx = (addr>>2) & (FWD_ENTRIES-1);
-                    if (fwdArray[fwdIdx].addr == addr) {
-                        // info("0x%lx FWD %ld %ld", addr, reqSatisfiedCycle, fwdArray[fwdIdx].storeCycle);
-                        /* Take the MAX (see FilterCache's code) Our fwdArray
-                         * imposes more stringent timing constraints than the
-                         * l1d, b/c FilterCache does not change the line's
-                         * availCycle on a store. This allows FilterCache to
-                         * track per-line, not per-word availCycles.
-                         */
-                        reqSatisfiedCycle = MAX(reqSatisfiedCycle, fwdArray[fwdIdx].storeCycle);
-                    }
-
-                    commitCycle = reqSatisfiedCycle;
-                    loadQueue.markRetire(commitCycle);
+                    dispatchCycle = lqCycle;
                 }
+
+                // Wait for all previous store addresses to be resolved
+                dispatchCycle = MAX(lastStoreAddrCommitCycle + 1, dispatchCycle);
+
+                //Kasraa [Begin]
+                uint64_t loadsCurrIdx = loadIdx;
+                loadIdx++;
+                assert_msg(loadIdx != 0, "Kasraa: As loadIdx is never decremented, loadIdx cannot be 0 here!");
+                Address addr = loadAddrs[loadsCurrIdx];
+                Address pc = loadPCs[loadsCurrIdx];
+                //Kasraa [End]
+
+                uint64_t reqSatisfiedCycle = dispatchCycle;
+                if (addr != ((Address) -1L)) {
+                    reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
+                    cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
+                }
+
+                // Enforce st-ld forwarding
+                uint32_t fwdIdx = (addr >> 2) & (FWD_ENTRIES - 1);
+                if (fwdArray[fwdIdx].addr == addr) {
+                    // info("0x%lx FWD %ld %ld", addr, reqSatisfiedCycle, fwdArray[fwdIdx].storeCycle);
+                    /* Take the MAX (see FilterCache's code) Our fwdArray
+                     * imposes more stringent timing constraints than the
+                     * l1d, b/c FilterCache does not change the line's
+                     * availCycle on a store. This allows FilterCache to
+                     * track per-line, not per-word availCycles.
+                     */
+                    reqSatisfiedCycle = MAX(reqSatisfiedCycle, fwdArray[fwdIdx].storeCycle);
+                }
+
+                commitCycle = reqSatisfiedCycle;
+                loadQueue.markRetire(commitCycle);
+            }
                 break;
 
-            case UOP_STORE:
-                {
-                    // dispatchCycle = MAX(storeQueue.minAllocCycle(), dispatchCycle);
-                    uint64_t sqCycle = storeQueue.minAllocCycle();
-                    if (sqCycle > dispatchCycle) {
+            case UOP_STORE: {
+                // dispatchCycle = MAX(storeQueue.minAllocCycle(), dispatchCycle);
+                uint64_t sqCycle = storeQueue.minAllocCycle();
+                if (sqCycle > dispatchCycle) {
 #ifdef LSU_IW_BACKPRESSURE
-                        insWindow.poisonRange(curCycle, sqCycle, 0x10 /*PORT_4, stores*/);
+                    insWindow.poisonRange(curCycle, sqCycle, 0x10 /*PORT_4, stores*/);
 #endif
-                        dispatchCycle = sqCycle;
-                    }
-
-                    // Wait for all previous store addresses to be resolved (not just ours :))
-                    dispatchCycle = MAX(lastStoreAddrCommitCycle+1, dispatchCycle);
-
-                    //Kasraa [Begin] 
-                    uint32_t storesCurrIdx = storeIdx;
-                    storeIdx++;
-                    assert_msg(storeIdx != 0, "Kasraa: As storeIdx is never decremented, storeIdx cannot be 0 here!");
-                    Address addr = storeAddrs[storesCurrIdx];
-                    Address pc = storePCs[storesCurrIdx];
-                    //Kasraa [End]
-
-                    uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
-                    cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
-
-                    // Fill the forwarding table
-                    fwdArray[(addr>>2) & (FWD_ENTRIES-1)].set(addr, reqSatisfiedCycle);
-
-                    commitCycle = reqSatisfiedCycle;
-                    lastStoreCommitCycle = MAX(lastStoreCommitCycle, reqSatisfiedCycle);
-                    storeQueue.markRetire(commitCycle);
+                    dispatchCycle = sqCycle;
                 }
+
+                // Wait for all previous store addresses to be resolved (not just ours :))
+                dispatchCycle = MAX(lastStoreAddrCommitCycle + 1, dispatchCycle);
+
+                //Kasraa [Begin]
+                uint32_t storesCurrIdx = storeIdx;
+                storeIdx++;
+                assert_msg(storeIdx != 0, "Kasraa: As storeIdx is never decremented, storeIdx cannot be 0 here!");
+                Address addr = storeAddrs[storesCurrIdx];
+                Address pc = storePCs[storesCurrIdx];
+                //Kasraa [End]
+
+                uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
+                cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
+
+                // Fill the forwarding table
+                fwdArray[(addr >> 2) & (FWD_ENTRIES - 1)].set(addr, reqSatisfiedCycle);
+
+                commitCycle = reqSatisfiedCycle;
+                lastStoreCommitCycle = MAX(lastStoreCommitCycle, reqSatisfiedCycle);
+                storeQueue.markRetire(commitCycle);
+            }
                 break;
 
             case UOP_STORE_ADDR:
@@ -351,13 +353,14 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
                 lastStoreAddrCommitCycle = MAX(lastStoreAddrCommitCycle, commitCycle);
                 break;
 
-            //case UOP_FENCE:  //make gcc happy
+                //case UOP_FENCE:  //make gcc happy
             default:
-                assert((UopType) uop->type == UOP_FENCE);
+            assert((UopType) uop->type == UOP_FENCE);
                 commitCycle = dispatchCycle + uop->lat;
                 // info("%d %ld %ld", uop->lat, lastStoreAddrCommitCycle, lastStoreCommitCycle);
                 // force future load serialization
-                lastStoreAddrCommitCycle = MAX(commitCycle, MAX(lastStoreAddrCommitCycle, lastStoreCommitCycle + uop->lat));
+                lastStoreAddrCommitCycle = MAX(commitCycle,
+                                               MAX(lastStoreAddrCommitCycle, lastStoreCommitCycle + uop->lat));
                 // info("%d %ld %ld X", uop->lat, lastStoreAddrCommitCycle, lastStoreCommitCycle);
         }
 
@@ -430,17 +433,19 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
 
         // info("Mispredicted branch, %ld %ld %ld | %ld %ld", decodeCycle, curCycle, lastCommitCycle,
         //         lastCommitCycle-decodeCycle, lastCommitCycle-curCycle);
-        Address wrongPathAddr = branchTaken? branchNotTakenNpc : branchTakenNpc;
+        Address wrongPathAddr = branchTaken ? branchNotTakenNpc : branchTakenNpc;
         uint64_t reqCycle = fetchCycle;
-        for (uint32_t i = 0; i < 5*64/lineSize; i++) {
-            uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize*i, curCycle, wrongPathAddr + lineSize*i /*Kasraa: This is instruction cache and the PC is not required*/) - curCycle;
+        for (uint32_t i = 0; i < 5 * 64 / lineSize; i++) {
+            uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i, curCycle, wrongPathAddr + lineSize *
+                                                                                                  i /*Kasraa: This is instruction cache and the PC is not required*/) -
+                                curCycle;
             cRec.record(curCycle, curCycle, curCycle + fetchLat);
             uint64_t respCycle = reqCycle + fetchLat;
             if (respCycle > lastCommitCycle) {
                 break;
             }
             // Model fetch throughput limit
-            reqCycle = respCycle + lineSize/FETCH_BYTES_PER_CYCLE;
+            reqCycle = respCycle + lineSize / FETCH_BYTES_PER_CYCLE;
         }
 
         fetchCycle = lastCommitCycle;
@@ -454,7 +459,9 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo* bblInfo) {
         // Do not model fetch throughput limit here, decoder-generated stalls already include it
         // We always call fetches with curCycle to avoid upsetting the weave
         // models (but we could move to a fetch-centric recorder to avoid this)
-        uint64_t fetchLat = l1i->load(fetchAddr, curCycle, fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/) - curCycle;
+        uint64_t fetchLat = l1i->load(fetchAddr, curCycle,
+                                      fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/) -
+                            curCycle;
         cRec.record(curCycle, curCycle, curCycle + fetchLat);
         fetchCycle += fetchLat;
     }
@@ -513,23 +520,28 @@ void OOOCore::advance(uint64_t targetCycle) {
 
 // Pin interface code
 
-void OOOCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {static_cast<OOOCore*>(cores[tid])->load(addr, pc /*kasraa*/);}
-void OOOCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {static_cast<OOOCore*>(cores[tid])->store(addr, pc /*kasraa*/);}
+void OOOCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
+    static_cast<OOOCore *>(cores[tid])->load(addr, pc /*kasraa*/);
+}
+
+void OOOCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
+    static_cast<OOOCore *>(cores[tid])->store(addr, pc /*kasraa*/);
+}
 
 void OOOCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, BOOL pred) {
-    OOOCore* core = static_cast<OOOCore*>(cores[tid]);
+    OOOCore *core = static_cast<OOOCore *>(cores[tid]);
     if (pred) core->load(addr, pc /*kasraa*/);
     else core->predFalseMemOp();
 }
 
 void OOOCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, BOOL pred) {
-    OOOCore* core = static_cast<OOOCore*>(cores[tid]);
+    OOOCore *core = static_cast<OOOCore *>(cores[tid]);
     if (pred) core->store(addr, pc /*kasraa*/);
     else core->predFalseMemOp();
 }
 
-void OOOCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
-    OOOCore* core = static_cast<OOOCore*>(cores[tid]);
+void OOOCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
+    OOOCore *core = static_cast<OOOCore *>(cores[tid]);
     core->bbl(bblAddr, bblInfo);
 
     while (core->curCycle > core->phaseEndCycle) {
@@ -549,6 +561,6 @@ void OOOCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
 }
 
 void OOOCore::BranchFunc(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT takenNpc, ADDRINT notTakenNpc) {
-    static_cast<OOOCore*>(cores[tid])->branch(pc, taken, takenNpc, notTakenNpc);
+    static_cast<OOOCore *>(cores[tid])->branch(pc, taken, takenNpc, notTakenNpc);
 }
 

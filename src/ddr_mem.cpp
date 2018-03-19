@@ -39,49 +39,53 @@
 
 // Recorder-allocated event, represents one read or write request
 class DDRMemoryAccEvent : public TimingEvent {
-    private:
-        DDRMemory* mem;
-        Address addr;
-		uint32_t data_size;
-        bool write;
-    public:
-        DDRMemoryAccEvent(DDRMemory* _mem, bool _isWrite, Address _addr, uint32_t _data_size, int32_t domain, uint32_t preDelay, uint32_t postDelay)
-            : TimingEvent(preDelay, postDelay, domain), mem(_mem), addr(_addr), data_size(_data_size), write(_isWrite) {}
+private:
+    DDRMemory *mem;
+    Address addr;
+    uint32_t data_size;
+    bool write;
+public:
+    DDRMemoryAccEvent(DDRMemory *_mem, bool _isWrite, Address _addr, uint32_t _data_size, int32_t domain,
+                      uint32_t preDelay, uint32_t postDelay)
+            : TimingEvent(preDelay, postDelay, domain), mem(_mem), addr(_addr), data_size(_data_size),
+              write(_isWrite) {}
 
-        Address getAddr() const {return addr;}
-        bool isWrite() const {return write;}
-		uint32_t getDataSize() const {return data_size;}
-        void simulate(uint64_t startCycle) {
-            mem->enqueue(this, startCycle);
-        }
+    Address getAddr() const { return addr; }
+
+    bool isWrite() const { return write; }
+
+    uint32_t getDataSize() const { return data_size; }
+
+    void simulate(uint64_t startCycle) {
+        mem->enqueue(this, startCycle);
+    }
 };
 
 // Globally allocated event that calls us every tREFI cycles
 class RefreshEvent : public TimingEvent, public GlobAlloc {
-    private:
-        DDRMemory* mem;
-        uint32_t refInterval;  // in sysCycles
+private:
+    DDRMemory *mem;
+    uint32_t refInterval;  // in sysCycles
 
-    public:
-        RefreshEvent(DDRMemory* _mem, uint32_t _refInterval, int32_t domain) :
-            TimingEvent(0, 0, domain), mem(_mem), refInterval(_refInterval)
-        {
-            setMinStartCycle(0);
-            zinfo->contentionSim->enqueueSynced(this, 0);
-        }
+public:
+    RefreshEvent(DDRMemory *_mem, uint32_t _refInterval, int32_t domain) :
+            TimingEvent(0, 0, domain), mem(_mem), refInterval(_refInterval) {
+        setMinStartCycle(0);
+        zinfo->contentionSim->enqueueSynced(this, 0);
+    }
 
-        void parentDone(uint64_t startCycle) {
-            panic("This is queued directly");
-        }
+    void parentDone(uint64_t startCycle) {
+        panic("This is queued directly");
+    }
 
-        void simulate(uint64_t startCycle) {
-            mem->refresh(startCycle);
-            requeue(startCycle + refInterval);
-        }
+    void simulate(uint64_t startCycle) {
+        mem->refresh(startCycle);
+        requeue(startCycle + refInterval);
+    }
 
-        // Use glob mem
-        using GlobAlloc::operator new;
-        using GlobAlloc::operator delete;
+    // Use glob mem
+    using GlobAlloc::operator new;
+    using GlobAlloc::operator delete;
 };
 
 /* Globally allocated event for scheduling
@@ -91,84 +95,85 @@ class RefreshEvent : public TimingEvent, public GlobAlloc {
  * be ticked according to varying constraints.
  */
 class SchedEvent : public TimingEvent, public GlobAlloc {
-    private:
-        DDRMemory* const mem;
-        enum State { IDLE, QUEUED, RUNNING, ANNULLED };
-        State state;
+private:
+    DDRMemory *const mem;
+    enum State {
+        IDLE, QUEUED, RUNNING, ANNULLED
+    };
+    State state;
 
-    public:
-        SchedEvent* next;  // for event freelist
+public:
+    SchedEvent *next;  // for event freelist
 
-        SchedEvent(DDRMemory* _mem, int32_t domain) : TimingEvent(0, 0, domain), mem(_mem) {
-            setMinStartCycle(0);
-            setRunning();
-            hold();
-            state = IDLE;
-            next = nullptr;
-        }
+    SchedEvent(DDRMemory *_mem, int32_t domain) : TimingEvent(0, 0, domain), mem(_mem) {
+        setMinStartCycle(0);
+        setRunning();
+        hold();
+        state = IDLE;
+        next = nullptr;
+    }
 
-        void parentDone(uint64_t startCycle) {
-            panic("This is queued directly");
-        }
+    void parentDone(uint64_t startCycle) {
+        panic("This is queued directly");
+    }
 
-        void simulate(uint64_t startCycle) {
-            if (state == QUEUED) {
-                state = RUNNING;
-				assert(mem);
-                uint64_t nextCycle = mem->tick(startCycle);
-                if (nextCycle) {
-                    requeue(nextCycle);
-                    state = QUEUED;
-                } else {
-                    state = IDLE;
-                    hold();
-                    mem->recycleEvent(this);
-                }
+    void simulate(uint64_t startCycle) {
+        if (state == QUEUED) {
+            state = RUNNING;
+            assert(mem);
+            uint64_t nextCycle = mem->tick(startCycle);
+            if (nextCycle) {
+                requeue(nextCycle);
+                state = QUEUED;
             } else {
-                assert(state == ANNULLED);
                 state = IDLE;
                 hold();
                 mem->recycleEvent(this);
             }
+        } else {
+            assert(state == ANNULLED);
+            state = IDLE;
+            hold();
+            mem->recycleEvent(this);
         }
+    }
 
-        void enqueue(uint64_t cycle) {
-            assert(state == IDLE);
-            state = QUEUED;
-            requeue(cycle);
-        }
+    void enqueue(uint64_t cycle) {
+        assert(state == IDLE);
+        state = QUEUED;
+        requeue(cycle);
+    }
 
-        void annul() {
-            assert_msg(state == QUEUED, "sched state %d", state);
-            state = ANNULLED;
-        }
+    void annul() {
+        assert_msg(state == QUEUED, "sched state %d", state);
+        state = ANNULLED;
+    }
 
-        // Use glob mem
-        using GlobAlloc::operator new;
-        using GlobAlloc::operator delete;
+    // Use glob mem
+    using GlobAlloc::operator new;
+    using GlobAlloc::operator delete;
 };
 
 
 /* Init & bound phase functionality */
 
 DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerChannel, uint32_t _banksPerRank,
-        uint32_t _sysFreqMHz, const char* tech, const char* addrMapping, uint32_t _controllerSysLatency,
-        uint32_t _queueDepth, uint32_t _rowHitLimit, bool _deferredWrites, bool _closedPage,
-        uint32_t _domain, g_string& _name, uint32_t _tBL, double time_scale)
-    : lineSize(_lineSize), ranksPerChannel(_ranksPerChannel), banksPerRank(_banksPerRank),
-      controllerSysLatency(_controllerSysLatency), queueDepth(_queueDepth), rowHitLimit(_rowHitLimit),
-      deferredWrites(_deferredWrites), closedPage(_closedPage), domain(_domain), name(_name)
-{
+                     uint32_t _sysFreqMHz, const char *tech, const char *addrMapping, uint32_t _controllerSysLatency,
+                     uint32_t _queueDepth, uint32_t _rowHitLimit, bool _deferredWrites, bool _closedPage,
+                     uint32_t _domain, g_string &_name, uint32_t _tBL, double time_scale)
+        : lineSize(_lineSize), ranksPerChannel(_ranksPerChannel), banksPerRank(_banksPerRank),
+          controllerSysLatency(_controllerSysLatency), queueDepth(_queueDepth), rowHitLimit(_rowHitLimit),
+          deferredWrites(_deferredWrites), closedPage(_closedPage), domain(_domain), name(_name) {
     sysFreqKHz = 1000 * _sysFreqMHz;
     initTech(tech, time_scale);  // sets all tXX and memFreqKHz
-	tBL = _tBL;
-    if (memFreqKHz >= sysFreqKHz/2) {
+    tBL = _tBL;
+    if (memFreqKHz >= sysFreqKHz / 2) {
         panic("You may need to tweak the scheduling code, which works with system cycles." \
             "With these frequencies, events (which run on system cycles) can't hit us every memory cycle.");
     }
 
     //minRdLatency = controllerSysLatency + memToSysCycle(tCL+tBL-1);
-    minRdLatency = controllerSysLatency + memToSysCycle(tCL+2-1);
+    minRdLatency = controllerSysLatency + memToSysCycle(tCL + 2 - 1);
     minWrLatency = controllerSysLatency;
     preDelay = controllerSysLatency;
     postDelayRd = minRdLatency - preDelay;
@@ -178,7 +183,7 @@ DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerCh
     wrQueue.init(queueDepth);
 
     info("%s: domain %d, %d ranks/ch %d banks/rank, tech %s, boundLat %d rd / %d wr",
-            name.c_str(), domain, ranksPerChannel, banksPerRank, tech, minRdLatency, minWrLatency);
+         name.c_str(), domain, ranksPerChannel, banksPerRank, tech, minRdLatency, minWrLatency);
 
     minRespCycle = tCL + tBL + 1; // We subtract tCL + tBL from this on some checks; this avoids overflows
 
@@ -186,10 +191,11 @@ DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerCh
     for (uint32_t i = 0; i < ranksPerChannel; i++) banks[i].resize(banksPerRank);
 
     rankActWindows.resize(ranksPerChannel);
-    for (uint32_t i = 0; i < ranksPerChannel; i++) rankActWindows[i].init(4);  // we only model FAW; for TAW (other technologies) change this to 2
+    for (uint32_t i = 0; i < ranksPerChannel; i++)
+        rankActWindows[i].init(4);  // we only model FAW; for TAW (other technologies) change this to 2
 
     // We get line addresses, and for a 64-byte line, there are _colSize/(JEDEC_BUS_WIDTH/8) lines/page
-    uint32_t colBits = ilog2(_colSize/(JEDEC_BUS_WIDTH/8)*64/lineSize);
+    uint32_t colBits = ilog2(_colSize / (JEDEC_BUS_WIDTH / 8) * 64 / lineSize);
     uint32_t bankBits = ilog2(banksPerRank);
     uint32_t rankBits = ilog2(ranksPerChannel);
 
@@ -197,19 +203,21 @@ DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerCh
     // (row is always MSB bits, since we don't actually know how many bits it is to begin with...)
     std::vector<std::string> tokens;
     Tokenize(addrMapping, tokens, ":");
-    if (tokens.size() != 3) panic("Invalid addrMapping %s, need all row/col/rank tokens separated by colons", addrMapping);
+    if (tokens.size() != 3) panic("Invalid addrMapping %s, need all row/col/rank tokens separated by colons",
+                                  addrMapping);
     std::reverse(tokens.begin(), tokens.end()); // want lowest bits first
 
     colMask = rankMask = bankMask = 0;
     uint32_t startBit = 0;
-    auto computeShiftAndMask = [&startBit, addrMapping](const std::string& field, const uint32_t fieldBits, uint32_t& shift, uint32_t& mask) {
+    auto computeShiftAndMask = [&startBit, addrMapping](const std::string &field, const uint32_t fieldBits,
+                                                        uint32_t &shift, uint32_t &mask) {
         if (mask) panic("Repeated field %s in addrMapping %s", field.c_str(), addrMapping);
         shift = startBit;
         mask = (1 << fieldBits) - 1;
         startBit += fieldBits;
     };
     for (auto t : tokens) {
-        if (t == "col")       computeShiftAndMask(t, colBits,  colShift,  colMask);
+        if (t == "col") computeShiftAndMask(t, colBits, colShift, colMask);
         else if (t == "rank") computeShiftAndMask(t, rankBits, rankShift, rankMask);
         else if (t == "bank") computeShiftAndMask(t, bankBits, bankShift, bankMask);
         else panic("Invalid token %s in addrMapping %s (only row/col/rank)", t.c_str(), addrMapping);
@@ -217,8 +225,8 @@ DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerCh
     rowShift = startBit;  // row has no mask
 
     info("%s: Address mapping %s row %d:%ld col %d:%d rank %d:%d bank %d:%d",
-            name.c_str(), addrMapping, 63, rowShift, ilog2(colMask << colShift), colShift,
-            ilog2(rankMask << rankShift), rankShift, ilog2(bankMask << bankShift), bankShift);
+         name.c_str(), addrMapping, 63, rowShift, ilog2(colMask << colShift), colShift,
+         ilog2(rankMask << rankShift), rankShift, ilog2(bankMask << bankShift), bankShift);
 
     // Weave phase events
     new RefreshEvent(this, memToSysCycle(tREFI), domain);
@@ -228,32 +236,40 @@ DDRMemory::DDRMemory(uint32_t _lineSize, uint32_t _colSize, uint32_t _ranksPerCh
     eventFreelist = nullptr;
 }
 
-void DDRMemory::initStats(AggregateStat* parentStat) {
-    AggregateStat* memStats = new AggregateStat();
+void DDRMemory::initStats(AggregateStat *parentStat) {
+    AggregateStat *memStats = new AggregateStat();
     memStats->init(name.c_str(), "Memory controller stats");
-    profReads.init("rd", "Read requests"); memStats->append(&profReads);
-    profWrites.init("wr", "Write requests"); memStats->append(&profWrites);
-    bytesReads.init("tot_rd", "Total Bytes Read"); memStats->append(&bytesReads);
-    bytesWrites.init("tot_wr", "Total Bytes Write"); memStats->append(&bytesWrites);
-    profTotalRdLat.init("rdlat", "Total latency experienced by read requests"); memStats->append(&profTotalRdLat);
-    profTotalWrLat.init("wrlat", "Total latency experienced by write requests"); memStats->append(&profTotalWrLat);
-    profReadHits.init("rdhits", "Read row hits"); memStats->append(&profReadHits);
-    profWriteHits.init("wrhits", "Write row hits"); memStats->append(&profWriteHits);
-    latencyHist.init("mlh", "latency histogram for memory requests", NUMBINS); 
-	// XXX //memStats->append(&latencyHist);
+    profReads.init("rd", "Read requests");
+    memStats->append(&profReads);
+    profWrites.init("wr", "Write requests");
+    memStats->append(&profWrites);
+    bytesReads.init("tot_rd", "Total Bytes Read");
+    memStats->append(&bytesReads);
+    bytesWrites.init("tot_wr", "Total Bytes Write");
+    memStats->append(&bytesWrites);
+    profTotalRdLat.init("rdlat", "Total latency experienced by read requests");
+    memStats->append(&profTotalRdLat);
+    profTotalWrLat.init("wrlat", "Total latency experienced by write requests");
+    memStats->append(&profTotalWrLat);
+    profReadHits.init("rdhits", "Read row hits");
+    memStats->append(&profReadHits);
+    profWriteHits.init("wrhits", "Write row hits");
+    memStats->append(&profWriteHits);
+    latencyHist.init("mlh", "latency histogram for memory requests", NUMBINS);
+    // XXX //memStats->append(&latencyHist);
     parentStat->append(memStats);
 }
 
 /* Bound phase interface */
 // data_size is the number of bursts
-uint64_t DDRMemory::access(MemReq& req, int type, uint32_t data_size) {
+uint64_t DDRMemory::access(MemReq &req, int type, uint32_t data_size) {
     switch (req.type) {
         case PUTS:
         case PUTX:
             *req.state = I;
             break;
         case GETS:
-            *req.state = req.is(MemReq::NOEXCL)? S : E;
+            *req.state = req.is(MemReq::NOEXCL) ? S : E;
             break;
         case GETX:
             *req.state = M;
@@ -261,46 +277,50 @@ uint64_t DDRMemory::access(MemReq& req, int type, uint32_t data_size) {
 
         default: panic("!?");
     }
-	assert(data_size % 2 == 0);
+    assert(data_size % 2 == 0);
     if (req.type == PUTS) {
         return req.cycle; //must return an absolute value, 0 latency
     } else {
         bool isWrite = (req.type == PUTX);
-		// TODO If length > 1 cacheline, add 4 cycle for each cacheline
-        uint64_t respCycle = req.cycle + (isWrite? minWrLatency : minRdLatency) + memToSysCycle(data_size - 1);
+        // TODO If length > 1 cacheline, add 4 cycle for each cacheline
+        uint64_t respCycle = req.cycle + (isWrite ? minWrLatency : minRdLatency) + memToSysCycle(data_size - 1);
         if (zinfo->eventRecorders[req.srcId]) {
-			// accessing multiple lines is modeled as multiple requests.
-			// All the requests can be processed in parallel.
-			//  
-            DDRMemoryAccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DDRMemoryAccEvent(this,
-                    isWrite, req.lineAddr, data_size, domain, preDelay, isWrite? postDelayWr : postDelayRd);
-			if (type == 0) // default. The only record. 
+            // accessing multiple lines is modeled as multiple requests.
+            // All the requests can be processed in parallel.
+            //
+            DDRMemoryAccEvent *memEv = new(zinfo->eventRecorders[req.srcId]) DDRMemoryAccEvent(this,
+                                                                                               isWrite, req.lineAddr,
+                                                                                               data_size, domain,
+                                                                                               preDelay,
+                                                                                               isWrite ? postDelayWr
+                                                                                                       : postDelayRd);
+            if (type == 0) // default. The only record.
             {
-            	memEv->setMinStartCycle(req.cycle);
-				TimingRecord tr = {req.lineAddr, req.cycle, respCycle, req.type, memEv, memEv};
-				assert(!zinfo->eventRecorders[req.srcId]->hasRecord());
-           	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-			} else if (type == 1) { // append the current event to the end of the previous one
-           	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
-            	memEv->setMinStartCycle(tr.reqCycle);
-				assert(tr.endEvent);
-				tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-				// XXX when to update respCycle 
-				//tr.respCycle = respCycle;
-				tr.type = req.type;
-				tr.endEvent = memEv;
-           	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-			} else if (type == 2) { 
-				// append the current event to the end of the previous one
-				// but the current event is not on the critical path
-           	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
-            	memEv->setMinStartCycle(tr.reqCycle);
-				assert(tr.endEvent);
-				tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-				//tr.respCycle = respCycle;
-				tr.type = req.type;
-           	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-			}
+                memEv->setMinStartCycle(req.cycle);
+                TimingRecord tr = {req.lineAddr, req.cycle, respCycle, req.type, memEv, memEv};
+                assert(!zinfo->eventRecorders[req.srcId]->hasRecord());
+                zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+            } else if (type == 1) { // append the current event to the end of the previous one
+                TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
+                memEv->setMinStartCycle(tr.reqCycle);
+                assert(tr.endEvent);
+                tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
+                // XXX when to update respCycle
+                //tr.respCycle = respCycle;
+                tr.type = req.type;
+                tr.endEvent = memEv;
+                zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+            } else if (type == 2) {
+                // append the current event to the end of the previous one
+                // but the current event is not on the critical path
+                TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
+                memEv->setMinStartCycle(tr.reqCycle);
+                assert(tr.endEvent);
+                tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
+                //tr.respCycle = respCycle;
+                tr.type = req.type;
+                zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+            }
         }
         //info("Access to %lx at %ld, %ld latency", req.lineAddr, req.cycle, minLatency);
         return respCycle;
@@ -315,10 +335,10 @@ uint64_t DDRMemory::access(MemReq& req, int type, uint32_t data_size) {
 // Change or reorder to define your own mappings
 DDRMemory::AddrLoc DDRMemory::mapLineAddr(Address lineAddr) {
     AddrLoc l;
-    l.col  = (lineAddr >> colShift)  & colMask;
+    l.col = (lineAddr >> colShift) & colMask;
     l.rank = (lineAddr >> rankShift) & rankMask;
     l.bank = (lineAddr >> bankShift) & bankMask;
-    l.row  = lineAddr >> rowShift;
+    l.row = lineAddr >> rowShift;
 
     //info("0x%lx r%ld:c%d b%d:r%d", lineAddr, l.row, l.col, l.bank, l.rank);
     assert(l.rank < ranksPerChannel);
@@ -327,7 +347,7 @@ DDRMemory::AddrLoc DDRMemory::mapLineAddr(Address lineAddr) {
     return l;
 }
 
-void DDRMemory::enqueue(DDRMemoryAccEvent* ev, uint64_t sysCycle) {
+void DDRMemory::enqueue(DDRMemoryAccEvent *ev, uint64_t sysCycle) {
     uint64_t memCycle = sysToMemCycle(sysCycle);
     DEBUG("%ld: enqueue() addr 0x%lx wr %d", memCycle, ev->getAddr(), ev->isWrite());
 
@@ -335,11 +355,11 @@ void DDRMemory::enqueue(DDRMemoryAccEvent* ev, uint64_t sysCycle) {
     Request ovfReq;
     bool overflow = rdQueue.full() || wrQueue.full();
     bool useWrQueue = deferredWrites && ev->isWrite();
-    Request* req = overflow? &ovfReq : useWrQueue? wrQueue.alloc() : rdQueue.alloc();
+    Request *req = overflow ? &ovfReq : useWrQueue ? wrQueue.alloc() : rdQueue.alloc();
 
     req->addr = ev->getAddr();
     req->loc = mapLineAddr(ev->getAddr());
-	req->data_size = ev->getDataSize();
+    req->data_size = ev->getDataSize();
     req->write = ev->isWrite();
     req->arrivalCycle = memCycle;
     req->startSysCycle = sysCycle;
@@ -354,7 +374,7 @@ void DDRMemory::enqueue(DDRMemoryAccEvent* ev, uint64_t sysCycle) {
 
         // If needed, schedule an event to handle this new request
         if (!req->prev /* first in bank */) {
-			// XXX I don't know what this code is doing, but just adding data_size anyway.
+            // XXX I don't know what this code is doing, but just adding data_size anyway.
             uint64_t minSchedCycle = std::max(memCycle, minRespCycle - tCL - tBL); // * req->data_size);
             if (nextSchedCycle > minSchedCycle) minSchedCycle = std::max(minSchedCycle, findMinCmdCycle(*req));
             if (nextSchedCycle > minSchedCycle) {
@@ -377,7 +397,7 @@ void DDRMemory::enqueue(DDRMemoryAccEvent* ev, uint64_t sysCycle) {
     }
 }
 
-void DDRMemory::queue(Request* req, uint64_t memCycle) {
+void DDRMemory::queue(Request *req, uint64_t memCycle) {
     // If it's a write, respond to it immediately
     if (req->write) {
         auto ev = req->ev;
@@ -400,8 +420,8 @@ void DDRMemory::queue(Request* req, uint64_t memCycle) {
 #endif
 
     // Alloc in per-bank queue, in FR order
-    Bank& bank = banks[req->loc.rank][req->loc.bank];
-    InList<Request>& q = (deferredWrites && req->write)? bank.wrReqs : bank.rdReqs;
+    Bank &bank = banks[req->loc.rank][req->loc.bank];
+    InList<Request> &q = (deferredWrites && req->write) ? bank.wrReqs : bank.rdReqs;
 
     // Print bak queue? Use to verify FR-FCFS
 #if 0
@@ -416,7 +436,7 @@ void DDRMemory::queue(Request* req, uint64_t memCycle) {
     printQ("PRE");
 #endif
 
-    Request* m = q.back();
+    Request *m = q.back();
     while (m) {
         if (m->loc.row == req->loc.row) {
             if (m->rowHitSeq < rowHitLimit) {
@@ -444,7 +464,7 @@ void DDRMemory::queue(Request* req, uint64_t memCycle) {
              * check whether the next request would have issued a PRE or ACT by
              * now (o/w you have oracular knowledge...).
              */
-             req->rowHitSeq = bank.curRowHits + 1;
+            req->rowHitSeq = bank.curRowHits + 1;
             q.push_front(req);
         } else {
             // ... and row is closed or has too many hits, maintain FCFS
@@ -464,9 +484,9 @@ uint64_t DDRMemory::tick(uint64_t sysCycle) {
     uint64_t minSchedCycle = trySchedule(memCycle, sysCycle);
     assert(minSchedCycle >= memCycle);
     if (!rdQueue.full() && !wrQueue.full() && !overflowQueue.empty()) {
-        Request& ovfReq = overflowQueue.front();
+        Request &ovfReq = overflowQueue.front();
         bool useWrQueue = deferredWrites && ovfReq.write;
-        Request* req = useWrQueue? wrQueue.alloc() : rdQueue.alloc();
+        Request *req = useWrQueue ? wrQueue.alloc() : rdQueue.alloc();
         *req = ovfReq;
         overflowQueue.pop_front();
 
@@ -474,11 +494,13 @@ uint64_t DDRMemory::tick(uint64_t sysCycle) {
 
         // This request may be schedulable before trySchedule's minSchedCycle
         if (!req->prev /*first in bank queue*/) {
-			// XXX I don't know what this code is doing, but just adding data_size anyway.
+            // XXX I don't know what this code is doing, but just adding data_size anyway.
             uint64_t minQueuedSchedCycle = std::max(memCycle, minRespCycle - tCL - tBL); // * req->data_size);
-            if (minSchedCycle > minQueuedSchedCycle) minSchedCycle = std::max(minQueuedSchedCycle, findMinCmdCycle(*req));
+            if (minSchedCycle > minQueuedSchedCycle)
+                minSchedCycle = std::max(minQueuedSchedCycle, findMinCmdCycle(*req));
             if (minSchedCycle > minQueuedSchedCycle) {
-                DEBUG("Overflowed request lowered minSchedCycle %ld -> %ld (memCycle %ld)", minSchedCycle, minQueuedSchedCycle, memCycle);
+                DEBUG("Overflowed request lowered minSchedCycle %ld -> %ld (memCycle %ld)", minSchedCycle,
+                      minQueuedSchedCycle, memCycle);
                 minSchedCycle = minQueuedSchedCycle;
             }
         }
@@ -495,15 +517,15 @@ uint64_t DDRMemory::tick(uint64_t sysCycle) {
     }
 }
 
-void DDRMemory::recycleEvent(SchedEvent* ev) {
+void DDRMemory::recycleEvent(SchedEvent *ev) {
     assert(ev != nextSchedEvent);
     assert(ev->next == nullptr);
     ev->next = eventFreelist;
     eventFreelist = ev;
 }
 
-uint64_t DDRMemory::findMinCmdCycle(const Request& r) const {
-    const Bank& bank = banks[r.loc.rank][r.loc.bank];
+uint64_t DDRMemory::findMinCmdCycle(const Request &r) const {
+    const Bank &bank = banks[r.loc.rank][r.loc.bank];
     uint64_t minCmdCycle = std::max(r.arrivalCycle, bank.lastCmdCycle + 1);
     if (r.loc.row == bank.openRow && bank.open) {
         // Row buffer hit
@@ -542,13 +564,13 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
     if (curCycle + tCL < minRespCycle) return minRespCycle - tCL;  // too far ahead
 
     // Writes have priority if the write queue is getting full...
-    bool prioWrites = (wrQueue.size() > (3*queueDepth/4)) || (lastCmdWasWrite && wrQueue.size() > queueDepth/4);
+    bool prioWrites = (wrQueue.size() > (3 * queueDepth / 4)) || (lastCmdWasWrite && wrQueue.size() > queueDepth / 4);
     bool isWriteQueue = rdQueue.empty() || prioWrites;
 
-    RequestQueue<Request>& queue = isWriteQueue? wrQueue : rdQueue;
+    RequestQueue<Request> &queue = isWriteQueue ? wrQueue : rdQueue;
     assert(!queue.empty());
 
-    Request* r = nullptr;
+    Request *r = nullptr;
     RequestQueue<Request>::iterator ir = queue.begin();
     uint64_t minSchedCycle = -1ul;
     while (ir != queue.end()) {
@@ -565,7 +587,7 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
         } else {
             //DEBUG("Skipping 0x%lx, not first", (*ir)->ev->getAddr());
         }
-		//printf("ir=%ld\n", (uint64_t)&ir);
+        //printf("ir=%ld\n", (uint64_t)&ir);
         ir.inc();
     }
     if (!r) {
@@ -577,9 +599,10 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
         return minSchedCycle;  // no requests are ready to issue yet
     }
 
-    DEBUG("%ld : Found ready request 0x%lx %s %ld (%ld / %ld)", curCycle, r->addr, r->write? "W" : "R", r->arrivalCycle, rdQueue.size(), wrQueue.size());
+    DEBUG("%ld : Found ready request 0x%lx %s %ld (%ld / %ld)", curCycle, r->addr, r->write ? "W" : "R",
+          r->arrivalCycle, rdQueue.size(), wrQueue.size());
 
-    Bank& bank = banks[r->loc.rank][r->loc.bank];
+    Bank &bank = banks[r->loc.rank][r->loc.bank];
 
     // Compute the minimum cycle at which the read or write command can be issued,
     // without column access or data bus constraints
@@ -615,7 +638,7 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
 
     // Figure out data bus constraints, find actual time at which command is issued
     uint64_t cmdCycle = std::max(minCmdCycle, minRespCycle - tCL);
-	// To support accessing granularity greater than a cacheline. 
+    // To support accessing granularity greater than a cacheline.
     //minRespCycle = cmdCycle + tCL + tBL;
     //minRespCycle = cmdCycle + tCL + tBL * r->data_size;
     minRespCycle = cmdCycle + tCL + r->data_size;
@@ -628,7 +651,8 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
     bank.minPreCycle = std::max(
             bank.minPreCycle,  // for mixed read and write commands, minPreCycle may not be monotonic without this
             std::max(bank.lastActCycle + tRAS,  // RAS constraint
-            r->write? minRespCycle + tWR : cmdCycle + tRTP  // read to precharge for reads, write recovery for writes
+                     r->write ? minRespCycle + tWR : cmdCycle +
+                                                     tRTP  // read to precharge for reads, write recovery for writes
             ));
 
     // Record RD or WR
@@ -649,46 +673,46 @@ uint64_t DDRMemory::trySchedule(uint64_t curCycle, uint64_t sysCycle) {
 
         uint32_t scDelay = doneSysCycle - r->startSysCycle;
         profReads.inc();
-		//if (tBL == 4)
-	    //    bytesReads.inc(64 * r->data_size);
-		//else if (tBL == 1)
-	    //    bytesReads.inc(32 * r->data_size);
-		//else 
-		//	assert(false);
+        //if (tBL == 4)
+        //    bytesReads.inc(64 * r->data_size);
+        //else if (tBL == 1)
+        //    bytesReads.inc(32 * r->data_size);
+        //else
+        //	assert(false);
         bytesReads.inc(16 * r->data_size);
         profTotalRdLat.inc(scDelay);
         if (rowHit) profReadHits.inc();
-        uint32_t bucket = std::min(NUMBINS-1, scDelay/BINSIZE);
+        uint32_t bucket = std::min(NUMBINS - 1, scDelay / BINSIZE);
         latencyHist.inc(bucket, 1);
     } else {
         uint32_t scDelay = memToSysCycle(minRespCycle) + controllerSysLatency - r->startSysCycle;
         profWrites.inc();
         bytesWrites.inc(16 * r->data_size);
-		//if (tBL == 4)
+        //if (tBL == 4)
         //	bytesWrites.inc(64 * r->data_size);
-		//else if (tBL == 1)
+        //else if (tBL == 1)
         //	bytesWrites.inc(32 * r->data_size);
-		//else 
-		//	assert(false);
+        //else
+        //	assert(false);
 
         profTotalWrLat.inc(scDelay);
         if (rowHit) profWriteHits.inc();
     }
 
-    DEBUG("Served 0x%lx lat %ld clocks", r->addr, minRespCycle-curCycle);
+    DEBUG("Served 0x%lx lat %ld clocks", r->addr, minRespCycle - curCycle);
 
     // Dequeue this req
     queue.remove(ir);
-    (isWriteQueue? bank.wrReqs : bank.rdReqs).pop_front();
+    (isWriteQueue ? bank.wrReqs : bank.rdReqs).pop_front();
 
-    return (rdQueue.empty() && wrQueue.empty())? -1ul : minRespCycle - tCL;
+    return (rdQueue.empty() && wrQueue.empty()) ? -1ul : minRespCycle - tCL;
 }
 
 void DDRMemory::refresh(uint64_t sysCycle) {
     uint64_t memCycle = sysToMemCycle(sysCycle);
     uint64_t minRefreshCycle = memCycle;
-    for (auto& rankBanks : banks) {
-        for (auto& bank : rankBanks) {
+    for (auto &rankBanks : banks) {
+        for (auto &bank : rankBanks) {
             minRefreshCycle = std::max(minRefreshCycle, std::max(bank.minPreCycle, bank.lastCmdCycle));
         }
     }
@@ -696,8 +720,8 @@ void DDRMemory::refresh(uint64_t sysCycle) {
 
     uint64_t refreshDoneCycle = minRefreshCycle + tRFC;
     assert(tRFC >= tRP);
-    for (auto& rankBanks : banks) {
-        for (auto& bank : rankBanks) {
+    for (auto &rankBanks : banks) {
+        for (auto &bank : rankBanks) {
             // Close and force the ACT to happen at least at tRFC
             // PRE <-tRP-> ACT, so discount tRP
             bank.minPreCycle = refreshDoneCycle - tRP;
@@ -711,7 +735,7 @@ void DDRMemory::refresh(uint64_t sysCycle) {
 
 /* Tech/Device timing parameters */
 
-void DDRMemory::initTech(const char* techName, double time_scale) {
+void DDRMemory::initTech(const char *techName, double time_scale) {
     std::string tech(techName);
     double tCK;
 
@@ -723,16 +747,16 @@ void DDRMemory::initTech(const char* techName, double time_scale) {
         tCK = 1.5 / 2;  // ns; all other in mem cycles
         tBL = 4;
         tCL = uint32_t(10 / time_scale);
-        tRCD = uint32_t( 10 / time_scale);
-        tRTP = uint32_t( 5 / time_scale);
-        tRP = uint32_t( 10 / time_scale);
-        tRRD = uint32_t( 4 / time_scale);
-        tRAS = uint32_t( 24 / time_scale);
-        tFAW = uint32_t( 20 / time_scale);
-        tWTR = uint32_t( 5 / time_scale);
-        tWR = uint32_t( 10 / time_scale);
-        tRFC = uint32_t( 74 / time_scale);
-        tREFI = uint32_t( 5200 / time_scale);
+        tRCD = uint32_t(10 / time_scale);
+        tRTP = uint32_t(5 / time_scale);
+        tRP = uint32_t(10 / time_scale);
+        tRRD = uint32_t(4 / time_scale);
+        tRAS = uint32_t(24 / time_scale);
+        tFAW = uint32_t(20 / time_scale);
+        tWTR = uint32_t(5 / time_scale);
+        tWR = uint32_t(10 / time_scale);
+        tRFC = uint32_t(74 / time_scale);
+        tREFI = uint32_t(5200 / time_scale);
     } else if (tech == "DDR3-1066-CL7") {
         // from DDR3_micron_16M_8B_x4_sg187.ini
         // see http://download.micron.com/pdf/datasheets/dram/ddr3/1Gb_DDR3_SDRAM.pdf, cl7 variant, copied from it; tRRD is widely different, others match
@@ -773,15 +797,15 @@ void DDRMemory::initTech(const char* techName, double time_scale) {
     assert(tBL && tCL && tRCD && tRTP && tRP && tRRD && tRAS && tFAW && tWTR && tWR && tRFC && tREFI);
 
     if (isPow2(lineSize) && lineSize >= 64) {
-        tBL = lineSize*tBL/64;
+        tBL = lineSize * tBL / 64;
     } else if (lineSize == 32) {
-        tBL = tBL/2;
+        tBL = tBL / 2;
     } else {
         // If we wanted shorter lines, we'd have to start really caring about contention in the command bus;
         // even 32 bytes is pushing it, 32B probably calls for coalescing buffers
         panic("Unsupported line size %d", lineSize);
     }
 
-    memFreqKHz = (uint64_t)(1e9/tCK/1e3);
+    memFreqKHz = (uint64_t) (1e9 / tCK / 1e3);
 }
 

@@ -32,14 +32,14 @@
 
 #include "log.h"
 
-template <typename T>
+template<typename T>
 class InList;
 
-template <typename T>
+template<typename T>
 struct InListNode {
-    T* next;
-    T* prev;
-    InList<T>* owner;
+    T *next;
+    T *prev;
+    InList<T> *owner;
 
     InListNode() {
         next = nullptr;
@@ -47,7 +47,7 @@ struct InListNode {
         owner = nullptr;
     }
 
-    void unlink(InList<T>* lst) {
+    void unlink(InList<T> *lst) {
         if (next) next->prev = prev;
         if (prev) prev->next = next;
         next = nullptr;
@@ -56,121 +56,123 @@ struct InListNode {
         owner = nullptr;
     }
 
-    void linkPrev(T* p, InList<T>* lst) {
+    void linkPrev(T *p, InList<T> *lst) {
         assert(p);
         assert(owner == nullptr);
         assert(prev == nullptr && next == nullptr);
         if (p->next) {
             assert(p->next->prev == p);
-            p->next->prev = static_cast<T*>(this);
+            p->next->prev = static_cast<T *>(this);
             next = p->next;
         }
-        p->next = static_cast<T*>(this);
+        p->next = static_cast<T *>(this);
         prev = p;
         owner = lst;
     }
 };
 
-template <typename T>
+template<typename T>
 class InList {
-    private:
-        T* head;
-        T* tail;
-        size_t elems;
+private:
+    T *head;
+    T *tail;
+    size_t elems;
 
-    public:
-        InList() : head(nullptr), tail(nullptr), elems(0) {}
-        bool empty() const {return !head;}
+public:
+    InList() : head(nullptr), tail(nullptr), elems(0) {}
 
-        T* front() const {return head;}
-        T* back() const {return tail;}
+    bool empty() const { return !head; }
 
-        void push_front(T* e) {
-            assert(e && e->next == nullptr && e->prev == nullptr && e->owner == nullptr);
-            if (empty()) {
-                head = e;
-                tail = e;
-            } else {
-                assert(head && head->prev == nullptr && head->owner == this);
-                e->next = head;
-                head->prev = e;
-                head = e;
-            }
+    T *front() const { return head; }
+
+    T *back() const { return tail; }
+
+    void push_front(T *e) {
+        assert(e && e->next == nullptr && e->prev == nullptr && e->owner == nullptr);
+        if (empty()) {
+            head = e;
+            tail = e;
+        } else {
+            assert(head && head->prev == nullptr && head->owner == this);
+            e->next = head;
+            head->prev = e;
+            head = e;
+        }
+        e->owner = this;
+        elems++;
+    }
+
+    void push_back(T *e) {
+        assert(e && e->next == nullptr && e->prev == nullptr && e->owner == nullptr);
+        if (empty()) {
+            head = e;
+            tail = e;
             e->owner = this;
-            elems++;
+        } else {
+            assert(tail);
+            e->linkPrev(tail, this);
+            tail = e;
         }
+        elems++;
+    }
 
-        void push_back(T* e) {
-            assert(e && e->next == nullptr && e->prev == nullptr && e->owner == nullptr);
-            if (empty()) {
-                head = e;
-                tail = e;
-                e->owner = this;
-            } else {
-                assert(tail);
-                e->linkPrev(tail, this);
-                tail = e;
-            }
-            elems++;
-        }
+    void pop_front() {
+        if (empty()) return;
+        T *e = head;
+        head = e->next;
+        e->unlink(this);
+        if (!head) tail = nullptr;
+        elems--;
+    }
 
-        void pop_front() {
-            if (empty()) return;
-            T* e = head;
-            head = e->next;
-            e->unlink(this);
-            if (!head) tail = nullptr;
-            elems--;
-        }
+    void pop_back() {
+        if (empty()) return;
+        T *e = tail;
+        tail = e->prev;
+        e->unlink(this);
+        if (!tail) head = nullptr;
+        elems--;
+    }
 
-        void pop_back() {
-            if (empty()) return;
-            T* e = tail;
-            tail = e->prev;
-            e->unlink(this);
-            if (!tail) head = nullptr;
-            elems--;
-        }
+    //Note how remove is O(1)
+    void remove(T *e) {
+        //info("Remove PRE h=%p t=%p e=%p", head, tail, e);
+        if (e == head) head = e->next;
+        if (e == tail) tail = e->prev;
+        e->unlink(this);
+        elems--;
+        //info("Remove POST h=%p t=%p e=%p", head, tail);
+    }
 
-        //Note how remove is O(1)
-        void remove(T* e) {
-            //info("Remove PRE h=%p t=%p e=%p", head, tail, e);
-            if (e == head) head = e->next;
-            if (e == tail) tail = e->prev;
-            e->unlink(this);
-            elems--;
-            //info("Remove POST h=%p t=%p e=%p", head, tail);
-        }
+    void insertAfter(T *prev, T *e) {
+        assert(e && e->owner == nullptr);
+        assert(prev && prev->owner == this);
+        e->linkPrev(prev, this);
+        if (prev == tail) tail = e;
+        elems++;
+    }
 
-        void insertAfter(T* prev, T* e) {
-            assert(e && e->owner == nullptr);
-            assert(prev && prev->owner == this);
-            e->linkPrev(prev, this);
-            if (prev == tail) tail = e;
-            elems++;
-        }
-
-        size_t size() const {
-            return elems;
-        }
+    size_t size() const {
+        return elems;
+    }
 
 #if 0  // Verify all internal state; call to test list implementation
-        void verify() {
-            if (empty()) {
-                assert(head == nullptr && tail == nullptr && elems == 0);
-            } else {
-                T* c = head;
-                size_t count = 0;
-                while (c) {
-                    if (c->next) assert(c->next->prev);
-                    if (!c->next) assert(c == tail);
-                    assert(c->owner == this);
-                    count++;
-                    c = c->next;
-                }
-                assert(count == elems);
+    void verify() {
+        if (empty()) {
+            assert(head == nullptr && tail == nullptr && elems == 0);
+        } else {
+            T* c = head;
+            size_t count = 0;
+            while (c) {
+                if (c->next) assert(c->next->prev);
+                if (!c->next) assert(c == tail);
+                assert(c->owner == this);
+                count++;
+                c = c->next;
             }
+            assert(count == elems);
         }
+    }
 #endif
 };
 

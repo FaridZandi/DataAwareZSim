@@ -31,7 +31,7 @@
 using std::ifstream;
 using std::string;
 
-Network::Network(const char* filename) {
+Network::Network(const char *filename) {
     ifstream inFile(filename);
 
     if (!inFile) {
@@ -62,7 +62,7 @@ Network::Network(const char* filename) {
     inFile.close();
 }
 
-uint32_t Network::getRTT(const char* src, const char* dst) {
+uint32_t Network::getRTT(const char *src, const char *dst) {
     string key(src);
     key += " ";
     key += dst;
@@ -72,7 +72,7 @@ uint32_t Network::getRTT(const char* src, const char* dst) {
     */
 
     if (delayMap.find(key) != delayMap.end()) {
-        return 2*delayMap[key];
+        return 2 * delayMap[key];
     } else {
         warn("%s and %s have no entry in network description file, returning 0 latency", src, dst);
         return 0;

@@ -37,11 +37,11 @@ void VirtGetcpu(uint32_t tid, uint32_t cpu, ADDRINT arg0, ADDRINT arg1) {
     if (!arg0) {
         info("getcpu() called with null cpu arg");
     }
-    if (!safeCopy((unsigned*)arg0, &resCpu)) {
+    if (!safeCopy((unsigned *) arg0, &resCpu)) {
         info("getcpu() called with invalid cpu arg");
         return;
     }
-    if (arg1 && !safeCopy((unsigned*)arg1, &resNode)) {
+    if (arg1 && !safeCopy((unsigned *) arg1, &resNode)) {
         info("getcpu() called with invalid node arg");
         return;
     }
@@ -51,13 +51,13 @@ void VirtGetcpu(uint32_t tid, uint32_t cpu, ADDRINT arg0, ADDRINT arg1) {
     resCpu = cpu;
     resNode = 0;
 
-    safeCopy(&resCpu, (unsigned*)arg0);
-    if (arg1) safeCopy(&resNode, (unsigned*)arg1);
+    safeCopy(&resCpu, (unsigned *) arg0);
+    if (arg1) safeCopy(&resNode, (unsigned *) arg1);
 }
 
 PostPatchFn PatchGetcpu(PrePatchArgs args) {
     uint32_t cpu = cpuenumCpu(procIdx, getCid(args.tid));  // still valid, may become invalid when we leave()
-    assert(cpu != (uint32_t)-1);
+    assert(cpu != (uint32_t) - 1);
     return [cpu](PostPatchArgs args) {
         trace(TimeVirt, "[%d] Post-patching SYS_getcpu", tid);
         ADDRINT arg0 = PIN_GetSyscallArgument(args.ctxt, args.std, 0);
@@ -72,12 +72,12 @@ PostPatchFn PatchGetcpu(PrePatchArgs args) {
 PostPatchFn PatchSchedGetaffinity(PrePatchArgs args) {
     return [](PostPatchArgs args) {
         uint32_t size = PIN_GetSyscallArgument(args.ctxt, args.std, 1);
-        cpu_set_t* set = (cpu_set_t*)PIN_GetSyscallArgument(args.ctxt, args.std, 2);
+        cpu_set_t *set = (cpu_set_t *) PIN_GetSyscallArgument(args.ctxt, args.std, 2);
         if (set) { //TODO: use SafeCopy, this can still segfault
             CPU_ZERO_S(size, set);
             std::vector<bool> cpumask = cpuenumMask(procIdx);
-            for (uint32_t i = 0; i < MIN(cpumask.size(), size*8 /*size is in bytes, supports 1 cpu/bit*/); i++) {
-                if (cpumask[i]) CPU_SET_S(i, (size_t)size, set);
+            for (uint32_t i = 0; i < MIN(cpumask.size(), size * 8 /*size is in bytes, supports 1 cpu/bit*/); i++) {
+                if (cpumask[i]) CPU_SET_S(i, (size_t) size, set);
             }
         }
         info("[%d] Post-patching SYS_sched_getaffinity size %d cpuset %p", args.tid, size, set);
@@ -88,7 +88,7 @@ PostPatchFn PatchSchedGetaffinity(PrePatchArgs args) {
 PostPatchFn PatchSchedSetaffinity(PrePatchArgs args) {
     PIN_SetSyscallNumber(args.ctxt, args.std, (ADDRINT) SYS_getpid);  // squash
     return [](PostPatchArgs args) {
-        PIN_SetSyscallNumber(args.ctxt, args.std, (ADDRINT)-EPERM);  // make it a proper failure
+        PIN_SetSyscallNumber(args.ctxt, args.std, (ADDRINT) - EPERM);  // make it a proper failure
         return PPA_NOTHING;
     };
 }

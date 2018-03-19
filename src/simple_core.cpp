@@ -27,16 +27,21 @@
 #include "filter_cache.h"
 #include "zsim.h"
 
-SimpleCore::SimpleCore(FilterCache* _l1i, FilterCache* _l1d, g_string& _name) : Core(_name), l1i(_l1i), l1d(_l1d), instrs(0), curCycle(0), haltedCycles(0) {
+SimpleCore::SimpleCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name) : Core(_name), l1i(_l1i), l1d(_l1d),
+                                                                                instrs(0), curCycle(0),
+                                                                                haltedCycles(0) {
 }
 
-void SimpleCore::initStats(AggregateStat* parentStat) {
-    AggregateStat* coreStat = new AggregateStat();
+void SimpleCore::initStats(AggregateStat *parentStat) {
+    AggregateStat *coreStat = new AggregateStat();
     coreStat->init(name.c_str(), "Core stats");
-    auto x = [this]() -> uint64_t { assert(curCycle >= haltedCycles); return curCycle - haltedCycles; };
+    auto x = [this]() -> uint64_t {
+        assert(curCycle >= haltedCycles);
+        return curCycle - haltedCycles;
+    };
     auto cyclesStat = makeLambdaStat(x);
     cyclesStat->init("cycles", "Simulated cycles");
-    ProxyStat* instrsStat = new ProxyStat();
+    ProxyStat *instrsStat = new ProxyStat();
     instrsStat->init("instrs", "Simulated instructions", &instrs);
     coreStat->append(cyclesStat);
     coreStat->append(instrsStat);
@@ -52,18 +57,19 @@ void SimpleCore::load(Address addr, Address pc /*Kasraa*/) {
 }
 
 void SimpleCore::store(Address addr, Address pc /*Kasraa*/) {
-    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/);	
+    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/);
 }
 
-void SimpleCore::bbl(Address bblAddr, BblInfo* bblInfo) {
+void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
     //info("BBL %s %p", name.c_str(), bblInfo);
     //info("%d %d", bblInfo->instrs, bblInfo->bytes);
     instrs += bblInfo->instrs;
     curCycle += bblInfo->instrs;
 
     Address endBblAddr = bblAddr + bblInfo->bytes;
-    for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr+=(1 << lineBits)) {
-        curCycle = l1i->load(fetchAddr, curCycle, fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/);
+    for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
+        curCycle = l1i->load(fetchAddr, curCycle,
+                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/);
     }
 }
 
@@ -93,23 +99,23 @@ InstrFuncPtrs SimpleCore::GetFuncPtrs() {
 }
 
 void SimpleCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<SimpleCore*>(cores[tid])->load(addr, pc /*Kasraa*/);
+    static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/);
 }
 
 void SimpleCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<SimpleCore*>(cores[tid])->store(addr, pc /*Kasraa*/);
+    static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/);
 }
 
 void SimpleCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    if (pred) static_cast<SimpleCore*>(cores[tid])->load(addr, pc /*Kasraa*/);
+    if (pred) static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/);
 }
 
 void SimpleCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    if (pred) static_cast<SimpleCore*>(cores[tid])->store(addr, pc /*Kasraa*/);
+    if (pred) static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/);
 }
 
-void SimpleCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
-    SimpleCore* core = static_cast<SimpleCore*>(cores[tid]);
+void SimpleCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
+    SimpleCore *core = static_cast<SimpleCore *>(cores[tid]);
     core->bbl(bblAddr, bblInfo);
 
     while (core->curCycle > core->phaseEndCycle) {

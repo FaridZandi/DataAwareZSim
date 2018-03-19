@@ -28,7 +28,7 @@
 #include "scheduler.h"
 #include "zsim.h"
 
-ProcessStats::ProcessStats(AggregateStat* parentStat) {
+ProcessStats::ProcessStats(AggregateStat *parentStat) {
     uint32_t maxProcs = zinfo->lineSize;
     processCycles.resize(maxProcs, 0);
     processInstrs.resize(maxProcs, 0);
@@ -75,14 +75,14 @@ void ProcessStats::updateCore(uint32_t cid, uint32_t p) {
     uint64_t cInstrs = zinfo->cores[cid]->getInstrs();
 
     if (cCycles < lastCoreCycles[cid])
-		printf("cCycles=%ld, lastCoreCycles[%d]=%ld, cInstrs=%ld, lastCoreInstrs[%d]=%ld\n", 
-			cCycles, cid, lastCoreCycles[cid], cInstrs, cid, lastCoreInstrs[cid]);
+        printf("cCycles=%ld, lastCoreCycles[%d]=%ld, cInstrs=%ld, lastCoreInstrs[%d]=%ld\n",
+               cCycles, cid, lastCoreCycles[cid], cInstrs, cid, lastCoreInstrs[cid]);
     //assert(cCycles >= lastCoreCycles[cid] && cInstrs >= lastCoreInstrs[cid]);
     if (cCycles >= lastCoreCycles[cid]) {
-    	processCycles[p]  += cCycles - lastCoreCycles[cid];
-    	lastCoreCycles[cid] = cCycles;
-	}
-    processInstrs[p]  += cInstrs - lastCoreInstrs[cid];
+        processCycles[p] += cCycles - lastCoreCycles[cid];
+        lastCoreCycles[cid] = cCycles;
+    }
+    processInstrs[p] += cInstrs - lastCoreInstrs[cid];
 
     lastCoreInstrs[cid] = cInstrs;
 }
@@ -91,7 +91,7 @@ void ProcessStats::update() {
     assert(lastUpdatePhase < zinfo->numPhases);
     for (uint32_t cid = 0; cid < lastCoreCycles.size(); cid++) {
         uint32_t p = zinfo->sched->getScheduledPid(cid);
-        if (p == (uint32_t)-1) continue;
+        if (p == (uint32_t) -1) continue;
         assert(p < processCycles.size());
         updateCore(cid, p);
     }

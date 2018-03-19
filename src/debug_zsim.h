@@ -33,7 +33,7 @@
  * called with pause_tool. It uses libelf, but PIN is linked to it already
  * (I bet that PIN does pretty much the same thing).
  */
-void getLibzsimAddrs(LibInfo* libzsimAddrs);
+void getLibzsimAddrs(LibInfo *libzsimAddrs);
 
 /* Signal the harness process that we're ready to be debugged */
 void notifyHarnessForDebugger(int harnessPid);

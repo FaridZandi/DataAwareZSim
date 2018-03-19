@@ -34,21 +34,37 @@
 #include "pad.h"
 
 class Core;
+
 class Scheduler;
+
 class AggregateStat;
+
 class StatsBackend;
+
 class ProcessTreeNode;
+
 class ProcessStats;
+
 class ProcStats;
+
 class EventQueue;
+
 class ContentionSim;
+
 class EventRecorder;
+
 class PinCmd;
+
 class PortVirtualizer;
+
 class VectorCounter;
+
 class AccessTraceWriter;
+
 class TraceDriver;
-template <typename T> class g_vector;
+
+template<typename T>
+class g_vector;
 
 struct ClockDomainInfo {
     uint64_t realtimeOffsetNs;
@@ -59,6 +75,7 @@ struct ClockDomainInfo {
 };
 
 class TimeBreakdownStat;
+
 enum ProfileStates {
     PROF_INIT = 0,
     PROF_BOUND = 1,
@@ -69,7 +86,7 @@ enum ProfileStates {
 enum ProcExitStatus {
     PROC_RUNNING = 0,
     PROC_EXITED = 1,
-    PROC_RESTARTME  = 2
+    PROC_RESTARTME = 2
 };
 
 struct GlobSimInfo {
@@ -78,17 +95,17 @@ struct GlobSimInfo {
     uint32_t lineSize;
 
     //Cores
-    Core** cores;
+    Core **cores;
 
     PAD();
 
-    EventQueue* eventQueue;
-    Scheduler* sched;
+    EventQueue *eventQueue;
+    Scheduler *sched;
 
     //Contention simulation
     uint32_t numDomains;
-    ContentionSim* contentionSim;
-    EventRecorder** eventRecorders; //CID->EventRecorder* array
+    ContentionSim *contentionSim;
+    EventRecorder **eventRecorders; //CID->EventRecorder* array
 
     PAD();
 
@@ -120,7 +137,7 @@ struct GlobSimInfo {
     PAD();
 
     ClockDomainInfo clockDomainInfo[MAX_CLOCK_DOMAINS];
-    PortVirtualizer* portVirt[MAX_PORT_DOMAINS];
+    PortVirtualizer *portVirt[MAX_PORT_DOMAINS];
 
     lock_t ffLock; //global, grabbed in all ff entry/exit ops.
 
@@ -131,27 +148,27 @@ struct GlobSimInfo {
 
     volatile bool terminationConditionMet;
 
-    const char* outputDir; //all the output files mst be dumped here. Stored because complex workloads often change dir, then spawn...
+    const char *outputDir; //all the output files mst be dumped here. Stored because complex workloads often change dir, then spawn...
 
-    AggregateStat* rootStat;
-    g_vector<StatsBackend*>* statsBackends; // used for termination dumps
-    StatsBackend* periodicStatsBackend;
-    StatsBackend* eventualStatsBackend;
-    ProcessStats* processStats;
-    ProcStats* procStats;
+    AggregateStat *rootStat;
+    g_vector<StatsBackend *> *statsBackends; // used for termination dumps
+    StatsBackend *periodicStatsBackend;
+    StatsBackend *eventualStatsBackend;
+    ProcessStats *processStats;
+    ProcStats *procStats;
 
-    TimeBreakdownStat* profSimTime;
-    VectorCounter* profHeartbeats; //global b/c number of processes cannot be inferred at init time; we just size to max
+    TimeBreakdownStat *profSimTime;
+    VectorCounter *profHeartbeats; //global b/c number of processes cannot be inferred at init time; we just size to max
 
     uint64_t trigger; //code with what triggered the current stats dump
 
-    ProcessTreeNode* procTree;
-    ProcessTreeNode** procArray; //a flat view of the process tree, where each process is indexed by procIdx
-    ProcExitStatus* procExited; //starts with all set to PROC_RUNNING, each process sets to PROC_EXITED or PROC_RESTARTME on exit. Used to detect untimely deaths (that don;t go thropugh SimEnd) in the harness and abort.
+    ProcessTreeNode *procTree;
+    ProcessTreeNode **procArray; //a flat view of the process tree, where each process is indexed by procIdx
+    ProcExitStatus *procExited; //starts with all set to PROC_RUNNING, each process sets to PROC_EXITED or PROC_RESTARTME on exit. Used to detect untimely deaths (that don;t go thropugh SimEnd) in the harness and abort.
     uint32_t numProcs;
     uint32_t numProcGroups;
 
-    PinCmd* pinCmd; //enables calls to exec() to modify Pin's calling arguments, see zsim.cpp
+    PinCmd *pinCmd; //enables calls to exec() to modify Pin's calling arguments, see zsim.cpp
 
     // If true, threads start as shadow and have no effect on simulation until they call the register magic op
     bool registerThreads;
@@ -176,25 +193,27 @@ struct GlobSimInfo {
     volatile bool externalTermPending;
 
     // Trace writers (stored globally because they need to be deleted when the simulation ends)
-    g_vector<AccessTraceWriter*>* traceWriters;
+    g_vector<AccessTraceWriter *> *traceWriters;
 
     // Trace-driven simulation (no cores)
     bool traceDriven;
-    TraceDriver* traceDriver;
+    TraceDriver *traceDriver;
 };
 
 
 //Process-wide global variables, defined in zsim.cpp
-extern Core* cores[MAX_THREADS]; //tid->core array
+extern Core *cores[MAX_THREADS]; //tid->core array
 extern uint32_t procIdx;
 extern uint32_t lineBits; //process-local for performance, but logically global
 extern uint64_t procMask;
 
-extern GlobSimInfo* zinfo;
+extern GlobSimInfo *zinfo;
 
 //Process-wide functions, defined in zsim.cpp
 uint32_t getCid(uint32_t tid);
+
 uint32_t TakeBarrier(uint32_t tid, uint32_t cid);
+
 void SimEnd(); //only call point out of zsim.cpp should be watchdog threads
 
 #endif  // ZSIM_H_

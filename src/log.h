@@ -33,6 +33,7 @@
 #include <stdlib.h>
 
 void __log_lock();
+
 void __log_unlock();
 
 #ifdef MT_SAFE_LOG
@@ -61,17 +62,17 @@ typedef enum {
 } LogType;
 
 // defined in log.cpp
-extern const char* logTypeNames[];
-extern const char* logHeader;
-extern FILE* logFdOut;
-extern FILE* logFdErr;
+extern const char *logTypeNames[];
+extern const char *logHeader;
+extern FILE *logFdOut;
+extern FILE *logFdErr;
 
 /* Set per-process header for log/info/warn/panic messages
  * Calling this is not needed (the default header is ""),
  * but it helps in multi-process runs
  * If file is nullptr or InitLog is not called, logs to stdout/stderr
  */
-void InitLog(const char* header, const char* file = nullptr);
+void InitLog(const char *header, const char *file = nullptr);
 
 /* Helper class to print expression with values
  * Inpired by Phil Nash's CATCH, https://github.com/philsquared/Catch
@@ -79,43 +80,148 @@ void InitLog(const char* header, const char* file = nullptr);
  * loop-invariant code motion
  */
 class PrintExpr {
-    private:
-        std::stringstream& ss;
+private:
+    std::stringstream &ss;
 
-    public:
-        PrintExpr(std::stringstream& _ss) : ss(_ss) {}
+public:
+    PrintExpr(std::stringstream &_ss) : ss(_ss) {}
 
-        // Start capturing values
-        template<typename T> const PrintExpr operator->* (T t) const { ss << t; return *this; }
+    // Start capturing values
+    template<typename T>
+    const PrintExpr operator->*(T t) const {
+        ss << t;
+        return *this;
+    }
 
-        // Overloads for all lower-precedence operators
-        template<typename T> const PrintExpr operator == (T t) const { ss << " == " << t; return *this; }
-        template<typename T> const PrintExpr operator != (T t) const { ss << " != " << t; return *this; }
-        template<typename T> const PrintExpr operator <= (T t) const { ss << " <= " << t; return *this; }
-        template<typename T> const PrintExpr operator >= (T t) const { ss << " >= " << t; return *this; }
-        template<typename T> const PrintExpr operator <  (T t) const { ss << " < "  << t; return *this; }
-        template<typename T> const PrintExpr operator >  (T t) const { ss << " > "  << t; return *this; }
-        template<typename T> const PrintExpr operator &  (T t) const { ss << " & "  << t; return *this; }
-        template<typename T> const PrintExpr operator |  (T t) const { ss << " | "  << t; return *this; }
-        template<typename T> const PrintExpr operator ^  (T t) const { ss << " ^ "  << t; return *this; }
-        template<typename T> const PrintExpr operator && (T t) const { ss << " && " << t; return *this; }
-        template<typename T> const PrintExpr operator || (T t) const { ss << " || " << t; return *this; }
-        template<typename T> const PrintExpr operator +  (T t) const { ss << " + "  << t; return *this; }
-        template<typename T> const PrintExpr operator -  (T t) const { ss << " - "  << t; return *this; }
-        template<typename T> const PrintExpr operator *  (T t) const { ss << " * "  << t; return *this; }
-        template<typename T> const PrintExpr operator /  (T t) const { ss << " / "  << t; return *this; }
-        template<typename T> const PrintExpr operator %  (T t) const { ss << " % "  << t; return *this; }
-        template<typename T> const PrintExpr operator << (T t) const { ss << " << " << t; return *this; }
-        template<typename T> const PrintExpr operator >> (T t) const { ss << " >> " << t; return *this; }
+    // Overloads for all lower-precedence operators
+    template<typename T>
+    const PrintExpr operator==(T t) const {
+        ss << " == " << t;
+        return *this;
+    }
 
-        // std::nullptr_t overloads (for nullptr's in assertions)
-        // Only a few are needed, since most ops w/ nullptr are invalid
-        const PrintExpr operator->* (std::nullptr_t t) const { ss << "nullptr"; return *this; }
-        const PrintExpr operator == (std::nullptr_t t) const { ss << " == nullptr"; return *this; }
-        const PrintExpr operator != (std::nullptr_t t) const { ss << " != nullptr"; return *this; }
+    template<typename T>
+    const PrintExpr operator!=(T t) const {
+        ss << " != " << t;
+        return *this;
+    }
 
-    private:
-        template<typename T> const PrintExpr operator =  (T t) const;  // will fail, can't assign in assertion
+    template<typename T>
+    const PrintExpr operator<=(T t) const {
+        ss << " <= " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator>=(T t) const {
+        ss << " >= " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator<(T t) const {
+        ss << " < " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator>(T t) const {
+        ss << " > " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator&(T t) const {
+        ss << " & " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator|(T t) const {
+        ss << " | " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator^(T t) const {
+        ss << " ^ " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator&&(T t) const {
+        ss << " && " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator||(T t) const {
+        ss << " || " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator+(T t) const {
+        ss << " + " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator-(T t) const {
+        ss << " - " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator*(T t) const {
+        ss << " * " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator/(T t) const {
+        ss << " / " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator%(T t) const {
+        ss << " % " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator<<(T t) const {
+        ss << " << " << t;
+        return *this;
+    }
+
+    template<typename T>
+    const PrintExpr operator>>(T t) const {
+        ss << " >> " << t;
+        return *this;
+    }
+
+    // std::nullptr_t overloads (for nullptr's in assertions)
+    // Only a few are needed, since most ops w/ nullptr are invalid
+    const PrintExpr operator->*(std::nullptr_t t) const {
+        ss << "nullptr";
+        return *this;
+    }
+
+    const PrintExpr operator==(std::nullptr_t t) const {
+        ss << " == nullptr";
+        return *this;
+    }
+
+    const PrintExpr operator!=(std::nullptr_t t) const {
+        ss << " != nullptr";
+        return *this;
+    }
+
+private:
+    template<typename T>
+    const PrintExpr operator=(T t) const;  // will fail, can't assign in assertion
 };
 
 

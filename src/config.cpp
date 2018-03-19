@@ -46,7 +46,7 @@ using std::vector;
 // Restrict use of long long, which libconfig uses as its int64
 typedef long long lc_int64;  // NOLINT(runtime/int)
 
-Config::Config(const char* inFile) {
+Config::Config(const char *inFile) {
     inCfg = new libconfig::Config();
     outCfg = new libconfig::Config();
     try {
@@ -59,7 +59,7 @@ Config::Config(const char* inFile) {
 #else
         // Old versions of libconfig don't have libconfig::ParseException::getFile()
         // Using inFile is typically OK, but won't be accurate with multi-file configs (includes)
-        const char* peFile = inFile;
+        const char *peFile = inFile;
 #endif
         panic("Input config file %s could not be parsed, line %d, error: %s", peFile, pe.getLine(), pe.getError());
     }
@@ -72,20 +72,20 @@ Config::~Config() {
 
 // Helper function: Add "*"-prefixed vars, which are used by our scripts but not zsim, to outCfg
 // Returns number of copied vars
-static uint32_t copyNonSimVars(libconfig::Setting& s1, libconfig::Setting& s2, std::string prefix) {
+static uint32_t copyNonSimVars(libconfig::Setting &s1, libconfig::Setting &s2, std::string prefix) {
     uint32_t copied = 0;
-    for (uint32_t i = 0; i < (uint32_t)s1.getLength(); i++) {
-        const char* name = s1[i].getName();
+    for (uint32_t i = 0; i < (uint32_t) s1.getLength(); i++) {
+        const char *name = s1[i].getName();
         if (name[0] == '*') {
             if (s2.exists(name)) panic("Setting %s was read, should be private", (prefix + name).c_str());
             // This could be as simple as:
             //s2.add(s1[i].getType()) = s1[i];
             // However, because Setting kinda sucks, we need to go type by type:
-            libconfig::Setting& ns = s2.add(name, s1[i].getType());
-            if      (libconfig::Setting::Type::TypeInt     == s1[i].getType()) ns = (int) s1[i];
-            else if (libconfig::Setting::Type::TypeInt64   == s1[i].getType()) ns = (lc_int64) s1[i];
+            libconfig::Setting &ns = s2.add(name, s1[i].getType());
+            if (libconfig::Setting::Type::TypeInt == s1[i].getType()) ns = (int) s1[i];
+            else if (libconfig::Setting::Type::TypeInt64 == s1[i].getType()) ns = (lc_int64) s1[i];
             else if (libconfig::Setting::Type::TypeBoolean == s1[i].getType()) ns = (bool) s1[i];
-            else if (libconfig::Setting::Type::TypeString  == s1[i].getType()) ns = (const char*) s1[i];
+            else if (libconfig::Setting::Type::TypeString == s1[i].getType()) ns = (const char *) s1[i];
             else panic("Unknown type for priv setting %s, cannot copy", (prefix + name).c_str());
             copied++;
         }
@@ -99,10 +99,10 @@ static uint32_t copyNonSimVars(libconfig::Setting& s1, libconfig::Setting& s2, s
 
 // Helper function: Compares two settings recursively, checking for inclusion
 // Returns number of settings without inclusion (given but unused)
-static uint32_t checkIncluded(libconfig::Setting& s1, libconfig::Setting& s2, std::string prefix) {
+static uint32_t checkIncluded(libconfig::Setting &s1, libconfig::Setting &s2, std::string prefix) {
     uint32_t unused = 0;
-    for (uint32_t i = 0; i < (uint32_t)s1.getLength(); i++) {
-        const char* name = s1[i].getName();
+    for (uint32_t i = 0; i < (uint32_t) s1.getLength(); i++) {
+        const char *name = s1[i].getName();
         if (!s2.exists(name)) {
             warn("Setting %s not used during configuration", (prefix + name).c_str());
             unused++;
@@ -114,18 +114,17 @@ static uint32_t checkIncluded(libconfig::Setting& s1, libconfig::Setting& s2, st
 }
 
 
-
 //Called when initialization ends. Writes output config, and emits warnings for unused input settings
-void Config::writeAndClose(const char* outFile, bool strictCheck) {
+void Config::writeAndClose(const char *outFile, bool strictCheck) {
     uint32_t nonSimVars = copyNonSimVars(inCfg->getRoot(), outCfg->getRoot(), std::string(""));
     uint32_t unused = checkIncluded(inCfg->getRoot(), outCfg->getRoot(), std::string(""));
 
-    if (nonSimVars) info("Copied %d non-sim var%s to output config", nonSimVars, (nonSimVars > 1)? "s" : "");
+    if (nonSimVars) info("Copied %d non-sim var%s to output config", nonSimVars, (nonSimVars > 1) ? "s" : "");
     if (unused) {
         if (strictCheck) {
-            panic("%d setting%s not used during configuration", unused, (unused > 1)? "s" : "");
+            panic("%d setting%s not used during configuration", unused, (unused > 1) ? "s" : "");
         } else {
-            warn("%d setting%s not used during configuration", unused, (unused > 1)? "s" : "");
+            warn("%d setting%s not used during configuration", unused, (unused > 1) ? "s" : "");
         }
     }
 
@@ -137,52 +136,87 @@ void Config::writeAndClose(const char* outFile, bool strictCheck) {
 }
 
 
-bool Config::exists(const char* key) {
+bool Config::exists(const char *key) {
     return inCfg->exists(key);
 }
 
 //Helper functions
-template<typename T> static const char* getTypeName();
-template<> const char* getTypeName<int>() {return "uint32";}
-template<> const char* getTypeName<lc_int64>() {return "uint64";}
-template<> const char* getTypeName<bool>() {return "bool";}
-template<> const char* getTypeName<const char*>() {return "string";}
-template<> const char* getTypeName<double>() {return "double";}
+template<typename T>
+static const char *getTypeName();
+
+template<>
+const char *getTypeName<int>() { return "uint32"; }
+
+template<>
+const char *getTypeName<lc_int64>() { return "uint64"; }
+
+template<>
+const char *getTypeName<bool>() { return "bool"; }
+
+template<>
+const char *getTypeName<const char *>() { return "string"; }
+
+template<>
+const char *getTypeName<double>() { return "double"; }
 
 typedef libconfig::Setting::Type SType;
-template<typename T> static SType getSType();
-template<> SType getSType<int>() {return SType::TypeInt;}
-template<> SType getSType<lc_int64>() {return SType::TypeInt64;}
-template<> SType getSType<bool>() {return SType::TypeBoolean;}
-template<> SType getSType<const char*>() {return SType::TypeString;}
-template<> SType getSType<double>() {return SType::TypeFloat;}
 
-template<typename T> static bool getEq(T v1, T v2);
-template<> bool getEq<int>(int v1, int v2) {return v1 == v2;}
-template<> bool getEq<lc_int64>(lc_int64 v1, lc_int64 v2) {return v1 == v2;}
-template<> bool getEq<bool>(bool v1, bool v2) {return v1 == v2;}
-template<> bool getEq<const char*>(const char* v1, const char* v2) {return strcmp(v1, v2) == 0;}
-template<> bool getEq<double>(double v1, double v2) {return v1 == v2;}
+template<typename T>
+static SType getSType();
 
-template<typename T> static void writeVar(libconfig::Setting& setting, const char* key, T val) {
+template<>
+SType getSType<int>() { return SType::TypeInt; }
+
+template<>
+SType getSType<lc_int64>() { return SType::TypeInt64; }
+
+template<>
+SType getSType<bool>() { return SType::TypeBoolean; }
+
+template<>
+SType getSType<const char *>() { return SType::TypeString; }
+
+template<>
+SType getSType<double>() { return SType::TypeFloat; }
+
+template<typename T>
+static bool getEq(T v1, T v2);
+
+template<>
+bool getEq<int>(int v1, int v2) { return v1 == v2; }
+
+template<>
+bool getEq<lc_int64>(lc_int64 v1, lc_int64 v2) { return v1 == v2; }
+
+template<>
+bool getEq<bool>(bool v1, bool v2) { return v1 == v2; }
+
+template<>
+bool getEq<const char *>(const char *v1, const char *v2) { return strcmp(v1, v2) == 0; }
+
+template<>
+bool getEq<double>(double v1, double v2) { return v1 == v2; }
+
+template<typename T>
+static void writeVar(libconfig::Setting &setting, const char *key, T val) {
     //info("writeVal %s", key);
-    const char* sep = strchr(key, '.');
+    const char *sep = strchr(key, '.');
     if (sep) {
         assert(*sep == '.');
-        uint32_t plen = (size_t)(sep-key);
-        char prefix[plen+1];
+        uint32_t plen = (size_t) (sep - key);
+        char prefix[plen + 1];
         strncpy(prefix, key, plen);
         prefix[plen] = 0;
         // libconfig strdups all passed strings, so it's fine that prefix is local.
         if (!setting.exists(prefix)) {
             try {
-                setting.add((const char*)prefix, SType::TypeGroup);
+                setting.add((const char *) prefix, SType::TypeGroup);
             } catch (libconfig::SettingNameException sne) {
                 panic("libconfig error adding group setting %s", prefix);
             }
         }
-        libconfig::Setting& child = setting[(const char*)prefix];
-        writeVar(child, sep+1, val);
+        libconfig::Setting &child = setting[(const char *) prefix];
+        writeVar(child, sep + 1, val);
     } else {
         if (!setting.exists(key)) {
             try {
@@ -198,14 +232,15 @@ template<typename T> static void writeVar(libconfig::Setting& setting, const cha
     }
 }
 
-template<typename T> static void writeVar(libconfig::Config* cfg, const char* key, T val) {
-    libconfig::Setting& setting = cfg->getRoot();
+template<typename T>
+static void writeVar(libconfig::Config *cfg, const char *key, T val) {
+    libconfig::Setting &setting = cfg->getRoot();
     writeVar(setting, key, val);
 }
 
 
 template<typename T>
-T Config::genericGet(const char* key, T def) {
+T Config::genericGet(const char *key, T def) {
     T val;
     if (inCfg->exists(key)) {
         if (!inCfg->lookupValue(key, val)) {
@@ -219,7 +254,7 @@ T Config::genericGet(const char* key, T def) {
 }
 
 template<typename T>
-T Config::genericGet(const char* key) {
+T Config::genericGet(const char *key) {
     T val;
     if (inCfg->exists(key)) {
         if (!inCfg->lookupValue(key, val)) {
@@ -233,22 +268,42 @@ T Config::genericGet(const char* key) {
 }
 
 //Template specializations for access interface
-template<> uint32_t Config::get<uint32_t>(const char* key) {return (uint32_t) genericGet<int>(key);}
-template<> uint64_t Config::get<uint64_t>(const char* key) {return (uint64_t) genericGet<lc_int64>(key);}
-template<> bool Config::get<bool>(const char* key) {return genericGet<bool>(key);}
-template<> const char* Config::get<const char*>(const char* key) {return genericGet<const char*>(key);}
-template<> double Config::get<double>(const char* key) {return (double) genericGet<double>(key);}
+template<>
+uint32_t Config::get<uint32_t>(const char *key) { return (uint32_t) genericGet<int>(key); }
 
-template<> uint32_t Config::get<uint32_t>(const char* key, uint32_t def) {return (uint32_t) genericGet<int>(key, (int)def);}
-template<> uint64_t Config::get<uint64_t>(const char* key, uint64_t def) {return (uint64_t) genericGet<lc_int64>(key, (lc_int64)def);}
-template<> bool Config::get<bool>(const char* key, bool def) {return genericGet<bool>(key, def);}
-template<> const char* Config::get<const char*>(const char* key, const char* def) {return genericGet<const char*>(key, def);}
-template<> double Config::get<double>(const char* key, double def) {return (double) genericGet<double>(key, (double)def);}
+template<>
+uint64_t Config::get<uint64_t>(const char *key) { return (uint64_t) genericGet<lc_int64>(key); }
+
+template<>
+bool Config::get<bool>(const char *key) { return genericGet<bool>(key); }
+
+template<>
+const char *Config::get<const char *>(const char *key) { return genericGet<const char *>(key); }
+
+template<>
+double Config::get<double>(const char *key) { return (double) genericGet<double>(key); }
+
+template<>
+uint32_t Config::get<uint32_t>(const char *key, uint32_t def) { return (uint32_t) genericGet<int>(key, (int) def); }
+
+template<>
+uint64_t Config::get<uint64_t>(const char *key, uint64_t def) {
+    return (uint64_t) genericGet<lc_int64>(key, (lc_int64) def);
+}
+
+template<>
+bool Config::get<bool>(const char *key, bool def) { return genericGet<bool>(key, def); }
+
+template<>
+const char *Config::get<const char *>(const char *key, const char *def) { return genericGet<const char *>(key, def); }
+
+template<>
+double Config::get<double>(const char *key, double def) { return (double) genericGet<double>(key, (double) def); }
 
 //Get subgroups in a specific key
-void Config::subgroups(const char* key, std::vector<const char*>& grps) {
+void Config::subgroups(const char *key, std::vector<const char *> &grps) {
     if (inCfg->exists(key)) {
-        libconfig::Setting& s = inCfg->lookup(key);
+        libconfig::Setting &s = inCfg->lookup(key);
         uint32_t n = s.getLength(); //0 if not a group or list
         for (uint32_t i = 0; i < n; i++) {
             if (s[i].isGroup()) grps.push_back(s[i].getName());
@@ -262,7 +317,7 @@ void Config::subgroups(const char* key, std::vector<const char*>& grps) {
 //Range parsing, for process masks
 
 //Helper, from http://oopweb.com/CPP/Documents/CPPHOWTO/Volume/C++Programming-HOWTO-7.html
-void Tokenize(const string& str, vector<string>& tokens, const string& delimiters) {
+void Tokenize(const string &str, vector<string> &tokens, const string &delimiters) {
     // Skip delimiters at beginning.
     string::size_type lastPos = 0; //dsm: DON'T //str.find_first_not_of(delimiters, 0);
     // Find first "non-delimiter".
@@ -283,7 +338,7 @@ struct Range {
     int32_t sup;
     int32_t step;
 
-    explicit Range(string r)  {
+    explicit Range(string r) {
         vector<string> t;
         Tokenize(r, t, ":");
         vector<uint32_t> n;
@@ -310,8 +365,7 @@ struct Range {
                 sup = n[1];
                 step = n[2];
                 break;
-            default:
-                panic("Range '%s' can only have 1-3 numbers delimited by ':', %ld parsed", r.c_str(), n.size());
+            default: panic("Range '%s' can only have 1-3 numbers delimited by ':', %ld parsed", r.c_str(), n.size());
         }
 
         //Final error-checking
@@ -320,15 +374,16 @@ struct Range {
         if (min >= sup) panic("Range %s has min >= sup!", r.c_str());
     }
 
-    void fill(vector<bool>& mask) {
+    void fill(vector<bool> &mask) {
         for (int32_t i = min; i < sup; i += step) {
-            if (i >= (int32_t)mask.size() || i < 0) panic("Range %d:%d:%d includes out-of-bounds %d (mask limit %ld)", min, step, sup, i, mask.size()-1);
+            if (i >= (int32_t) mask.size() || i < 0) panic("Range %d:%d:%d includes out-of-bounds %d (mask limit %ld)",
+                                                           min, step, sup, i, mask.size() - 1);
             mask[i] = true;
         }
     }
 };
 
-std::vector<bool> ParseMask(const std::string& maskStr, uint32_t maskSize) {
+std::vector<bool> ParseMask(const std::string &maskStr, uint32_t maskSize) {
     vector<bool> mask;
     mask.resize(maskSize);
 
@@ -343,8 +398,8 @@ std::vector<bool> ParseMask(const std::string& maskStr, uint32_t maskSize) {
 }
 
 //List parsing
-template <typename T>
-std::vector<T> ParseList(const std::string& listStr, const char* delimiters) {
+template<typename T>
+std::vector<T> ParseList(const std::string &listStr, const char *delimiters) {
     vector<string> nums;
     Tokenize(listStr, nums, delimiters);
 
@@ -361,6 +416,8 @@ std::vector<T> ParseList(const std::string& listStr, const char* delimiters) {
 }
 
 //Instantiations
-template std::vector<uint32_t> ParseList<uint32_t>(const std::string& listStr, const char* delimiters);
-template std::vector<uint64_t> ParseList<uint64_t>(const std::string& listStr, const char* delimiters);
-template std::vector<std::string> ParseList(const std::string& listStr, const char* delimiters);
+template std::vector<uint32_t> ParseList<uint32_t>(const std::string &listStr, const char *delimiters);
+
+template std::vector<uint64_t> ParseList<uint64_t>(const std::string &listStr, const char *delimiters);
+
+template std::vector<std::string> ParseList(const std::string &listStr, const char *delimiters);

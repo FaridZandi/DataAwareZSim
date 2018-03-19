@@ -34,56 +34,74 @@ int gm_init(size_t segmentSize);
 void gm_attach(int shmid);
 
 // C-style interface
-void* gm_malloc(size_t size);
-void* __gm_calloc(size_t num, size_t size);  //deprecated, only used internally
-void* __gm_memalign(size_t blocksize, size_t bytes);  // deprecated, only used internally
-char* gm_strdup(const char* str);
-void gm_free(void* ptr);
+void *gm_malloc(size_t size);
+
+void *__gm_calloc(size_t num, size_t size);  //deprecated, only used internally
+void *__gm_memalign(size_t blocksize, size_t bytes);  // deprecated, only used internally
+char *gm_strdup(const char *str);
+
+void gm_free(void *ptr);
 
 // C++-style alloc interface (preferred)
-template <typename T> T* gm_malloc() {return static_cast<T*>(gm_malloc(sizeof(T)));}
-template <typename T> T* gm_malloc(size_t objs) {return static_cast<T*>(gm_malloc(sizeof(T)*objs));}
-template <typename T> T* gm_calloc() {return static_cast<T*>(__gm_calloc(1, sizeof(T)));}
-template <typename T> T* gm_calloc(size_t objs) {return static_cast<T*>(__gm_calloc(objs, sizeof(T)));}
-template <typename T> T* gm_memalign(size_t blocksize) {return static_cast<T*>(__gm_memalign(blocksize, sizeof(T)));}
-template <typename T> T* gm_memalign(size_t blocksize, size_t objs) {return static_cast<T*>(__gm_memalign(blocksize, sizeof(T)*objs));}
-template <typename T> T* gm_dup(T* src, size_t objs) {
-    T* dst = gm_malloc<T>(objs);
-    memcpy(dst, src, sizeof(T)*objs);
+template<typename T>
+T *gm_malloc() { return static_cast<T *>(gm_malloc(sizeof(T))); }
+
+template<typename T>
+T *gm_malloc(size_t objs) { return static_cast<T *>(gm_malloc(sizeof(T) * objs)); }
+
+template<typename T>
+T *gm_calloc() { return static_cast<T *>(__gm_calloc(1, sizeof(T))); }
+
+template<typename T>
+T *gm_calloc(size_t objs) { return static_cast<T *>(__gm_calloc(objs, sizeof(T))); }
+
+template<typename T>
+T *gm_memalign(size_t blocksize) { return static_cast<T *>(__gm_memalign(blocksize, sizeof(T))); }
+
+template<typename T>
+T *gm_memalign(size_t blocksize, size_t objs) { return static_cast<T *>(__gm_memalign(blocksize, sizeof(T) * objs)); }
+
+template<typename T>
+T *gm_dup(T *src, size_t objs) {
+    T *dst = gm_malloc<T>(objs);
+    memcpy(dst, src, sizeof(T) * objs);
     return dst;
 }
 
-void gm_set_glob_ptr(void* ptr);
-void* gm_get_glob_ptr();
+void gm_set_glob_ptr(void *ptr);
 
-void gm_set_secondary_ptr(void* ptr);
-void* gm_get_secondary_ptr();
+void *gm_get_glob_ptr();
+
+void gm_set_secondary_ptr(void *ptr);
+
+void *gm_get_secondary_ptr();
 
 void gm_stats();
 
 bool gm_isready();
+
 void gm_detach();
 
 
 class GlobAlloc {
-    public:
-        virtual ~GlobAlloc() {}
+public:
+    virtual ~GlobAlloc() {}
 
-        inline void* operator new (size_t sz) {
-            return gm_malloc(sz);
-        }
+    inline void *operator new(size_t sz) {
+        return gm_malloc(sz);
+    }
 
-        //Placement new
-        inline void* operator new (size_t sz, void* ptr) {
-            return ptr;
-        }
+    //Placement new
+    inline void *operator new(size_t sz, void *ptr) {
+        return ptr;
+    }
 
-        inline void operator delete(void *p, size_t sz) {
-            gm_free(p);
-        }
+    inline void operator delete(void *p, size_t sz) {
+        gm_free(p);
+    }
 
-        //Placement delete... make ICC happy. This would only fire on an exception
-        void operator delete (void* p, void* ptr) {}
+    //Placement delete... make ICC happy. This would only fire on an exception
+    void operator delete(void *p, void *ptr) {}
 };
 
 #endif  // GALLOC_H_

@@ -51,50 +51,50 @@
 
 namespace slab {
 
-class SlabAlloc;
+    class SlabAlloc;
 
-struct Slab {  // POD type (no constructor)
-    SlabAlloc* allocator;
-    volatile uint32_t liveElems;
-    uint32_t usedBytes;
-    char buf[SLAB_SIZE - sizeof(SlabAlloc*) - sizeof(volatile uint32_t) - sizeof(uint32_t)];
+    struct Slab {  // POD type (no constructor)
+        SlabAlloc *allocator;
+        volatile uint32_t liveElems;
+        uint32_t usedBytes;
+        char buf[SLAB_SIZE - sizeof(SlabAlloc *) - sizeof(volatile uint32_t) - sizeof(uint32_t)];
 
-    void init(SlabAlloc* _allocator) {
-        allocator = _allocator;
-        clear();
-    }
+        void init(SlabAlloc *_allocator) {
+            allocator = _allocator;
+            clear();
+        }
 
-    void clear() {
-        liveElems = 0;
-        usedBytes = 0;
-    }
+        void clear() {
+            liveElems = 0;
+            usedBytes = 0;
+        }
 
-    void* alloc(uint32_t bytes) {
+        void *alloc(uint32_t bytes) {
 #if 1 //no effort to align, but objs are a multiple of 8 bytes, so all allocs are as well
-        char* ptr = buf + usedBytes;
-        usedBytes += bytes;
+            char *ptr = buf + usedBytes;
+            usedBytes += bytes;
 #else //align to some block size --- performs worse in my analysis, the loss in locality does not compensate
 #define ALIGN_SZ 64
-        char* base = buf+used;
-        char* ptr = static_cast<char*>(((uint64_t)(base+(ALIGN_SZ))) & (-ALIGN_SZ)); //aligned
-        used = (ptr-buf)+bytes;
+            char* base = buf+used;
+            char* ptr = static_cast<char*>(((uint64_t)(base+(ALIGN_SZ))) & (-ALIGN_SZ)); //aligned
+            used = (ptr-buf)+bytes;
 #endif
-        //info("Allocation starting at %p, %d bytes", ptr, bytes);
-        if (usedBytes < sizeof(buf)) {
-            liveElems++;  // allocation is unsynced, no need for atomic op
-            return ptr;
-        } else {
-            return nullptr;
+            //info("Allocation starting at %p, %d bytes", ptr, bytes);
+            if (usedBytes < sizeof(buf)) {
+                liveElems++;  // allocation is unsynced, no need for atomic op
+                return ptr;
+            } else {
+                return nullptr;
+            }
         }
-    }
 
-    inline void freeElem();
-};
+        inline void freeElem();
+    };
 
-class SlabAlloc {
+    class SlabAlloc {
     private:
-        Slab* curSlab;
-        g_vector<Slab*> freeList;
+        Slab *curSlab;
+        g_vector<Slab *> freeList;
         uint32_t liveSlabs;
         mutex freeLock;  // used because slab frees may be concurrent
 
@@ -103,19 +103,20 @@ class SlabAlloc {
             allocSlab();
         }
 
-        void* alloc(size_t sz) {
+        void *alloc(size_t sz) {
             assert(sz < SLAB_SIZE);
-            void* ptr = curSlab->alloc(sz);
+            void *ptr = curSlab->alloc(sz);
             if (unlikely(!ptr)) {
                 allocSlab();
                 ptr = curSlab->alloc(sz);
                 assert(ptr);
             }
-            assert((((uintptr_t)ptr) & SLAB_MASK) == (uintptr_t)curSlab)
+            assert((((uintptr_t) ptr) & SLAB_MASK) == (uintptr_t) curSlab)
             return ptr;
         }
 
-        template <typename T> T* alloc() { return (T*)alloc(sizeof(T)); }
+        template<typename T>
+        T *alloc() { return (T *) alloc(sizeof(T)); }
 
     private:
         void allocSlab() {
@@ -127,14 +128,14 @@ class SlabAlloc {
             } else {
                 assert(sizeof(Slab) == SLAB_SIZE);
                 curSlab = gm_memalign<Slab>(sizeof(Slab));
-                assert((((uintptr_t)curSlab) & SLAB_MASK) == (uintptr_t)curSlab);
+                assert((((uintptr_t) curSlab) & SLAB_MASK) == (uintptr_t) curSlab);
                 curSlab->init(this);  // NOTE: Slab is POD
             }
             liveSlabs++;
             //info("allocated slab %p, %d live, %ld in freeList", curSlab, liveSlabs, freeList.size());
         }
 
-        void freeSlab(Slab* s) {
+        void freeSlab(Slab *s) {
             scoped_mutex sm(freeLock);
             //info("freeing slab %p, %d live, %ld in freeList", s, liveSlabs, freeList.size());
             s->clear();
@@ -149,24 +150,24 @@ class SlabAlloc {
         }
 
         friend struct Slab;
-};
+    };
 
-inline void Slab::freeElem() {
-    uint32_t prevLiveElems = __sync_fetch_and_sub(&liveElems, 1);
-    assert(prevLiveElems && prevLiveElems < usedBytes /* >= 1 bytes/obj*/);
-    //info("[%p] Slab::freeElem %d prevLiveElems", this, prevLiveElems);
-    if (prevLiveElems == 1) {
-        allocator->freeSlab(this);
+    inline void Slab::freeElem() {
+        uint32_t prevLiveElems = __sync_fetch_and_sub(&liveElems, 1);
+        assert(prevLiveElems && prevLiveElems < usedBytes /* >= 1 bytes/obj*/);
+        //info("[%p] Slab::freeElem %d prevLiveElems", this, prevLiveElems);
+        if (prevLiveElems == 1) {
+            allocator->freeSlab(this);
+        }
     }
-}
 
-inline void freeElem(void* elem, size_t minSz) {
+    inline void freeElem(void *elem, size_t minSz) {
 #ifdef DEBUG_SLAB_ALLOC
-    memset(elem, 0, minSz);
+        memset(elem, 0, minSz);
 #endif
-    Slab* s = (Slab*)(((uintptr_t)elem) & SLAB_MASK);
-    s->freeElem();
-}
+        Slab *s = (Slab *) (((uintptr_t) elem) & SLAB_MASK);
+        s->freeElem();
+    }
 
 };  // namespace slab
 

@@ -42,12 +42,18 @@ struct BblInfo {
  */
 struct InstrFuncPtrs {  // NOLINT(whitespace)
     void (*loadPtr)(THREADID, ADDRINT, ADDRINT /*Kasraa*/);
+
     void (*storePtr)(THREADID, ADDRINT, ADDRINT /*Kasraa*/);
-    void (*bblPtr)(THREADID, ADDRINT, BblInfo*);
+
+    void (*bblPtr)(THREADID, ADDRINT, BblInfo *);
+
     void (*branchPtr)(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT);
+
     // Same as load/store functions, but last arg indicated whether op is executing
     void (*predLoadPtr)(THREADID, ADDRINT, ADDRINT /*Kasraa*/, BOOL);
+
     void (*predStorePtr)(THREADID, ADDRINT, ADDRINT /*Kasraa*/, BOOL);
+
     uint64_t type;
     uint64_t pad[1];
     //NOTE: By having the struct be a power of 2 bytes, indirect calls are simpler (w/ gcc 4.4 -O3, 6->5 instructions, and those instructions are simpler)
@@ -63,28 +69,31 @@ struct InstrFuncPtrs {  // NOLINT(whitespace)
 //Generic core class
 
 class Core : public GlobAlloc {
-    private:
-        uint64_t lastUpdateCycles;
-        uint64_t lastUpdateInstrs;
+private:
+    uint64_t lastUpdateCycles;
+    uint64_t lastUpdateInstrs;
 
-    protected:
-        g_string name;
+protected:
+    g_string name;
 
-    public:
-        explicit Core(g_string& _name) : lastUpdateCycles(0), lastUpdateInstrs(0), name(_name) {}
+public:
+    explicit Core(g_string &_name) : lastUpdateCycles(0), lastUpdateInstrs(0), name(_name) {}
 
-        virtual uint64_t getInstrs() const = 0; // typically used to find out termination conditions or dumps
-        virtual uint64_t getPhaseCycles() const = 0; // used by RDTSC faking --- we need to know how far along we are in the phase, but not the total number of phases
-        virtual uint64_t getCycles() const = 0;
+    virtual uint64_t getInstrs() const = 0; // typically used to find out termination conditions or dumps
+    virtual uint64_t
+    getPhaseCycles() const = 0; // used by RDTSC faking --- we need to know how far along we are in the phase, but not the total number of phases
+    virtual uint64_t getCycles() const = 0;
 
-        virtual void initStats(AggregateStat* parentStat) = 0;
-        virtual void contextSwitch(int32_t gid) = 0; //gid == -1 means descheduled, otherwise this is the new gid
+    virtual void initStats(AggregateStat *parentStat) = 0;
 
-        //Called by scheduler on every leave and join action, before barrier methods are called
-        virtual void leave() {}
-        virtual void join() {}
+    virtual void contextSwitch(int32_t gid) = 0; //gid == -1 means descheduled, otherwise this is the new gid
 
-        virtual InstrFuncPtrs GetFuncPtrs() = 0;
+    //Called by scheduler on every leave and join action, before barrier methods are called
+    virtual void leave() {}
+
+    virtual void join() {}
+
+    virtual InstrFuncPtrs GetFuncPtrs() = 0;
 };
 
 #endif  // CORE_H_

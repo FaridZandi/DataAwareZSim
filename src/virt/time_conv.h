@@ -35,33 +35,33 @@
 #define NSPS (1000*1000*1000L)
 
 static inline uint64_t timevalToNs(struct timeval tv) {
-    return tv.tv_sec*NSPS + tv.tv_usec*1000L;
+    return tv.tv_sec * NSPS + tv.tv_usec * 1000L;
 }
 
 static inline uint64_t timespecToNs(struct timespec ts) {
-    return ts.tv_sec*NSPS + ts.tv_nsec;
+    return ts.tv_sec * NSPS + ts.tv_nsec;
 }
 
 static inline struct timeval nsToTimeval(uint64_t ns) {
     struct timeval res;
-    res.tv_sec = ns/NSPS;
-    res.tv_usec = (ns % NSPS)/1000;
+    res.tv_sec = ns / NSPS;
+    res.tv_usec = (ns % NSPS) / 1000;
     return res;
 }
 
 static inline struct timespec nsToTimespec(uint64_t ns) {
     struct timespec res;
-    res.tv_sec = ns/NSPS;
+    res.tv_sec = ns / NSPS;
     res.tv_nsec = (ns % NSPS);
     return res;
 }
 
 static inline uint64_t cyclesToNs(uint64_t cycles) {
-    return cycles*1000/zinfo->freqMHz;
+    return cycles * 1000 / zinfo->freqMHz;
 }
 
 static inline uint64_t nsToCycles(uint64_t cycles) {
-    return cycles*zinfo->freqMHz/1000;
+    return cycles * zinfo->freqMHz / 1000;
 }
 
 #endif  // VIRT_TIME_CONV_H_

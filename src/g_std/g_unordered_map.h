@@ -31,6 +31,9 @@
 #include "g_std/stl_galloc.h"
 
 //template <typename K, typename V> class g_unordered_map : public std::unordered_map<K, V, StlGlobAlloc<std::pair<K const, V> > > {}; //this seems to work for TR1, not for final
-template <typename K, typename V> class g_unordered_map : public std::unordered_map<K, V, std::hash<K>, std::equal_to<K>, StlGlobAlloc<std::pair<const K, V> > > {};
+template<typename K, typename V>
+class g_unordered_map
+        : public std::unordered_map<K, V, std::hash<K>, std::equal_to<K>, StlGlobAlloc<std::pair<const K, V> > > {
+};
 
 #endif  // G_UNORDERED_MAP_H_

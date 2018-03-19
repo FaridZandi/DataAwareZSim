@@ -34,27 +34,29 @@
 
 /* Simple memory (or memory bank), has a fixed latency */
 class SimpleMemory : public MemObject {
-    private:
-		bool _collect_trace;
-		g_string _trace_dir;
+private:
+    bool _collect_trace;
+    g_string _trace_dir;
 
-        g_string name;
-        uint32_t latency;
-		Address _address_trace[10000];
-		uint32_t _type_trace[10000];
-		uint32_t _cur_trace_len;
-		uint32_t _max_trace_len;
+    g_string name;
+    uint32_t latency;
+    Address _address_trace[10000];
+    uint32_t _type_trace[10000];
+    uint32_t _cur_trace_len;
+    uint32_t _max_trace_len;
 
-		struct Chunk {
-			char a[2000];
-		};
-	
-		lock_t _lock;
-		Chunk * temp;
-    public:
-        uint64_t access(MemReq& req);
-        const char* getName() {return name.c_str();}
-        SimpleMemory(uint32_t _latency, g_string& _name, Config& config);
+    struct Chunk {
+        char a[2000];
+    };
+
+    lock_t _lock;
+    Chunk *temp;
+public:
+    uint64_t access(MemReq &req);
+
+    const char *getName() { return name.c_str(); }
+
+    SimpleMemory(uint32_t _latency, g_string &_name, Config &config);
 };
 
 
@@ -62,51 +64,59 @@ class SimpleMemory : public MemObject {
  * using an M/D/1 queueing model.
  */
 class MD1Memory : public MemObject {
-    private:
-        uint64_t lastPhase;
-        double maxRequestsPerCycle;
-        double smoothedPhaseAccesses;
-        uint32_t zeroLoadLatency;
-        uint32_t curLatency;
+private:
+    uint64_t lastPhase;
+    double maxRequestsPerCycle;
+    double smoothedPhaseAccesses;
+    uint32_t zeroLoadLatency;
+    uint32_t curLatency;
 
-        PAD();
+    PAD();
 
-        Counter profReads;
-        Counter profWrites;
-        Counter profTotalRdLat;
-        Counter profTotalWrLat;
-        Counter profLoad;
-        Counter profUpdates;
-        Counter profClampedLoads;
-        uint32_t curPhaseAccesses;
+    Counter profReads;
+    Counter profWrites;
+    Counter profTotalRdLat;
+    Counter profTotalWrLat;
+    Counter profLoad;
+    Counter profUpdates;
+    Counter profClampedLoads;
+    uint32_t curPhaseAccesses;
 
-        g_string name; //barely used
-        lock_t updateLock;
-        PAD();
+    g_string name; //barely used
+    lock_t updateLock;
+    PAD();
 
-    public:
-        MD1Memory(uint32_t lineSize, uint32_t megacyclesPerSecond, uint32_t megabytesPerSecond, uint32_t _zeroLoadLatency, g_string& _name);
+public:
+    MD1Memory(uint32_t lineSize, uint32_t megacyclesPerSecond, uint32_t megabytesPerSecond, uint32_t _zeroLoadLatency,
+              g_string &_name);
 
-        void initStats(AggregateStat* parentStat) {
-            AggregateStat* memStats = new AggregateStat();
-            memStats->init(name.c_str(), "Memory controller stats");
-            profReads.init("rd", "Read requests"); memStats->append(&profReads);
-            profWrites.init("wr", "Write requests"); memStats->append(&profWrites);
-            profTotalRdLat.init("rdlat", "Total latency experienced by read requests"); memStats->append(&profTotalRdLat);
-            profTotalWrLat.init("wrlat", "Total latency experienced by write requests"); memStats->append(&profTotalWrLat);
-            profLoad.init("load", "Sum of load factors (0-100) per update"); memStats->append(&profLoad);
-            profUpdates.init("ups", "Number of latency updates"); memStats->append(&profUpdates);
-            profClampedLoads.init("clampedLoads", "Number of updates where the load was clamped to 95%"); memStats->append(&profClampedLoads);
-            parentStat->append(memStats);
-        }
+    void initStats(AggregateStat *parentStat) {
+        AggregateStat *memStats = new AggregateStat();
+        memStats->init(name.c_str(), "Memory controller stats");
+        profReads.init("rd", "Read requests");
+        memStats->append(&profReads);
+        profWrites.init("wr", "Write requests");
+        memStats->append(&profWrites);
+        profTotalRdLat.init("rdlat", "Total latency experienced by read requests");
+        memStats->append(&profTotalRdLat);
+        profTotalWrLat.init("wrlat", "Total latency experienced by write requests");
+        memStats->append(&profTotalWrLat);
+        profLoad.init("load", "Sum of load factors (0-100) per update");
+        memStats->append(&profLoad);
+        profUpdates.init("ups", "Number of latency updates");
+        memStats->append(&profUpdates);
+        profClampedLoads.init("clampedLoads", "Number of updates where the load was clamped to 95%");
+        memStats->append(&profClampedLoads);
+        parentStat->append(memStats);
+    }
 
-        //uint32_t access(Address lineAddr, AccessType type, uint32_t childId, MESIState* state /*both input and output*/, MESIState initialState, lock_t* childLock);
-        uint64_t access(MemReq& req);
+    //uint32_t access(Address lineAddr, AccessType type, uint32_t childId, MESIState* state /*both input and output*/, MESIState initialState, lock_t* childLock);
+    uint64_t access(MemReq &req);
 
-        const char* getName() {return name.c_str();}
+    const char *getName() { return name.c_str(); }
 
-    private:
-        void updateLatency();
+private:
+    void updateLatency();
 };
 
 #endif  // MEM_CTRLS_H_

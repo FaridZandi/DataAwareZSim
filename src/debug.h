@@ -30,9 +30,9 @@
 
 /* Describes the addresses at which libzsim.so is loaded. GDB needs this. */
 struct LibInfo {
-    void* textAddr;
-    void* bssAddr;
-    void* dataAddr;
+    void *textAddr;
+    void *bssAddr;
+    void *dataAddr;
 };
 
 #endif  // DEBUG_H_

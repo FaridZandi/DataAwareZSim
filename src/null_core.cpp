@@ -26,14 +26,15 @@
 #include "null_core.h"
 #include "zsim.h"
 
-NullCore::NullCore(g_string& _name) : Core(_name), instrs(0), curCycle(0), phaseEndCycle(0) {}
+NullCore::NullCore(g_string & _name) : Core(_name), instrs(0), curCycle(0), phaseEndCycle(0) {}
 
-void NullCore::initStats(AggregateStat* parentStat) {
-    AggregateStat* coreStat = new AggregateStat();
+void NullCore::initStats(AggregateStat *parentStat) {
+    AggregateStat *coreStat = new AggregateStat();
     coreStat->init(name.c_str(), "Core stats");
-    ProxyStat* cyclesStat = new ProxyStat();
-    cyclesStat->init("cycles", "Simulated cycles", &instrs); //simulated instrs == simulated cycles; curCycle can be skewed forward
-    ProxyStat* instrsStat = new ProxyStat();
+    ProxyStat *cyclesStat = new ProxyStat();
+    cyclesStat->init("cycles", "Simulated cycles",
+                     &instrs); //simulated instrs == simulated cycles; curCycle can be skewed forward
+    ProxyStat *instrsStat = new ProxyStat();
     instrsStat->init("instrs", "Simulated instructions", &instrs);
     coreStat->append(cyclesStat);
     coreStat->append(instrsStat);
@@ -44,7 +45,7 @@ uint64_t NullCore::getPhaseCycles() const {
     return curCycle - zinfo->globPhaseCycles;
 }
 
-void NullCore::bbl(BblInfo* bblInfo) {
+void NullCore::bbl(BblInfo *bblInfo) {
     instrs += bblInfo->instrs;
     curCycle += bblInfo->instrs;
 }
@@ -63,12 +64,15 @@ InstrFuncPtrs NullCore::GetFuncPtrs() {
 }
 
 void NullCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {}
+
 void NullCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {}
+
 void NullCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {}
+
 void NullCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {}
 
-void NullCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
-    NullCore* core = static_cast<NullCore*>(cores[tid]);
+void NullCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
+    NullCore *core = static_cast<NullCore *>(cores[tid]);
     core->bbl(bblInfo);
 
     while (unlikely(core->curCycle > core->phaseEndCycle)) {
