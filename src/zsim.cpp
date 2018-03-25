@@ -59,6 +59,8 @@
 #include "stats.h"
 #include "trace_driver.h"
 #include "virt/virt.h"
+#include <map>
+#include <queue>
 
 //#include <signal.h> //can't include this, conflicts with PIN's
 
@@ -171,12 +173,156 @@ VOID FFThread(VOID *arg);
 
 InstrFuncPtrs fPtrs[MAX_THREADS] ATTR_LINE_ALIGNED; //minimize false sharing
 
-VOID PIN_FAST_ANALYSIS_CALL IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    fPtrs[tid].loadPtr(tid, addr, pc /*Kasraa*/);
+PIN_LOCK lock;
+
+std::ofstream farid("trace.txt");
+
+bool debug = false;
+
+struct unresolved_memeory_op {
+    ADDRINT addr;
+    UINT32 size;
+};
+
+struct resolved_memory_value {
+    ADDRINT addr;
+    char *value;
+    UINT32 size;
+};
+
+
+std::map<ADDRINT, std::queue<unresolved_memeory_op> > unhandled_memory_writes;
+
+std::map<ADDRINT, std::queue<unresolved_memeory_op> > unhandled_memory_reads;
+
+
+resolved_memory_value
+resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_memeory_op> > &m, ADDRINT &pc) {
+    PIN_GetLock(&lock, tid + 1);
+    std::map<ADDRINT, std::queue<unresolved_memeory_op> >::iterator result = m.find(pc);
+    if (result == m.end()) {
+        panic("unexpected situation: value not found for key");
+    }
+    if (result->second.size() == 0) {
+        panic("unexpected situation: no item in the queue");
+    }
+    ADDRINT addr = result->second.front().addr;
+    UINT32 size = result->second.front().size;
+    PIN_ReleaseLock(&lock);
+
+    char *value = new char[size];
+    PIN_SafeCopy(value, ((ADDRINT *) addr), size);
+
+    PIN_GetLock(&lock, tid + 1);
+    if (result->second.size() == 1) {
+        m.erase(pc);
+    } else {
+        result->second.pop();
+    }
+    PIN_ReleaseLock(&lock);
+
+    return resolved_memory_value{addr, value, size};
 }
 
-VOID PIN_FAST_ANALYSIS_CALL IndirectStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    fPtrs[tid].storePtr(tid, addr, pc /*Kasraa*/);
+static VOID EmitMem(VOID *ea, INT32 size) {
+    farid << " with size: " << std::dec << setw(3) << size << " with value ";
+    switch (size) {
+        case 0:
+            cerr << "zero length data here" << std::endl;
+            farid << setw(1);
+            break;
+
+        case 1:
+            farid << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
+            break;
+
+        case 2:
+            farid << *static_cast<UINT16 *>(ea);
+            break;
+
+        case 4:
+            farid << *static_cast<UINT32 *>(ea);
+            break;
+
+        case 8:
+            farid << *static_cast<UINT64 *>(ea);
+            break;
+
+        default:
+            farid << setw(1) << "0x";
+            for (INT32 i = 0; i < size; i++) {
+                farid << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+            }
+            break;
+    }
+}
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 memory_read_size) {
+    PIN_GetLock(&lock, tid + 1);
+
+    if (debug) {
+        farid << "R    at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
+              << std::left << addr << " ";
+        farid << std::endl;
+    }
+
+    unhandled_memory_reads[pc].push(unresolved_memeory_op{addr, memory_read_size});
+
+    PIN_ReleaseLock(&lock);
+
+}
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_reads, pc);
+
+    if (debug) {
+        PIN_GetLock(&lock, tid + 1);
+        farid << "AFR  at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
+              << std::left << s.addr << " ";
+        EmitMem(s.value, s.size);
+        farid << std::endl;
+        PIN_ReleaseLock(&lock);
+    }
+
+    fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/);
+
+    delete s.value;
+}
+
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 memory_write_size) {
+    PIN_GetLock(&lock, tid + 1);
+
+    if (debug) {
+        farid << "W    at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " to   addr 0x" << setw(14)
+              << std::left << addr << " ";
+        farid << std::endl;
+    }
+
+    unhandled_memory_writes[pc].push(unresolved_memeory_op{addr, memory_write_size});
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_writes, pc);
+
+    if (debug) {
+        PIN_GetLock(&lock, tid + 1);
+        farid << "AFW  at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " to   addr 0x" << setw(14)
+              << std::left << s.addr << " ";
+        EmitMem(s.value, s.size);
+        farid << std::endl;
+        PIN_ReleaseLock(&lock);
+    }
+
+    fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/);
+
+    delete s.value;
 }
 
 VOID PIN_FAST_ANALYSIS_CALL IndirectBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -188,14 +334,73 @@ IndirectRecordBranch(THREADID tid, ADDRINT branchPc, BOOL taken, ADDRINT takenNp
     fPtrs[tid].branchPtr(tid, branchPc, taken, takenNpc, notTakenNpc);
 }
 
-VOID PIN_FAST_ANALYSIS_CALL IndirectPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    fPtrs[tid].predLoadPtr(tid, addr, pc /*Kasraa*/, pred);
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred, UINT32 memory_read_size) {
+    PIN_GetLock(&lock, tid + 1);
+
+    if (debug) {
+        farid << "PR   at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
+              << std::left << addr << " ";
+        farid << std::endl;
+    }
+
+    unhandled_memory_reads[pc].push(unresolved_memeory_op{addr, memory_read_size});
+
+    PIN_ReleaseLock(&lock);
+
 }
 
-VOID PIN_FAST_ANALYSIS_CALL IndirectPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    fPtrs[tid].predStorePtr(tid, addr, pc /*Kasraa*/, pred);
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectPredLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_reads, pc);
+
+    if (debug) {
+        PIN_GetLock(&lock, tid + 1);
+        farid << "PAFR at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
+              << std::left << s.addr << " ";
+        EmitMem(s.value, s.size);
+        farid << std::endl;
+        PIN_ReleaseLock(&lock);
+    }
+
+    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, pred);
+
+    delete s.value;
 }
 
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred, UINT32 memory_write_size) {
+    PIN_GetLock(&lock, tid + 1);
+
+    if (debug) {
+        farid << "PW   at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " to   addr 0x" << setw(14)
+              << std::left << addr << " ";
+        farid << std::endl;
+    }
+
+    unhandled_memory_writes[pc].push(unresolved_memeory_op{addr, memory_write_size});
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID PIN_FAST_ANALYSIS_CALL
+IndirectPredStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_writes, pc);
+
+    if (debug) {
+        PIN_GetLock(&lock, tid + 1);
+        farid << "PAFW at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
+              << std::left << s.addr << " ";
+        EmitMem(s.value, s.size);
+        farid << std::endl;
+        PIN_ReleaseLock(&lock);
+    }
+
+    fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, pred);
+
+    delete s.value;
+}
 
 //Non-simulation variants of analysis functions
 
@@ -550,38 +755,66 @@ VOID Instruction(INS ins) {
 
     if (!procTreeNode->isInFastForward() || !zinfo->ffReinstrument) {
         AFUNPTR LoadFuncPtr = (AFUNPTR) IndirectLoadSingle;
+        AFUNPTR LoadFuncAfterPtr = (AFUNPTR) IndirectLoadSingleAfter;
         AFUNPTR StoreFuncPtr = (AFUNPTR) IndirectStoreSingle;
+        AFUNPTR StoreFuncAfterPtr = (AFUNPTR) IndirectStoreSingleAfter;
 
         AFUNPTR PredLoadFuncPtr = (AFUNPTR) IndirectPredLoadSingle;
+        AFUNPTR PredLoadFuncAfterPtr = (AFUNPTR) IndirectPredLoadSingleAfter;
         AFUNPTR PredStoreFuncPtr = (AFUNPTR) IndirectPredStoreSingle;
+        AFUNPTR PredStoreFuncAfterPtr = (AFUNPTR) IndirectPredStoreSingleAfter;
+
+        IPOINT where = IPOINT_TAKEN_BRANCH;
+        if (INS_HasFallThrough(ins)) {
+            where = IPOINT_AFTER;
+        }
 
         if (INS_IsMemoryRead(ins)) {
             if (!INS_IsPredicated(ins)) {
                 INS_InsertCall(ins, IPOINT_BEFORE, LoadFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYREAD_EA, IARG_INST_PTR /*Kasraa*/, IARG_END);
+                               IARG_MEMORYREAD_EA, IARG_INST_PTR /*Kasraa*/, IARG_MEMORYREAD_SIZE, IARG_END);
+
+                INS_InsertCall(ins, where, LoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_END);
             } else {
                 INS_InsertCall(ins, IPOINT_BEFORE, PredLoadFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYREAD_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_END);
+                               IARG_MEMORYREAD_EA, IARG_INST_PTR /*Kasraa*/, IARG_MEMORYREAD_SIZE, IARG_EXECUTING,
+                               IARG_END);
+                INS_InsertCall(ins, where, PredLoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING,
+                               IARG_END);
             }
         }
 
         if (INS_HasMemoryRead2(ins)) {
             if (!INS_IsPredicated(ins)) {
                 INS_InsertCall(ins, IPOINT_BEFORE, LoadFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYREAD2_EA, IARG_INST_PTR /*Kasraa*/, IARG_END);
+                               IARG_MEMORYREAD2_EA, IARG_INST_PTR /*Kasraa*/, IARG_MEMORYREAD_SIZE, IARG_END);
+                INS_InsertCall(ins, where, LoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_END);
             } else {
                 INS_InsertCall(ins, IPOINT_BEFORE, PredLoadFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYREAD2_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_END);
+                               IARG_MEMORYREAD2_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_MEMORYREAD_SIZE,
+                               IARG_END);
+                INS_InsertCall(ins, IPOINT_BEFORE, PredLoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING,
+                               IARG_END);
             }
         }
 
         if (INS_IsMemoryWrite(ins)) {
             if (!INS_IsPredicated(ins)) {
                 INS_InsertCall(ins, IPOINT_BEFORE, StoreFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYWRITE_EA, IARG_INST_PTR /*Kasraa*/, IARG_END);
+                               IARG_MEMORYWRITE_EA, IARG_INST_PTR /*Kasraa*/, IARG_MEMORYWRITE_SIZE, IARG_END);
+                INS_InsertCall(ins, where, StoreFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_END);
             } else {
                 INS_InsertCall(ins, IPOINT_BEFORE, PredStoreFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYWRITE_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_END);
+                               IARG_MEMORYWRITE_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_MEMORYWRITE_SIZE,
+                               IARG_END);
+                INS_InsertCall(ins, where, PredStoreFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING,
+                               IARG_END);
             }
         }
 

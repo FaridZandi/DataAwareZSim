@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
+#include <queue>
 
 using namespace std;
 
@@ -10,7 +11,7 @@ std::mutex my_lock;
 
 void bullshit() {
 
-    for (int i = 0; i < 10 ; i++) {
+    for (short i = 0; i < 10 ; i++) {
         my_lock.lock();
         a = a + 2;
         my_lock.unlock();
