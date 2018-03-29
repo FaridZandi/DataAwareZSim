@@ -262,8 +262,9 @@ IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 mem
     PIN_GetLock(&lock, tid + 1);
 
     if (debug) {
-        farid << "R    at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
-              << std::left << addr << " ";
+        farid << "R    at inst ptr 0x" << std::hex << setw(14) << std::left << pc
+              << " from addr 0x" << setw(14) << std::left << addr
+              << " to address 0x" << setw(14) << std::left << addr + memory_read_size;
         farid << std::endl;
     }
 
@@ -279,10 +280,13 @@ IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
-        farid << "AFR  at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
-              << std::left << s.addr << " ";
+        farid << "AFR  at inst ptr 0x" << std::hex << setw(14) << std::left << pc
+              << " from addr 0x" << setw(14) << std::left << s.addr
+              << " to address 0x" << setw(14) << std::left << s.addr + s.size;
         EmitMem(s.value, s.size);
         farid << std::endl;
+        if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
+            farid << "reading from multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
@@ -297,8 +301,9 @@ IndirectStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 me
     PIN_GetLock(&lock, tid + 1);
 
     if (debug) {
-        farid << "W    at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " to   addr 0x" << setw(14)
-              << std::left << addr << " ";
+        farid << "W    at inst ptr 0x" << std::hex << setw(14) << std::left << pc
+              << " to   addr 0x" << setw(14) << std::left << addr
+              << " to address 0x" << setw(14) << std::left << addr + memory_write_size;;
         farid << std::endl;
     }
 
@@ -313,10 +318,13 @@ IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
-        farid << "AFW  at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " to   addr 0x" << setw(14)
-              << std::left << s.addr << " ";
+        farid << "AFW  at inst ptr 0x" << std::hex << setw(14) << std::left << pc
+              << " to   addr 0x" << setw(14) << std::left << s.addr
+              << " to address 0x" << setw(14) << std::left << s.addr + s.size - 1;
         EmitMem(s.value, s.size);
         farid << std::endl;
+        if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
+            farid << "writing on multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
