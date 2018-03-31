@@ -79,8 +79,7 @@ uint64_t Cache::access(MemReq &req) {
             cc->processEviction(req, wbLineAddr, lineId,
                                 respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
 
-            array->postinsert(req.lineAddr, &req,
-                              lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
+            array->postinsert(req.lineAddr, &req, lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
         // Enforce single-record invariant: Writeback access may have a timing
         // record. If so, read it.

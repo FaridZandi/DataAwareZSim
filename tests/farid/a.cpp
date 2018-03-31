@@ -5,7 +5,7 @@
 
 using namespace std;
 
-int a = 7;
+int a = 8;
 
 std::mutex my_lock;
 
@@ -20,6 +20,12 @@ void bullshit() {
 
 int main() {
     cout << &a << endl;
+
+    for (int i = 0; i < 100; ++i) {
+        a = i;
+    }
+
+    cout << a << endl;
 
     std::thread t1(bullshit);
     std::thread t2(bullshit);

@@ -29,6 +29,8 @@
 /* Type and interface definitions of memory hierarchy objects */
 
 #include <stdint.h>
+#include "pin.H"
+#include "pin_cmd.h"
 #include "g_std/g_vector.h"
 #include "galloc.h"
 #include "locks.h"
@@ -108,6 +110,9 @@ struct MemReq {
     uint32_t flags;
 
     Address pc; //Kasraa
+    void* value;
+    UINT32 size;
+    unsigned int line_offset;
 
     inline void set(Flag f) { flags |= f; }
 

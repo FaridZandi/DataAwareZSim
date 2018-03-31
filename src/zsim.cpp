@@ -177,6 +177,7 @@ PIN_LOCK lock;
 
 std::ofstream farid("trace.txt");
 
+
 bool debug = false;
 
 struct unresolved_memeory_op {
@@ -290,7 +291,7 @@ IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/);
+    fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
 
     delete s.value;
 }
@@ -328,7 +329,7 @@ IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/);
+    fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
 
     delete s.value;
 }
@@ -371,7 +372,7 @@ IndirectPredLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, pred);
+    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred );
 
     delete s.value;
 }
@@ -405,7 +406,7 @@ IndirectPredStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, pred);
+    fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred);
 
     delete s.value;
 }
@@ -427,14 +428,14 @@ void Join(uint32_t tid) {
     fPtrs[tid] = cores[tid]->GetFuncPtrs(); //back to normal pointers
 }
 
-VOID JoinAndLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
+VOID JoinAndLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
     Join(tid);
-    fPtrs[tid].loadPtr(tid, addr, pc /*Kasraa*/);
+    fPtrs[tid].loadPtr(tid, addr, pc /*Kasraa*/, value, size);
 }
 
-VOID JoinAndStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
+VOID JoinAndStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
     Join(tid);
-    fPtrs[tid].storePtr(tid, addr, pc /*Kasraa*/);
+    fPtrs[tid].storePtr(tid, addr, pc /*Kasraa*/, value, size);
 }
 
 VOID JoinAndBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -447,24 +448,24 @@ VOID JoinAndRecordBranch(THREADID tid, ADDRINT branchPc, BOOL taken, ADDRINT tak
     fPtrs[tid].branchPtr(tid, branchPc, taken, takenNpc, notTakenNpc);
 }
 
-VOID JoinAndPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
+VOID JoinAndPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
     Join(tid);
-    fPtrs[tid].predLoadPtr(tid, addr, pc /*Kasraa*/, pred);
+    fPtrs[tid].predLoadPtr(tid, addr, pc /*Kasraa*/, value, size, pred);
 }
 
-VOID JoinAndPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {
+VOID JoinAndPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
     Join(tid);
-    fPtrs[tid].predStorePtr(tid, addr, pc /*Kasraa*/, pred);
+    fPtrs[tid].predStorePtr(tid, addr, pc /*Kasraa*/, value, size, pred);
 }
 
 // NOP variants: Do nothing
-VOID NOPLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {}
+VOID NOPLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {}
 
 VOID NOPBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {}
 
 VOID NOPRecordBranch(THREADID tid, ADDRINT addr, BOOL taken, ADDRINT takenNpc, ADDRINT notTakenNpc) {}
 
-VOID NOPPredLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL pred) {}
+VOID NOPPredLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {}
 
 // FF is basically NOP except for basic blocks
 VOID FFBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {

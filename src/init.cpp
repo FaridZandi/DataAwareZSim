@@ -239,7 +239,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     //Alright, build the array
     CacheArray *array = nullptr;
     if (arrayType == "SetAssoc") {
-        array = new SetAssocArray(numLines, ways, rp, hf);
+        array = new SetAssocArray(numLines, lineSize, ways, rp, hf);
     } else if (arrayType == "Z") {
         array = new ZArray(numLines, ways, candidates, rp, hf);
     } else if (arrayType == "IdealLRU") {

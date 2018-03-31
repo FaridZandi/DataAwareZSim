@@ -59,15 +59,17 @@ class HashFamily;
 class SetAssocArray : public CacheArray {
 protected:
     Address *array;
+    void **values;
     ReplPolicy *rp;
     HashFamily *hf;
     uint32_t numLines;
+    uint32_t lineSize;
     uint32_t numSets;
     uint32_t assoc;
     uint32_t setMask;
 
 public:
-    SetAssocArray(uint32_t _numLines, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
+    SetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 

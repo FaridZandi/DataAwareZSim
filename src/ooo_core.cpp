@@ -137,22 +137,30 @@ InstrFuncPtrs OOOCore::GetFuncPtrs() {
     return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};
 }
 
-inline void OOOCore::load(Address addr, Address pc /*Kasraa*/) {  //Kasraa: I heavily modified this function
+inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
+                          UINT32 size) {  //Kasraa: I heavily modified this function
     uint32_t currIdx = loads;
     loads++;
     assert_msg(loads != 0, "Kasraa: As loads is never decremented, loads cannot be 0 here!");
 
     loadAddrs[currIdx] = addr;
     loadPCs[currIdx] = pc;
+    loadSizes[currIdx] = size;
+    loadValues[currIdx] = new char[size];
+    memcpy(loadValues[currIdx], value, size);
 }
 
-void OOOCore::store(Address addr, Address pc /*Kasraa*/) {  //Kasraa: I heavily modified this function
+void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
+                    UINT32 size) {  //Kasraa: I heavily modified this function
     uint32_t currIdx = stores;
     stores++;
     assert_msg(stores != 0, "Kasraa: As stores is never decremented, stores cannot be 0 here!");
 
     storeAddrs[currIdx] = addr;
     storePCs[currIdx] = pc;
+    storeSizes[currIdx] = size;
+    storeValues[currIdx] = new char[size];
+    memcpy(storeValues[currIdx], value, size);
 }
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
@@ -165,6 +173,8 @@ void OOOCore::predFalseMemOp() {    //Kasraa: I heavily modified this function
 
     loadAddrs[currIdx] = -1L;
     loadPCs[currIdx] = -1L;
+    loadSizes[currIdx] = -1L;
+    loadValues[currIdx] = NULL;
 }
 
 void OOOCore::branch(Address pc, bool taken, Address takenNpc, Address notTakenNpc) {
@@ -290,10 +300,12 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 Address addr = loadAddrs[loadsCurrIdx];
                 Address pc = loadPCs[loadsCurrIdx];
                 //Kasraa [End]
+                char* value = loadValues[loadsCurrIdx];
+                UINT32 size = loadSizes[loadsCurrIdx];
 
                 uint64_t reqSatisfiedCycle = dispatchCycle;
                 if (addr != ((Address) -1L)) {
-                    reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
+                    reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
 
@@ -332,11 +344,13 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 uint32_t storesCurrIdx = storeIdx;
                 storeIdx++;
                 assert_msg(storeIdx != 0, "Kasraa: As storeIdx is never decremented, storeIdx cannot be 0 here!");
-                Address addr = storeAddrs[storesCurrIdx];
+                Address addr = storeAddrs[storesCurrIdx++];
                 Address pc = storePCs[storesCurrIdx];
                 //Kasraa [End]
+                char* value = storeValues[storesCurrIdx];
+                UINT32 size = storeSizes[storesCurrIdx];
 
-                uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/) + L1D_LAT;
+                uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
                 // Fill the forwarding table
@@ -433,12 +447,22 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
         // info("Mispredicted branch, %ld %ld %ld | %ld %ld", decodeCycle, curCycle, lastCommitCycle,
         //         lastCommitCycle-decodeCycle, lastCommitCycle-curCycle);
+
         Address wrongPathAddr = branchTaken ? branchNotTakenNpc : branchTakenNpc;
         uint64_t reqCycle = fetchCycle;
+
         for (uint32_t i = 0; i < 5 * 64 / lineSize; i++) {
-            uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i, curCycle, wrongPathAddr + lineSize *
-                                                                                                  i /*Kasraa: This is instruction cache and the PC is not required*/) -
-                                curCycle;
+
+            UINT32 size = (unsigned int) 1 << lineBits;
+            char *value = new char[size];
+            PIN_SafeCopy(value, (ADDRINT *) wrongPathAddr, size);
+
+            uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i,
+                                          curCycle,
+                                          wrongPathAddr +
+                                          lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
+                                          value, size) - curCycle;
+
             cRec.record(curCycle, curCycle, curCycle + fetchLat);
             uint64_t respCycle = reqCycle + fetchLat;
             if (respCycle > lastCommitCycle) {
@@ -446,6 +470,8 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
             }
             // Model fetch throughput limit
             reqCycle = respCycle + lineSize / FETCH_BYTES_PER_CYCLE;
+
+            delete value;
         }
 
         fetchCycle = lastCommitCycle;
@@ -459,11 +485,20 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
         // Do not model fetch throughput limit here, decoder-generated stalls already include it
         // We always call fetches with curCycle to avoid upsetting the weave
         // models (but we could move to a fetch-centric recorder to avoid this)
-        uint64_t fetchLat = l1i->load(fetchAddr, curCycle,
-                                      fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/) -
-                            curCycle;
+
+        UINT32 size = lineSize;
+        char *value = new char[size];
+        PIN_SafeCopy(value, (ADDRINT *) fetchAddr, size);
+
+        uint64_t fetchLat = l1i->load(fetchAddr,
+                                      curCycle,
+                                      fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
+                                      value, size) - curCycle;
+
         cRec.record(curCycle, curCycle, curCycle + fetchLat);
         fetchCycle += fetchLat;
+
+        delete value;
     }
 
     // If fetch rules, take into account delay between fetch and decode;
@@ -520,23 +555,23 @@ void OOOCore::advance(uint64_t targetCycle) {
 
 // Pin interface code
 
-void OOOCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<OOOCore *>(cores[tid])->load(addr, pc /*kasraa*/);
+void OOOCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size) {
+    static_cast<OOOCore *>(cores[tid])->load(addr, pc /*kasraa*/, value, size);
 }
 
-void OOOCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/) {
-    static_cast<OOOCore *>(cores[tid])->store(addr, pc /*kasraa*/);
+void OOOCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size) {
+    static_cast<OOOCore *>(cores[tid])->store(addr, pc /*kasraa*/, value, size);
 }
 
-void OOOCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, BOOL pred) {
+void OOOCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, void *value, UINT32 size, BOOL pred) {
     OOOCore *core = static_cast<OOOCore *>(cores[tid]);
-    if (pred) core->load(addr, pc /*kasraa*/);
+    if (pred) core->load(addr, pc /*kasraa*/, value, size);
     else core->predFalseMemOp();
 }
 
-void OOOCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, BOOL pred) {
+void OOOCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*kasraa*/, void *value, UINT32 size, BOOL pred) {
     OOOCore *core = static_cast<OOOCore *>(cores[tid]);
-    if (pred) core->store(addr, pc /*kasraa*/);
+    if (pred) core->store(addr, pc /*kasraa*/, value, size);
     else core->predFalseMemOp();
 }
 

@@ -111,8 +111,8 @@ public:
         parentStat->append(cacheStat);
     }
 
-    inline uint64_t load(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
-
+    inline uint64_t load(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size) {
+        unsigned int offset = (unsigned int) (vAddr & (1 << lineBits));
         Address vLineAddr = vAddr >> lineBits;
         uint32_t idx = vLineAddr & setMask;
         uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
@@ -120,11 +120,12 @@ public:
             fGETSHit++;
             return MAX(curCycle, availCycle);
         } else {
-            return replace(vLineAddr, idx, true, curCycle, pc /*Kasraa*/);
+            return replace(vLineAddr, idx, true, curCycle, pc /*Kasraa*/, value, size, offset);
         }
     }
 
-    inline uint64_t store(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/) {
+    inline uint64_t store(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size) {
+        unsigned int offset = (unsigned int) (vAddr & (1 << lineBits));
         Address vLineAddr = vAddr >> lineBits;
         uint32_t idx = vLineAddr & setMask;
         uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
@@ -134,11 +135,11 @@ public:
             //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
             return MAX(curCycle, availCycle);
         } else {
-            return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/);
+            return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/, value, size, offset);
         }
     }
 
-    uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle, Address pc /*Kasraa*/) {
+    uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int offset){
         Address pLineAddr;
         // page num = vLineAddr shifted by 6 bits. So it is shifted by 12 bits in total (4KB page size)
         if (_enable_tlb) {
@@ -161,7 +162,7 @@ public:
 
         MESIState dummyState = MESIState::I;
         MemReq req = {pLineAddr, isLoad ? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId,
-                      reqFlags, pc};
+                      reqFlags, pc, value, size, offset};
         uint64_t respCycle = access(req);
 
         //Due to the way we do the locking, at this point the old address might be invalidated, but we have the new address guaranteed until we release the lock
