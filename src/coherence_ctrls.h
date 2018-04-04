@@ -156,11 +156,11 @@ public:
 
     uint64_t
     processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId,
-                    Address pc /*Kasraa*/);
+                    Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int line_offset);
 
     uint64_t
     processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags,
-                  Address pc /*Kasraa*/);
+                  Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int line_offset);
 
     void processWritebackOnAccess(Address lineAddr, uint32_t lineId, AccessType type);
 
@@ -168,7 +168,8 @@ public:
 
     uint64_t
     processNonInclusiveWriteback(Address lineAddr, AccessType type, uint64_t cycle, MESIState *state, uint32_t srcId,
-                                 uint32_t flags, Address pc /*Kasraa*/);
+                                 uint32_t flags, Address pc /*Kasraa*/,
+                                 void* value, UINT32 size, unsigned int line_offset);
 
     inline void lock() {
         futex_lock(&ccLock);
@@ -364,7 +365,7 @@ public:
         uint64_t evCycle = tcc->processEviction(wbLineAddr, lineId, &lowerLevelWriteback, startCycle, triggerReq.srcId,
                                                 triggerReq.pc /*Kasraa*/); //1. if needed, send invalidates/downgrades to lower level
         evCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, evCycle, triggerReq.srcId,
-                                       triggerReq.pc /*Kasraa*/); //2. if needed, write back line to upper level
+                                       triggerReq.pc /*Kasraa*/, triggerReq.value, triggerReq.size, triggerReq.line_offset); //2. if needed, write back line to upper level
         return evCycle;
     }
 
@@ -380,7 +381,7 @@ public:
             assert(nonInclusiveHack);
             assert((req.type == PUTS) || (req.type == PUTX));
             respCycle = bcc->processNonInclusiveWriteback(req.lineAddr, req.type, startCycle, req.state, req.srcId,
-                                                          req.flags, req.pc /*Kasraa*/);
+                                                          req.flags, req.pc /*Kasraa*/, req.value, req.size, req.line_offset);
         } else {
             //Prefetches are side requests and get handled a bit differently
             bool isPrefetch = req.flags & MemReq::PREFETCH;
@@ -389,7 +390,8 @@ public:
 
             //if needed, fetch line or upgrade miss from upper level
             respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, flags,
-                                           req.pc /*Kasraa*/);
+                                           req.pc /*Kasraa*/, req.value, req.size, req.line_offset);
+
             if (getDoneCycle) *getDoneCycle = respCycle;
             if (!isPrefetch) { //prefetches only touch bcc; the demand request from the core will pull the line to lower level
                 //At this point, the line is in a good state w.r.t. upper levels
@@ -490,7 +492,7 @@ public:
     uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, int32_t lineId, uint64_t startCycle) {
         bool lowerLevelWriteback = false;
         uint64_t endCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, startCycle, triggerReq.srcId,
-                                                 triggerReq.pc /*Kasraa*/); //2. if needed, write back line to upper level
+                                                 triggerReq.pc /*Kasraa*/, triggerReq.value, triggerReq.size, triggerReq.line_offset); //2. if needed, write back line to upper level
         return endCycle;  // critical path unaffected, but TimingCache needs it
     }
 
@@ -499,7 +501,7 @@ public:
         assert(!getDoneCycle);
         //if needed, fetch line or upgrade miss from upper level
         uint64_t respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, req.flags,
-                                                req.pc /*Kasraa*/);
+                                                req.pc /*Kasraa*/, req.value, req.size, req.line_offset);
         //at this point, the line is in a good state w.r.t. upper levels
         return respCycle;
     }

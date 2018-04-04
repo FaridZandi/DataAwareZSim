@@ -53,8 +53,9 @@ void MESIBottomCC::init(const g_vector<MemObject *> &_parents, Network *network,
 }
 
 
-uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle,
-                                       uint32_t srcId, Address pc /*Kasraa*/) {
+uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback,
+                                       uint64_t cycle, uint32_t srcId, Address pc /*Kasraa*/,
+                                       void* value, UINT32 size, unsigned int line_offset) {
     MESIState *state = &array[lineId];
     if (lowerLevelWriteback) {
         //If this happens, when tcc issued the invalidations, it got a writeback. This means we have to do a PUTX, i.e. we have to transition to M if we are in E
@@ -68,14 +69,14 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
         case S:
         case E: {
             MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/,
-                          pc /*Kasraa*/};
+                          pc /*Kasraa*/, value, size, line_offset};
             //printf("[71] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
             respCycle = parents[getParentId(wbLineAddr)]->access(req);
         }
             break;
         case M: {
             MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/,
-                          pc /*Kasraa*/};
+                          pc /*Kasraa*/, value, size, line_offset};
             //printf("[78] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
             respCycle = parents[getParentId(wbLineAddr)]->access(req);
         }
@@ -87,8 +88,9 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
     return respCycle;
 }
 
-uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId,
-                                     uint32_t flags, Address pc /*Kasraa*/) {
+uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle,
+                                     uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/,
+                                     void* value, UINT32 size, unsigned int line_offset) {
     uint64_t respCycle = cycle;
     MESIState *state = &array[lineId];
     switch (type) {
@@ -109,7 +111,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
             if (*state == I) {
                 uint32_t parentId = getParentId(lineAddr);
                 //printf("[lines=%d, id=%d] parentId = %d/%ld, lineAddr=%#lx\n", numLines, selfId, parentId, parents.size(), lineAddr);
-                MemReq req = {lineAddr, GETS, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/};
+                MemReq req = {lineAddr, GETS, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/, value, size, line_offset};
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
                 profGETNextLevelLat.inc(nextLevelLat);
@@ -127,7 +129,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                 if (*state == I) profGETXMissIM.inc();
                 else profGETXMissSM.inc();
                 uint32_t parentId = getParentId(lineAddr);
-                MemReq req = {lineAddr, GETX, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/};
+                MemReq req = {lineAddr, GETX, selfId, state, cycle, &ccLock, *state, srcId, flags, pc /*Kasraa*/, value, size, line_offset};
                 //printf("[130] ID=%d, name=%s\n", parentId, parents[parentId]->getName());
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
@@ -194,14 +196,17 @@ void MESIBottomCC::processInval(Address lineAddr, uint32_t lineId, InvType type,
 
 
 uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType type, uint64_t cycle, MESIState *state,
-                                                    uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/) {
+                                                    uint32_t srcId, uint32_t flags, Address pc /*Kasraa*/,
+                                                    void* value, UINT32 size, unsigned int line_offset) {
     if (!nonInclusiveHack) panic("Non-inclusive %s on line 0x%lx, this cache should be inclusive", AccessTypeName(type),
                                  lineAddr);
 
     //info("Non-inclusive wback, forwarding");
     MemReq req = {lineAddr, type, selfId, state, cycle, &ccLock, *state, srcId, flags | MemReq::NONINCLWB,
-                  pc /*Kasraa*/};
+                  pc /*Kasraa*/, value, size, line_offset};
+
     //printf("[199] ID=%d, name=%s\n", getParentId(lineAddr), parents[getParentId(lineAddr)]->getName());
+
     uint64_t respCycle = parents[getParentId(lineAddr)]->access(req);
     return respCycle;
 }

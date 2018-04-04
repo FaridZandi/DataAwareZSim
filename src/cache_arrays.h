@@ -49,6 +49,8 @@ public:
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t lineId) = 0;
 
     virtual void initStats(AggregateStat *parent) {}
+
+    virtual void updateValue(const MemReq *req, uint32_t candidate) {};
 };
 
 class ReplPolicy;
@@ -85,6 +87,8 @@ public:
     DataAwareSetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) override;
+
+    virtual void updateValue(const MemReq *req, uint32_t candidate) override;
 };
 
 /* The cache array that started this simulator :) */

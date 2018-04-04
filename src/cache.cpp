@@ -81,6 +81,12 @@ uint64_t Cache::access(MemReq &req) {
 
             array->postinsert(req.lineAddr, &req, lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
+
+        // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
+        if(lineId != -1 && req.type == GETX){
+            array->updateValue(&req, lineId);
+        }
+
         // Enforce single-record invariant: Writeback access may have a timing
         // record. If so, read it.
         EventRecorder *evRec = zinfo->eventRecorders[req.srcId];
