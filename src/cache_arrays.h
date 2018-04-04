@@ -55,27 +55,36 @@ class ReplPolicy;
 
 class HashFamily;
 
+
 /* Set-associative cache array */
 class SetAssocArray : public CacheArray {
 protected:
     Address *array;
-    void **values;
     ReplPolicy *rp;
     HashFamily *hf;
     uint32_t numLines;
-    uint32_t lineSize;
     uint32_t numSets;
     uint32_t assoc;
     uint32_t setMask;
 
 public:
-    SetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
+    SetAssocArray(uint32_t _numLines, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 
     uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr);
 
-    void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
+    virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
+};
+
+class DataAwareSetAssocArray : public SetAssocArray{
+    void **values;
+    uint32_t lineSize;
+
+public:
+    DataAwareSetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
+
+    virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) override;
 };
 
 /* The cache array that started this simulator :) */

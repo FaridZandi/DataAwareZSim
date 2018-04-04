@@ -106,7 +106,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     uint32_t candidates = (arrayType == "Z") ? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
 
     //Need to know number of hash functions before instantiating array
-    if (arrayType == "SetAssoc") {
+    if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc") {
         numHashes = 1;
     } else if (arrayType == "Z") {
         numHashes = ways;
@@ -238,8 +238,10 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
 
     //Alright, build the array
     CacheArray *array = nullptr;
-    if (arrayType == "SetAssoc") {
-        array = new SetAssocArray(numLines, lineSize, ways, rp, hf);
+    if (arrayType == "DataAwareSetAssoc"){
+        array = new DataAwareSetAssocArray(numLines, lineSize, ways, rp, hf);
+    } else if (arrayType == "SetAssoc") {
+        array = new SetAssocArray(numLines, ways, rp, hf);
     } else if (arrayType == "Z") {
         array = new ZArray(numLines, ways, candidates, rp, hf);
     } else if (arrayType == "IdealLRU") {
@@ -295,7 +297,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     } else {
         //Filter cache optimization
         if (type != "Simple") panic("Terminal cache %s can only have type == Simple", name.c_str());
-        if (arrayType != "SetAssoc" || hashType != "None" || replType != "LRU") panic("Invalid FilterCache config %s",
+        if ((arrayType != "SetAssoc" && arrayType != "DataAwareSetAssoc") || hashType != "None" || replType != "LRU") panic("Invalid FilterCache config %s",
                                                                                       name.c_str());
         cache = new FilterCache(numSets, numLines, cc, array, rp, accLat, invLat, name, config);
     }

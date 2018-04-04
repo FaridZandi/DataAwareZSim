@@ -23,6 +23,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iomanip>
 #include "cache_arrays.h"
 #include "hash.h"
 #include "repl_policies.h"
@@ -30,18 +31,12 @@
 /* Set-associative array implementation */
 
 SetAssocArray::SetAssocArray(uint32_t _numLines,
-                             uint32_t _lineSize,
                              uint32_t _assoc,
                              ReplPolicy *_rp,
                              HashFamily *_hf) : rp(_rp), hf(_hf),
                                                 numLines(_numLines),
                                                 assoc(_assoc) {
     array = gm_calloc<Address>(numLines);
-    values = gm_calloc<void *>(numLines);
-    for (unsigned int i = 0; i < numLines; ++i) {
-        values[i] = gm_calloc<char>(_lineSize);
-    }
-    lineSize = _lineSize;
     numSets = numLines / assoc;
     setMask = numSets - 1;
     assert_msg(isPow2(numSets), "must have a power of 2 # sets, but you specified %d", numSets);
@@ -73,12 +68,29 @@ uint32_t SetAssocArray::preinsert(const Address lineAddr, const MemReq *req,
 void SetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
     rp->replaced(candidate);
     array[candidate] = lineAddr;
-    for (unsigned int i = 0 ; i < req->size; ++i) {
-        if(i < lineSize - req->line_offset){
-            ((char**)values)[candidate][req->line_offset + i] = ((char*)req->value)[i];
+    rp->update(candidate, req);
+}
+
+DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
+                                               uint32_t _lineSize,
+                                               uint32_t _assoc,
+                                               ReplPolicy *_rp,
+                                               HashFamily *_hf) : SetAssocArray(_numLines, _assoc, _rp, _hf),
+                                                                  lineSize(_lineSize){
+    values = gm_calloc<void *>(numLines);
+    for (unsigned int i = 0; i < numLines; ++i) {
+        values[i] = gm_calloc<char>(_lineSize);
+    }
+}
+
+
+void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
+    SetAssocArray::postinsert(lineAddr, req, candidate);
+    for (unsigned int i = 0; i < req->size; ++i) {
+        if (i < lineSize - req->line_offset) {
+            ((char **) values)[candidate][req->line_offset + i] = ((char *) req->value)[i];
         }
     }
-    rp->update(candidate, req);
 }
 
 
@@ -234,4 +246,3 @@ void ZArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t cand
 
     statSwaps.inc(swapArrayLen - 1);
 }
-
