@@ -112,7 +112,7 @@ public:
     }
 
     inline uint64_t load(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size) {
-        unsigned int offset = (unsigned int) (vAddr & (1 << lineBits));
+        unsigned int offset = (unsigned int) (vAddr & ((1 << lineBits) - 1));
         Address vLineAddr = vAddr >> lineBits;
         uint32_t idx = vLineAddr & setMask;
         uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
@@ -125,18 +125,19 @@ public:
     }
 
     inline uint64_t store(Address vAddr, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size) {
-        unsigned int offset = (unsigned int) (vAddr & (1 << lineBits));
+        unsigned int offset = (unsigned int) (vAddr & ((1 << lineBits) - 1));
         Address vLineAddr = vAddr >> lineBits;
         uint32_t idx = vLineAddr & setMask;
-        uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
+
+//        uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
+
         if (vLineAddr == filterArray[idx].wrAddr) {
             fGETXHit++;
             //NOTE: Stores don't modify availCycle; we'll catch matches in the core
             //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
-            return MAX(curCycle, availCycle);
-        } else {
-            return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/, value, size, offset);
         }
+
+        return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/, value, size, offset);
     }
 
     uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle, Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int offset){
