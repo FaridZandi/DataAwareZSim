@@ -381,12 +381,10 @@ private:
     //Record load and store addresses
     Address loadAddrs[256];
     Address loadPCs[256];   //Kasraa
-    char* loadValues[256];
     UINT32 loadSizes[256];
 
     Address storeAddrs[256];
     Address storePCs[256];  //Kasraa
-    char* storeValues[256];
     UINT32 storeSizes[256];
 
     uint32_t loads;
@@ -480,9 +478,9 @@ public:
     void cSimEnd();
 
 private:
-    inline void load(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size);
+    inline void load(Address addr, Address pc /*Kasraa*/, UINT32 size);
 
-    inline void store(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size);
+    inline void store(Address addr, Address pc /*Kasraa*/, UINT32 size);
 
     /* NOTE: Analysis routines cannot touch curCycle directly, must use
      * advance() for long jumps or insWindow.advancePos() for 1-cycle
@@ -502,13 +500,13 @@ private:
 
     inline void bbl(Address bblAddr, BblInfo *bblInfo);
 
-    static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size);
+    static void LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size);
 
-    static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size);
+    static void StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size);
 
-    static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred);
+    static void PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred);
 
-    static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred);
+    static void PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred);
 
     static void BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo);
 

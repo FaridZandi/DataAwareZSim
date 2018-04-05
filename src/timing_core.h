@@ -73,23 +73,23 @@ public:
     void cSimEnd() { curCycle = cRec.cSimEnd(curCycle); }
 
 private:
-    inline void loadAndRecord(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size);
+    inline void loadAndRecord(Address addr, Address pc /*Kasraa*/, UINT32 size);
 
-    inline void storeAndRecord(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size);
+    inline void storeAndRecord(Address addr, Address pc /*Kasraa*/, UINT32 size);
 
     inline void bblAndRecord(Address bblAddr, BblInfo *bblInstrs);
 
     inline void record(uint64_t startCycle);
 
-    static void LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size);
+    static void LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size);
 
-    static void StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size);
+    static void StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size);
 
     static void BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo);
 
-    static void PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred);
+    static void PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred);
 
-    static void PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred);
+    static void PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred);
 
     static void BranchFunc(THREADID, ADDRINT, BOOL, ADDRINT, ADDRINT) {}
 } ATTR_LINE_ALIGNED;
