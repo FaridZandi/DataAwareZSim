@@ -216,8 +216,6 @@ uint32_t TakeBarrier(uint32_t tid, uint32_t cid);
 
 void SimEnd(); //only call point out of zsim.cpp should be watchdog threads
 
-typedef unsigned long int ADDRINT; // TODO: delete this shit.
-
 #endif  // ZSIM_H_
 
 
