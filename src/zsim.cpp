@@ -178,7 +178,7 @@ PIN_LOCK lock;
 std::ofstream farid("trace.txt");
 
 
-bool debug = true;
+bool debug = false;
 
 struct unresolved_memeory_op {
     ADDRINT addr;
@@ -200,7 +200,7 @@ std::map<ADDRINT, std::queue<unresolved_memeory_op> > unhandled_memory_reads;
 resolved_memory_value
 resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_memeory_op> > &m, ADDRINT &pc) {
     PIN_GetLock(&lock, tid + 1);
-    std::map<ADDRINT, std::queue<unresolved_memeory_op> >::iterator result = m.find(pc);
+    auto result = m.find(pc);
     if (result == m.end()) {
         panic("unexpected situation: value not found for key");
     }
