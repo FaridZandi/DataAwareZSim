@@ -110,6 +110,7 @@ struct MemReq {
     uint32_t flags;
 
     Address pc; //Kasraa
+    void* value;
     UINT32 size;
     unsigned int line_offset;
     Address vLineAddr;
