@@ -462,15 +462,16 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
         for (uint32_t i = 0; i < 5 * 64 / lineSize; i++) {
 
-            UINT32 size = (unsigned int) 1 << lineBits;
-            char *value = new char[size];
-            PIN_SafeCopy(value, (ADDRINT *) wrongPathAddr, size);
+            char *value = new char[lineSize];
+            ADDRINT lineBegin = ((wrongPathAddr + lineSize * i) >> lineBits) << lineBits;
+            PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
             uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i,
                                           curCycle,
-                                          wrongPathAddr +
-                                          lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
-                                          value, size) - curCycle;
+                                          wrongPathAddr + lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
+                                          value, lineSize) - curCycle;
+
+            delete[] value;
 
             cRec.record(curCycle, curCycle, curCycle + fetchLat);
             uint64_t respCycle = reqCycle + fetchLat;
@@ -480,7 +481,6 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
             // Model fetch throughput limit
             reqCycle = respCycle + lineSize / FETCH_BYTES_PER_CYCLE;
 
-            delete value;
         }
 
         fetchCycle = lastCommitCycle;
@@ -495,19 +495,19 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
         // We always call fetches with curCycle to avoid upsetting the weave
         // models (but we could move to a fetch-centric recorder to avoid this)
 
-        UINT32 size = lineSize;
-        char *value = new char[size];
-        PIN_SafeCopy(value, (ADDRINT *) fetchAddr, size);
+        char *value = new char[lineSize];
+        ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
+        PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
         uint64_t fetchLat = l1i->load(fetchAddr,
                                       curCycle,
                                       fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
-                                      value, size) - curCycle;
+                                      value, lineSize) - curCycle;
+        delete[] value;
 
         cRec.record(curCycle, curCycle, curCycle + fetchLat);
         fetchCycle += fetchLat;
 
-        delete value;
     }
 
     // If fetch rules, take into account delay between fetch and decode;

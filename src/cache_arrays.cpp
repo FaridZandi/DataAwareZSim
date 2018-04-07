@@ -90,11 +90,7 @@ void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *re
 }
 
 void DataAwareSetAssocArray::updateValue(const MemReq *req, uint32_t candidate) {
-    for (unsigned int i = 0; i < req->size; ++i) {
-        if (i < lineSize - req->line_offset) {
-            ((char **) values)[candidate][req->line_offset + i] = ((char *) req->value)[i];
-        }
-    }
+    memcpy((char*) values[candidate], (char*) req->value, lineSize);
 }
 
 

@@ -129,13 +129,15 @@ public:
         Address vLineAddr = vAddr >> lineBits;
         uint32_t idx = vLineAddr & setMask;
 
+//         SMF: technically can't use filtercache anymore. values has to be updated.
+
 //        uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
 
-        if (vLineAddr == filterArray[idx].wrAddr) {
-            fGETXHit++;
+//        if (vLineAddr == filterArray[idx].wrAddr) {
+//            fGETXHit++;
             //NOTE: Stores don't modify availCycle; we'll catch matches in the core
             //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
-        }
+//        }
 
         // SMF : had to store the values in the caches even when the address exists.
         return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/, value, size, offset);
@@ -163,8 +165,10 @@ public:
             pLineAddr = procMask | vLineAddr;
 
         MESIState dummyState = MESIState::I;
+
         MemReq req = {pLineAddr, isLoad ? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId,
-                      reqFlags, pc, value, size, offset};
+                      reqFlags, pc, value, size, offset, vLineAddr};
+
         uint64_t respCycle = access(req);
 
         //Due to the way we do the locking, at this point the old address might be invalidated, but we have the new address guaranteed until we release the lock
