@@ -77,15 +77,15 @@ void TimingCore::leave() {
     cRec.notifyLeave(curCycle);
 }
 
-void TimingCore::loadAndRecord(Address addr, Address pc /*Kasraa*/, UINT32 size) {
+void TimingCore::loadAndRecord(Address addr, Address pc /*Kasraa*/, void *value, UINT32 size) {
     uint64_t startCycle = curCycle;
-    curCycle = l1d->load(addr, curCycle, pc /*Kasraa*/, size);
+    curCycle = l1d->load(addr, curCycle, pc /*Kasraa*/, value, size);
     cRec.record(startCycle);
 }
 
-void TimingCore::storeAndRecord(Address addr, Address pc /*Kasraa*/, UINT32 size) {
+void TimingCore::storeAndRecord(Address addr, Address pc /*Kasraa*/, void *value, UINT32 size) {
     uint64_t startCycle = curCycle;
-    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/, size);
+    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/, value, size);
     cRec.record(startCycle);
 }
 
@@ -97,9 +97,16 @@ void TimingCore::bblAndRecord(Address bblAddr, BblInfo *bblInfo) {
     for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
         uint64_t startCycle = curCycle;
 
-        UINT32 size = (unsigned int) 1 << lineBits;
+        unsigned int lineSize = (unsigned int) 1 << lineBits;
+        char * value = new char[lineSize];
+        ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
+        PIN_SafeCopy(value, (ADDRINT*) lineBegin, lineSize);
+
         curCycle = l1i->load(fetchAddr, curCycle,
-                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/, size);
+                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
+                             value, lineSize);
+
+        delete[] value;
 
         cRec.record(startCycle);
     }
@@ -111,12 +118,12 @@ InstrFuncPtrs TimingCore::GetFuncPtrs() {
             PredStoreAndRecordFunc, FPTR_ANALYSIS, {0}};
 }
 
-void TimingCore::LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
-    static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/, size);
+void TimingCore::LoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size) {
+    static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/, value, size);
 }
 
-void TimingCore::StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
-    static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/, size);
+void TimingCore::StoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size) {
+    static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/, value, size);
 }
 
 void TimingCore::BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -131,13 +138,13 @@ void TimingCore::BblAndRecordFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInf
     }
 }
 
-void TimingCore::PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size,
+void TimingCore::PredLoadAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size,
                                        BOOL pred) {
-    if (pred) static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/, size);
+    if (pred) static_cast<TimingCore *>(cores[tid])->loadAndRecord(addr, pc /*Kasraa*/, value, size);
 }
 
-void TimingCore::PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size,
+void TimingCore::PredStoreAndRecordFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void *value, UINT32 size,
                                         BOOL pred) {
-    if (pred) static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/, size);
+    if (pred) static_cast<TimingCore *>(cores[tid])->storeAndRecord(addr, pc /*Kasraa*/, value, size);
 }
 

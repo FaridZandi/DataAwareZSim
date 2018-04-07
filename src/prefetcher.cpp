@@ -18,7 +18,6 @@
  * FOR A PARTICULAR PURPOSE.
  */
 
-#include <iostream>
 #include "prefetcher.h"
 #include "bithacks.h"
 //#include "jigsaw_runtime.h"
@@ -260,11 +259,17 @@ uint64_t StreamPrefetcher::access(MemReq &req) {
                     DBG("issuing prefetch");
                     MESIState state = I;
 
+                    unsigned int lineSize = (1U << lineBits);
+                    ADDRINT lineBegin = ((req.vLineAddr + prefetchPos - pos) >> lineBits) << lineBits;
+                    char *value = new char[lineSize];
+                    PIN_SafeCopy(value, ((ADDRINT *) lineBegin), lineSize);
+
                     MemReq pfReq = {req.lineAddr + prefetchPos - pos, GETS, req.childId, &state, reqCycle,
                                     req.childLock, state, req.srcId, MemReq::PREFETCH,
                                     req.pc /*Kasraa: It is a bit non-trivial, but the best I can do for now. Prefetch requests carry PC of trigger access*/,
-                                    0, 0, req.vLineAddr + prefetchPos - pos}; // SMF : loading the line of the prefetcher
+                                    value, 0, 0, req.vLineAddr}; 
 
+                    delete[] value;
                     uint64_t pfRespCycle = parent->access(pfReq);
                     assert(state == I);  // prefetch access should not give us any permissions
 

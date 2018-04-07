@@ -52,12 +52,12 @@ uint64_t SimpleCore::getPhaseCycles() const {
     return curCycle % zinfo->phaseLength;
 }
 
-void SimpleCore::load(Address addr, Address pc /*Kasraa*/, UINT32 size) {
-    curCycle = l1d->load(addr, curCycle, pc /*Kasraa*/, size);
+void SimpleCore::load(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size) {
+    curCycle = l1d->load(addr, curCycle, pc /*Kasraa*/, value, size);
 }
 
-void SimpleCore::store(Address addr, Address pc /*Kasraa*/, UINT32 size) {
-    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/, size);
+void SimpleCore::store(Address addr, Address pc /*Kasraa*/, void* value, UINT32 size) {
+    curCycle = l1d->store(addr, curCycle, pc /*Kasraa*/, value, size);
 }
 
 void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
@@ -69,10 +69,16 @@ void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
     Address endBblAddr = bblAddr + bblInfo->bytes;
     for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
 
-        UINT32 size = (unsigned int) 1 << lineBits;
+        unsigned int lineSize = (unsigned int) 1 << lineBits;
+        char * value = new char[lineSize];
+        ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
+        PIN_SafeCopy(value, (ADDRINT*) lineBegin, lineSize);
 
         curCycle = l1i->load(fetchAddr, curCycle,
-                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/, size);
+                             fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
+                             value, lineSize);
+
+        delete[] value;
     }
 }
 
@@ -101,20 +107,20 @@ InstrFuncPtrs SimpleCore::GetFuncPtrs() {
     return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};
 }
 
-void SimpleCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
-    static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/, size);
+void SimpleCore::LoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
+    static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/, value, size);
 }
 
-void SimpleCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
-    static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/, size);
+void SimpleCore::StoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
+    static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/, value, size);
 }
 
-void SimpleCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred) {
-    if (pred) static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/, size);
+void SimpleCore::PredLoadFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
+    if (pred) static_cast<SimpleCore *>(cores[tid])->load(addr, pc /*Kasraa*/, value, size);
 }
 
-void SimpleCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred) {
-    if (pred) static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/, size);
+void SimpleCore::PredStoreFunc(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
+    if (pred) static_cast<SimpleCore *>(cores[tid])->store(addr, pc /*Kasraa*/, value, size);
 }
 
 void SimpleCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {

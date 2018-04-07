@@ -180,19 +180,25 @@ std::ofstream farid("trace.txt");
 
 bool debug = false;
 
-struct memory_op {
+struct unresolved_memeory_op {
     ADDRINT addr;
     UINT32 size;
 };
 
-std::map<ADDRINT, std::queue<memory_op> > unhandled_memory_writes;
+struct resolved_memory_value {
+    ADDRINT addr;
+    char *value;
+    UINT32 size;
+};
 
-std::map<ADDRINT, std::queue<memory_op> > unhandled_memory_reads;
+
+std::map<ADDRINT, std::queue<unresolved_memeory_op> > unhandled_memory_writes;
+
+std::map<ADDRINT, std::queue<unresolved_memeory_op> > unhandled_memory_reads;
 
 
-memory_op resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<memory_op> > &m, ADDRINT &pc) {
-    memory_op result_mem_op;
-
+resolved_memory_value
+resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_memeory_op> > &m, ADDRINT &pc) {
     PIN_GetLock(&lock, tid + 1);
     auto result = m.find(pc);
     if (result == m.end()) {
@@ -201,52 +207,58 @@ memory_op resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<memor
     if (result->second.size() == 0) {
         panic("unexpected situation: no item in the queue");
     }
+    ADDRINT addr = result->second.front().addr;
+    UINT32 size = result->second.front().size;
+    PIN_ReleaseLock(&lock);
 
-    result_mem_op = result->second.front();
+    unsigned int lineSize = (1U << lineBits);
+    ADDRINT lineBegin = (addr >> lineBits) << lineBits;
+    char *value = new char[lineSize];
+    PIN_SafeCopy(value, ((ADDRINT *) lineBegin), lineSize);
 
+    PIN_GetLock(&lock, tid + 1);
     if (result->second.size() == 1) {
         m.erase(pc);
     } else {
         result->second.pop();
     }
-
     PIN_ReleaseLock(&lock);
 
-    return result_mem_op;
+    return resolved_memory_value{addr, value, size};
 }
 
-//static VOID EmitMem(VOID *ea, INT32 size) {
-//    farid << " with size: " << std::dec << setw(3) << size << " with value ";
-//    switch (size) {
-//        case 0:
-//            cerr << "zero length data here" << std::endl;
-//            farid << setw(1);
-//            break;
-//
-//        case 1:
-//            farid << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
-//            break;
-//
-//        case 2:
-//            farid << *static_cast<UINT16 *>(ea);
-//            break;
-//
-//        case 4:
-//            farid << *static_cast<UINT32 *>(ea);
-//            break;
-//
-//        case 8:
-//            farid << *static_cast<UINT64 *>(ea);
-//            break;
-//
-//        default:
-//            farid << setw(1) << "0x";
-//            for (INT32 i = 0; i < size; i++) {
-//                farid << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
-//            }
-//            break;
-//    }
-//}
+static VOID EmitMem(VOID *ea, INT32 size) {
+    farid << " with size: " << std::dec << setw(3) << size << " with value ";
+    switch (size) {
+        case 0:
+            cerr << "zero length data here" << std::endl;
+            farid << setw(1);
+            break;
+
+        case 1:
+            farid << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
+            break;
+
+        case 2:
+            farid << *static_cast<UINT16 *>(ea);
+            break;
+
+        case 4:
+            farid << *static_cast<UINT32 *>(ea);
+            break;
+
+        case 8:
+            farid << *static_cast<UINT64 *>(ea);
+            break;
+
+        default:
+            farid << setw(1) << "0x";
+            for (INT32 i = 0; i < size; i++) {
+                farid << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+            }
+            break;
+    }
+}
 
 VOID PIN_FAST_ANALYSIS_CALL
 IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 memory_read_size) {
@@ -259,7 +271,7 @@ IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 mem
         farid << std::endl;
     }
 
-    unhandled_memory_reads[pc].push(memory_op{addr, memory_read_size});
+    unhandled_memory_reads[pc].push(unresolved_memeory_op{addr, memory_read_size});
 
     PIN_ReleaseLock(&lock);
 
@@ -267,21 +279,23 @@ IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 mem
 
 VOID PIN_FAST_ANALYSIS_CALL
 IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
-    memory_op s = resolve_memory_value(tid, unhandled_memory_reads, pc);
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_reads, pc);
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
         farid << "AFR  at inst ptr 0x" << std::hex << setw(14) << std::left << pc
               << " from addr 0x" << setw(14) << std::left << s.addr
               << " to address 0x" << setw(14) << std::left << s.addr + s.size;
-//        EmitMem(s.value, s.size);
+        EmitMem(s.value, s.size);
         farid << std::endl;
         if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
             farid << "reading from multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/, s.size);
+    fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
+
+    delete[] s.value;
 }
 
 
@@ -296,28 +310,30 @@ IndirectStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 me
         farid << std::endl;
     }
 
-    unhandled_memory_writes[pc].push(memory_op{addr, memory_write_size});
+    unhandled_memory_writes[pc].push(unresolved_memeory_op{addr, memory_write_size});
 
     PIN_ReleaseLock(&lock);
 }
 
 VOID PIN_FAST_ANALYSIS_CALL
 IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
-    memory_op s = resolve_memory_value(tid, unhandled_memory_writes, pc);
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_writes, pc);
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
         farid << "AFW  at inst ptr 0x" << std::hex << setw(14) << std::left << pc
               << " to   addr 0x" << setw(14) << std::left << s.addr
               << " to address 0x" << setw(14) << std::left << s.addr + s.size - 1;
-//        EmitMem(s.value, s.size);
+        EmitMem(s.value, s.size);
         farid << std::endl;
         if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
             farid << "writing on multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/, s.size);
+    fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
+
+    delete[] s.value;
 }
 
 VOID PIN_FAST_ANALYSIS_CALL IndirectBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -339,7 +355,7 @@ IndirectPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL p
         farid << std::endl;
     }
 
-    unhandled_memory_reads[pc].push(memory_op{addr, memory_read_size});
+    unhandled_memory_reads[pc].push(unresolved_memeory_op{addr, memory_read_size});
 
     PIN_ReleaseLock(&lock);
 
@@ -347,18 +363,20 @@ IndirectPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL p
 
 VOID PIN_FAST_ANALYSIS_CALL
 IndirectPredLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    memory_op s = resolve_memory_value(tid, unhandled_memory_reads, pc);
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_reads, pc);
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
         farid << "PAFR at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
               << std::left << s.addr << " ";
-//        EmitMem(s.value, s.size);
+        EmitMem(s.value, s.size);
         farid << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.size, pred );
+    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred );
+
+    delete[] s.value;
 }
 
 
@@ -372,25 +390,27 @@ IndirectPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, BOOL 
         farid << std::endl;
     }
 
-    unhandled_memory_writes[pc].push(memory_op{addr, memory_write_size});
+    unhandled_memory_writes[pc].push(unresolved_memeory_op{addr, memory_write_size});
 
     PIN_ReleaseLock(&lock);
 }
 
 VOID PIN_FAST_ANALYSIS_CALL
 IndirectPredStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
-    memory_op s = resolve_memory_value(tid, unhandled_memory_writes, pc);
+    resolved_memory_value s = resolve_memory_value(tid, unhandled_memory_writes, pc);
 
     if (debug) {
         PIN_GetLock(&lock, tid + 1);
         farid << "PAFW at inst ptr 0x" << std::hex << setw(14) << std::left << pc << " from addr 0x" << setw(14)
               << std::left << s.addr << " ";
-//        EmitMem(s.value, s.size);
+        EmitMem(s.value, s.size);
         farid << std::endl;
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, s.size, pred);
+    fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred);
+
+    delete[] s.value;
 }
 
 //Non-simulation variants of analysis functions
@@ -410,14 +430,14 @@ void Join(uint32_t tid) {
     fPtrs[tid] = cores[tid]->GetFuncPtrs(); //back to normal pointers
 }
 
-VOID JoinAndLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
+VOID JoinAndLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
     Join(tid);
-    fPtrs[tid].loadPtr(tid, addr, pc /*Kasraa*/, size);
+    fPtrs[tid].loadPtr(tid, addr, pc /*Kasraa*/, value, size);
 }
 
-VOID JoinAndStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {
+VOID JoinAndStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {
     Join(tid);
-    fPtrs[tid].storePtr(tid, addr, pc /*Kasraa*/, size);
+    fPtrs[tid].storePtr(tid, addr, pc /*Kasraa*/, value, size);
 }
 
 VOID JoinAndBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -430,24 +450,24 @@ VOID JoinAndRecordBranch(THREADID tid, ADDRINT branchPc, BOOL taken, ADDRINT tak
     fPtrs[tid].branchPtr(tid, branchPc, taken, takenNpc, notTakenNpc);
 }
 
-VOID JoinAndPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred) {
+VOID JoinAndPredLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
     Join(tid);
-    fPtrs[tid].predLoadPtr(tid, addr, pc /*Kasraa*/, size, pred);
+    fPtrs[tid].predLoadPtr(tid, addr, pc /*Kasraa*/, value, size, pred);
 }
 
-VOID JoinAndPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred) {
+VOID JoinAndPredStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {
     Join(tid);
-    fPtrs[tid].predStorePtr(tid, addr, pc /*Kasraa*/, size, pred);
+    fPtrs[tid].predStorePtr(tid, addr, pc /*Kasraa*/, value, size, pred);
 }
 
 // NOP variants: Do nothing
-VOID NOPLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size) {}
+VOID NOPLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size) {}
 
 VOID NOPBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {}
 
 VOID NOPRecordBranch(THREADID tid, ADDRINT addr, BOOL taken, ADDRINT takenNpc, ADDRINT notTakenNpc) {}
 
-VOID NOPPredLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 size, BOOL pred) {}
+VOID NOPPredLoadStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, void* value, UINT32 size, BOOL pred) {}
 
 // FF is basically NOP except for basic blocks
 VOID FFBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {

@@ -86,18 +86,11 @@ DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
 
 void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
     SetAssocArray::postinsert(lineAddr, req, candidate);
-    int lineBits = ilog2(lineSize);
-    PIN_SafeCopy(((char **) values)[candidate], (char*)(((uintptr_t)req->vLineAddr) << lineBits), lineSize);
+    updateValue(req, candidate);
 }
 
 void DataAwareSetAssocArray::updateValue(const MemReq *req, uint32_t candidate) {
-    uint32_t size = req->size;
-
-    if(size + req->line_offset > lineSize){
-            size = lineSize - req->line_offset;
-    }
-
-    PIN_SafeCopy(((char **) values)[candidate] + req->line_offset, (char*)req->vLineAddr, size);
+    memcpy((char*) values[candidate], (char*) req->value, lineSize);
 }
 
 
