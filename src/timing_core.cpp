@@ -97,17 +97,18 @@ void TimingCore::bblAndRecord(Address bblAddr, BblInfo *bblInfo) {
     for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
         uint64_t startCycle = curCycle;
 
-        UINT32 size = (unsigned int) 1 << lineBits;
-        char *value = new char[size];
-        PIN_SafeCopy(value, (ADDRINT *) fetchAddr, size);
+        unsigned int lineSize = (unsigned int) 1 << lineBits;
+        char * value = new char[lineSize];
+        ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
+        PIN_SafeCopy(value, (ADDRINT*) lineBegin, lineSize);
 
         curCycle = l1i->load(fetchAddr, curCycle,
                              fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
-                             value, size);
+                             value, lineSize);
+
+        delete[] value;
 
         cRec.record(startCycle);
-
-        delete value;
     }
 }
 

@@ -145,9 +145,11 @@ inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
 
     loadAddrs[currIdx] = addr;
     loadPCs[currIdx] = pc;
+
     loadSizes[currIdx] = size;
-    loadValues[currIdx] = new char[size];
-    memcpy(loadValues[currIdx], value, size);
+    unsigned int lineSize = (1U << lineBits);
+    loadValues[currIdx] = new char[lineSize];
+    memcpy(loadValues[currIdx], value, lineSize);
 }
 
 void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
@@ -158,9 +160,11 @@ void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
 
     storeAddrs[currIdx] = addr;
     storePCs[currIdx] = pc;
+
     storeSizes[currIdx] = size;
-    storeValues[currIdx] = new char[size];
-    memcpy(storeValues[currIdx], value, size);
+    unsigned int lineSize = (1U << lineBits);
+    storeValues[currIdx] = new char[lineSize];
+    memcpy(storeValues[currIdx], value, lineSize);
 }
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
@@ -174,6 +178,8 @@ void OOOCore::predFalseMemOp() {    //Kasraa: I heavily modified this function
     loadAddrs[currIdx] = -1L;
     loadPCs[currIdx] = -1L;
     loadSizes[currIdx] = -1L;
+
+    delete[] loadValues[currIdx];
     loadValues[currIdx] = NULL;
 }
 
@@ -306,6 +312,8 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 uint64_t reqSatisfiedCycle = dispatchCycle;
                 if (addr != ((Address) -1L)) {
                     reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+                    delete[] value;
+
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
 
@@ -351,6 +359,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 UINT32 size = storeSizes[storesCurrIdx];
 
                 uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
                 // Fill the forwarding table
