@@ -165,6 +165,7 @@ void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
     unsigned int lineSize = (1U << lineBits);
     storeValues[currIdx] = new char[lineSize];
     memcpy(storeValues[currIdx], value, lineSize);
+
 }
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
@@ -312,7 +313,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 uint64_t reqSatisfiedCycle = dispatchCycle;
                 if (addr != ((Address) -1L)) {
                     reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
-                    delete[] value;
+//                    delete[] value;
 
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
@@ -352,14 +353,14 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 uint32_t storesCurrIdx = storeIdx;
                 storeIdx++;
                 assert_msg(storeIdx != 0, "Kasraa: As storeIdx is never decremented, storeIdx cannot be 0 here!");
-                Address addr = storeAddrs[storesCurrIdx++];
+                Address addr = storeAddrs[storesCurrIdx];
                 Address pc = storePCs[storesCurrIdx];
                 //Kasraa [End]
                 char* value = storeValues[storesCurrIdx];
                 UINT32 size = storeSizes[storesCurrIdx];
 
                 uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
-
+//                delete[] value;
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
                 // Fill the forwarding table
