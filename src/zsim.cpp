@@ -178,7 +178,7 @@ PIN_LOCK lock;
 std::ofstream farid("trace.txt");
 
 
-bool debug = false;
+bool debug = true;
 
 struct unresolved_memeory_op {
     ADDRINT addr;
@@ -212,7 +212,7 @@ resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_meme
     PIN_ReleaseLock(&lock);
 
     unsigned int lineSize = (1U << lineBits);
-    ADDRINT lineBegin = (addr >> lineBits) << lineBits;
+    ADDRINT lineBegin = ((addr | procMask) >> lineBits) << lineBits;
     char *value = new char[lineSize];
     PIN_SafeCopy(value, ((ADDRINT *) lineBegin), lineSize);
 
@@ -254,8 +254,9 @@ static VOID EmitMem(VOID *ea, INT32 size) {
         default:
             farid << setw(1) << "0x";
             for (INT32 i = 0; i < size; i++) {
-                farid << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+                farid << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
             }
+            farid << std::setfill(' ');
             break;
     }
 }
@@ -267,7 +268,7 @@ IndirectLoadSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 mem
     if (debug) {
         farid << "R    at inst ptr 0x" << std::hex << setw(14) << std::left << pc
               << " from addr 0x" << setw(14) << std::left << addr
-              << " to address 0x" << setw(14) << std::left << addr + memory_read_size;
+              << " to address 0x" << setw(14) << std::left << addr + memory_read_size - 1;
         farid << std::endl;
     }
 
@@ -285,7 +286,7 @@ IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
         PIN_GetLock(&lock, tid + 1);
         farid << "AFR  at inst ptr 0x" << std::hex << setw(14) << std::left << pc
               << " from addr 0x" << setw(14) << std::left << s.addr
-              << " to address 0x" << setw(14) << std::left << s.addr + s.size;
+              << " to address 0x" << setw(14) << std::left << s.addr + s.size - 1;
         EmitMem(s.value, s.size);
         farid << std::endl;
         if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
@@ -306,7 +307,7 @@ IndirectStoreSingle(THREADID tid, ADDRINT addr, ADDRINT pc /*Kasraa*/, UINT32 me
     if (debug) {
         farid << "W    at inst ptr 0x" << std::hex << setw(14) << std::left << pc
               << " to   addr 0x" << setw(14) << std::left << addr
-              << " to address 0x" << setw(14) << std::left << addr + memory_write_size;;
+              << " to address 0x" << setw(14) << std::left << addr + memory_write_size - 1;
         farid << std::endl;
     }
 
@@ -374,7 +375,7 @@ IndirectPredLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
         PIN_ReleaseLock(&lock);
     }
 
-    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred );
+    fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred);
 
     delete[] s.value;
 }
