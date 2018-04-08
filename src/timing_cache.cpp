@@ -146,13 +146,16 @@ uint64_t TimingCache::access(MemReq &req) {
 
             //Make space for new line
             Address wbLineAddr;
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr); //find the lineId to replace
+            unsigned int lineSize = (1U << lineBits);
+            char* wbLineValue = new char[lineSize];
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, &wbLineValue); //find the lineId to replace
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
             //Evictions are not in the critical path in any sane implementation -- we do not include their delays
             //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
-            evDoneCycle = cc->processEviction(req, wbLineAddr, lineId,
+            evDoneCycle = cc->processEviction(req, wbLineAddr, wbLineValue, lineId,
                                               respCycle); //if needed, send invalidates/downgrades to lower level, and wb to upper level
+            delete[] wbLineValue;
 
             array->postinsert(req.lineAddr, &req,
                               lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.

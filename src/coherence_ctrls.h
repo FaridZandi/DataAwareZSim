@@ -34,6 +34,7 @@
 #include "memory_hierarchy.h"
 #include "pad.h"
 #include "stats.h"
+#include "zsim.h"
 
 //TODO: Now that we have a pure CC interface, the MESI controllers should go on different files.
 
@@ -51,7 +52,7 @@ public:
     virtual bool startAccess(
             MemReq &req) = 0; //initial locking, address races; returns true if access should be skipped; may change req!
     virtual bool shouldAllocate(const MemReq &req) = 0; //called when we don't find req's lineAddr in the array
-    virtual uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, int32_t lineId,
+    virtual uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, void *wbLineValue, int32_t lineId,
                                      uint64_t startCycle) = 0; //called iff shouldAllocate returns true
     virtual uint64_t
     processAccess(const MemReq &req, int32_t lineId, uint64_t startCycle, uint64_t *getDoneCycle = nullptr) = 0;
@@ -156,11 +157,11 @@ public:
 
     uint64_t
     processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId,
-                    Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int line_offset, Address vLineAddr);
+                    Address pc /*Kasraa*/, void *value, UINT32 size, unsigned int line_offset, Address vLineAddr);
 
     uint64_t
     processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags,
-                  Address pc /*Kasraa*/, void* value, UINT32 size, unsigned int line_offset, Address vLineAddr);
+                  Address pc /*Kasraa*/, void *value, UINT32 size, unsigned int line_offset, Address vLineAddr);
 
     void processWritebackOnAccess(Address lineAddr, uint32_t lineId, AccessType type);
 
@@ -169,7 +170,7 @@ public:
     uint64_t
     processNonInclusiveWriteback(Address lineAddr, AccessType type, uint64_t cycle, MESIState *state, uint32_t srcId,
                                  uint32_t flags, Address pc /*Kasraa*/,
-                                 void* value, UINT32 size, unsigned int line_offset, Address vLineAddr);
+                                 void *value, UINT32 size, unsigned int line_offset, Address vLineAddr);
 
     inline void lock() {
         futex_lock(&ccLock);
@@ -360,12 +361,18 @@ public:
         }
     }
 
-    uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, int32_t lineId, uint64_t startCycle) {
+    uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, void *wbLineValue, int32_t lineId,
+                             uint64_t startCycle) {
         bool lowerLevelWriteback = false;
         uint64_t evCycle = tcc->processEviction(wbLineAddr, lineId, &lowerLevelWriteback, startCycle, triggerReq.srcId,
                                                 triggerReq.pc /*Kasraa*/); //1. if needed, send invalidates/downgrades to lower level
+
+        unsigned int lineSize = (1U << lineBits);
+        // SMF : won't use vLineAddr so we pass zero as the last arg.
         evCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, evCycle, triggerReq.srcId,
-                                       triggerReq.pc /*Kasraa*/, triggerReq.value, triggerReq.size, triggerReq.line_offset, triggerReq.vLineAddr); //2. if needed, write back line to upper level
+                                       triggerReq.pc /*Kasraa*/, wbLineValue, lineSize, 0, 0); //2. if needed, write back line to upper level
+
+
         return evCycle;
     }
 
@@ -381,7 +388,8 @@ public:
             assert(nonInclusiveHack);
             assert((req.type == PUTS) || (req.type == PUTX));
             respCycle = bcc->processNonInclusiveWriteback(req.lineAddr, req.type, startCycle, req.state, req.srcId,
-                                                          req.flags, req.pc /*Kasraa*/, req.value, req.size, req.line_offset, req.vLineAddr);
+                                                          req.flags, req.pc /*Kasraa*/, req.value, req.size,
+                                                          req.line_offset, req.vLineAddr);
         } else {
             //Prefetches are side requests and get handled a bit differently
             bool isPrefetch = req.flags & MemReq::PREFETCH;
@@ -489,10 +497,12 @@ public:
         return true;
     }
 
-    uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, int32_t lineId, uint64_t startCycle) {
+    uint64_t processEviction(const MemReq &triggerReq, Address wbLineAddr, void *wbLineValue, int32_t lineId,
+                             uint64_t startCycle) {
         bool lowerLevelWriteback = false;
+        unsigned int lineSize = (1U << lineBits);
         uint64_t endCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, startCycle, triggerReq.srcId,
-                                                 triggerReq.pc /*Kasraa*/, triggerReq.value, triggerReq.size, triggerReq.line_offset, triggerReq.vLineAddr); //2. if needed, write back line to upper level
+                                                 triggerReq.pc /*Kasraa*/, wbLineValue, lineSize, 0, 0); //2. if needed, write back line to upper level
         return endCycle;  // critical path unaffected, but TimingCache needs it
     }
 

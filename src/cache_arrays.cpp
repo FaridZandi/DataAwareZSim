@@ -55,7 +55,7 @@ int32_t SetAssocArray::lookup(const Address lineAddr, const MemReq *req, bool up
 }
 
 uint32_t SetAssocArray::preinsert(const Address lineAddr, const MemReq *req,
-                                  Address *wbLineAddr) { //TODO: Give out valid bit of wb cand?
+                                  Address *wbLineAddr, char **wbLineValue) { //TODO: Give out valid bit of wb cand?
     uint32_t set = hf->hash(0, lineAddr) & setMask;
     uint32_t first = set * assoc;
 
@@ -76,7 +76,7 @@ DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
                                                uint32_t _assoc,
                                                ReplPolicy *_rp,
                                                HashFamily *_hf) : SetAssocArray(_numLines, _assoc, _rp, _hf),
-                                                                  lineSize(_lineSize){
+                                                                  lineSize(_lineSize) {
     values = gm_calloc<void *>(numLines);
     for (unsigned int i = 0; i < numLines; ++i) {
         values[i] = gm_calloc<char>(_lineSize);
@@ -86,11 +86,19 @@ DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
 
 void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
     SetAssocArray::postinsert(lineAddr, req, candidate);
-    updateValue(req, candidate);
+    memcpy((char *) values[candidate], (char *) req->value, lineSize);
 }
 
 void DataAwareSetAssocArray::updateValue(const MemReq *req, uint32_t candidate) {
-    memcpy((char*) values[candidate], (char*) req->value, lineSize);
+    memcpy((char *) values[candidate], (char *) req->value, lineSize);
+}
+
+uint32_t
+DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char **wbLineValue) {
+    uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
+    *wbLineValue = new char[lineSize];
+    memcpy(*wbLineValue, (char*) values[candidate], lineSize);
+    return candidate;
 }
 
 
@@ -125,7 +133,7 @@ void ZArray::initStats(AggregateStat *parentStat) {
 }
 
 int32_t ZArray::lookup(const Address lineAddr, const MemReq *req, bool updateReplacement) {
-    /* Be defensive: If the line is 0, panic instead of asserting. Now this can
+    /* Be defensive: If the line is 0, panic inst, char** wbLineValueead of asserting. Now this can
      * only happen on a segfault in the main program, but when we move to full
      * system, phy page 0 might be used, and this will hit us in a very subtle
      * way if we don't check.
@@ -144,7 +152,7 @@ int32_t ZArray::lookup(const Address lineAddr, const MemReq *req, bool updateRep
     return -1;
 }
 
-uint32_t ZArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr) {
+uint32_t ZArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char **wbLineValue) {
     ZWalkInfo candidates[cands + ways]; //extra ways entries to avoid checking on every expansion
 
     bool all_valid = true;

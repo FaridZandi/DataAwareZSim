@@ -71,13 +71,15 @@ uint64_t Cache::access(MemReq &req) {
         if (lineId == -1 && cc->shouldAllocate(req)) {
             //Make space for new line
             Address wbLineAddr;
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr); //find the lineId to replace
+            char* wbLineValue;
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, &wbLineValue); //find the lineId to replace
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
             //Evictions are not in the critical path in any sane implementation -- we do not include their delays
             //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
-            cc->processEviction(req, wbLineAddr, lineId,
+            cc->processEviction(req, wbLineAddr, wbLineValue, lineId,
                                 respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
+            delete[] wbLineValue;
 
             array->postinsert(req.lineAddr, &req, lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }

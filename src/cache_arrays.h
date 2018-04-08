@@ -39,7 +39,7 @@ public:
     virtual int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement) = 0;
 
     /* Runs replacement scheme, returns tag ID of new pos and address of line to write back*/
-    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr) = 0;
+    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char** wbLineValue) = 0;
 
     /* Actually do the replacement, writing the new address in lineId.
      * NOTE: This method is guaranteed to be called after preinsert, although
@@ -74,7 +74,7 @@ public:
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr);
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char** wbLineValue);
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
 };
@@ -87,6 +87,8 @@ public:
     DataAwareSetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) override;
+
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char** wbLineValue) override;
 
     virtual void updateValue(const MemReq *req, uint32_t candidate) override;
 };
@@ -117,7 +119,7 @@ public:
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr);
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char** wbLineValue);
 
     void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
 
