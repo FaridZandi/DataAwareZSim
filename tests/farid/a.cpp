@@ -27,15 +27,15 @@ int main() {
 
     cout << a << endl;
 
-//    thread** threads = new thread*[16];
-//
-//    for (int j = 0; j < 16; ++j) {
-//        threads[j] = new thread(bullshit);
-//    }
-//
-//    for (int k = 0; k < 16; ++k) {
-//        threads[k]->join();
-//    }
+    thread** threads = new thread*[65];
+
+    for (int j = 0; j < 65; ++j) {
+        threads[j] = new thread(bullshit);
+    }
+
+    for (int k = 0; k < 65; ++k) {
+        threads[k]->join();
+    }
     return 0;
 }
 
