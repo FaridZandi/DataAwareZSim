@@ -178,7 +178,7 @@ PIN_LOCK lock;
 std::ofstream farid("trace.txt");
 
 
-bool debug = true;
+bool debug = false;
 
 struct unresolved_memeory_op {
     ADDRINT addr;
