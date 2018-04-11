@@ -106,7 +106,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     uint32_t candidates = (arrayType == "Z") ? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
 
     //Need to know number of hash functions before instantiating array
-    if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc") {
+    if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc" || arrayType == "CompressedDataAwareSetAssoc") {
         numHashes = 1;
     } else if (arrayType == "Z") {
         numHashes = ways;
@@ -238,7 +238,9 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
 
     //Alright, build the array
     CacheArray *array = nullptr;
-    if (arrayType == "DataAwareSetAssoc"){
+    if (arrayType == "CompressedDataAwareSetAssoc"){
+        array = new CompressedDataAwareSetAssoc(numLines, lineSize, ways, rp, hf);
+    } else if (arrayType == "DataAwareSetAssoc"){
         array = new DataAwareSetAssocArray(numLines, lineSize, ways, rp, hf);
     } else if (arrayType == "SetAssoc") {
         array = new SetAssocArray(numLines, ways, rp, hf);

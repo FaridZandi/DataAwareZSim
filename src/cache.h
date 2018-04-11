@@ -42,6 +42,7 @@ class Network;
  * controllers, since for now we only have MESI controllers
  */
 class Cache : public BaseCache {
+public:
 protected:
     CC *cc;
     CacheArray *array;

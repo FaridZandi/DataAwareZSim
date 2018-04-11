@@ -23,6 +23,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <fstream>
 #include "cache.h"
 #include "hash.h"
 
@@ -60,33 +61,93 @@ void Cache::initCacheStats(AggregateStat *cacheStat) {
     rp->initStats(cacheStat);
 }
 
+//#include <fstream>
+//#include <iomanip>
+//std::ofstream zavosh("trace4.txt");
+//
+//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
+//    ea = (void*)((uintptr_t)ea + offset);
+//    zavosh << " with size: " << std::dec << setw(3) << size << " with value ";
+//    switch (size) {
+//        case 0:
+//            cerr << "zero length data here" << std::endl;
+//            zavosh << setw(1);
+//            break;
+//
+//        case 1:
+//            zavosh << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
+//            break;
+//
+//        case 2:
+//            zavosh << *static_cast<UINT16 *>(ea);
+//            break;
+//
+//        case 4:
+//            zavosh << *static_cast<UINT32 *>(ea);
+//            break;
+//
+//        case 8:
+//            zavosh << *static_cast<UINT64 *>(ea);
+//            break;
+//
+//        default:
+//            zavosh << setw(1) << "0x";
+//            size = MIN((unsigned int)size, (1U << lineBits) - offset);
+//            for (INT32 i = 0; i < size; i++) {
+//                zavosh << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+//            }
+//            zavosh << std::setfill(' ');
+//            break;
+//    }
+//    zavosh << std::endl;
+//}
+
 uint64_t Cache::access(MemReq &req) {
+//    if(req.type == GETX){
+//        zavosh << "getx ";
+//    } else if(req.type == GETS){
+//        zavosh << "gets ";
+//    } else if(req.type == PUTS){
+//        zavosh << "puts ";
+//    } else if(req.type == PUTX){
+//        zavosh << "putx ";
+//    }
+
+//    zavosh << "0x" << setw(15) << std::hex << std::left << (req.lineAddr << lineBits) + req.line_offset;
+//    EmitMem(req.value, req.size, req.line_offset);
+
     uint64_t respCycle = req.cycle;
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
     if (likely(!skipAccess)) {
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = array->lookup(req.lineAddr, &req, updateReplacement);
         respCycle += accLat;
+        int32_t lookupLineId = lineId;
 
         if (lineId == -1 && cc->shouldAllocate(req)) {
             //Make space for new line
             Address wbLineAddr;
-            char* wbLineValue;
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, &wbLineValue); //find the lineId to replace
+            char *wbLineValue = new char[(1U << lineBits)];
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue); //find the lineId to replace
+
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
             //Evictions are not in the critical path in any sane implementation -- we do not include their delays
             //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
             cc->processEviction(req, wbLineAddr, wbLineValue, lineId,
                                 respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
+
             delete[] wbLineValue;
 
-            array->postinsert(req.lineAddr, &req, lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
+            array->postinsert(req.lineAddr, &req,
+                              lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
-        if(lineId != -1 && req.type == GETX){
-            array->updateValue(&req, lineId);
+        if (lookupLineId != -1) {
+            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
+                array->updateValue(req.value, req.size, req.line_offset, lineId);
+            }
         }
 
         // Enforce single-record invariant: Writeback access may have a timing

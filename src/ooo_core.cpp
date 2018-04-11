@@ -76,11 +76,11 @@ OOOCore::OOOCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name) : Core(_
 
     for (uint32_t i = 0; i < FWD_ENTRIES; i++) fwdArray[i].set((Address) (-1L), 0);
 
-    unsigned int lineSize = (1U << lineBits);
     for (int j = 0; j < 256; ++j) {
-        loadValues[j] = new char[lineSize];
-        storeValues[j] = new char[lineSize];
+        loadValues[j] = new char[zinfo->lineSize];
+        storeValues[j] = new char[zinfo->lineSize];
     }
+
 }
 
 void OOOCore::initStats(AggregateStat *parentStat) {
@@ -143,6 +143,46 @@ InstrFuncPtrs OOOCore::GetFuncPtrs() {
     return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};
 }
 
+//#include <fstream>
+//#include <iomanip>
+//std::ofstream morteza("trace3.txt");
+//
+//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
+//    ea = (void*)((uintptr_t)ea + offset);
+//    morteza << " with size: " << std::dec << setw(3) << size << " with value ";
+//    switch (size) {
+//        case 0:
+//            cerr << "zero length data here" << std::endl;
+//            morteza << setw(1);
+//            break;
+//
+//        case 1:
+//            morteza << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
+//            break;
+//
+//        case 2:
+//            morteza << *static_cast<UINT16 *>(ea);
+//            break;
+//
+//        case 4:
+//            morteza << *static_cast<UINT32 *>(ea);
+//            break;
+//
+//        case 8:
+//            morteza << *static_cast<UINT64 *>(ea);
+//            break;
+//
+//        default:
+//            morteza << setw(1) << "0x";
+//            for (INT32 i = 0; i < size; i++) {
+//                morteza << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+//            }
+//            morteza << std::setfill(' ');
+//            break;
+//    }
+//    morteza << std::endl;
+//}
+
 inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
                           UINT32 size) {  //Kasraa: I heavily modified this function
     uint32_t currIdx = loads;
@@ -154,7 +194,6 @@ inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
 
     loadSizes[currIdx] = size;
     unsigned int lineSize = (1U << lineBits);
-    loadValues[currIdx] = new char[lineSize];
     memcpy(loadValues[currIdx], value, lineSize);
 }
 
@@ -183,6 +222,7 @@ void OOOCore::predFalseMemOp() {    //Kasraa: I heavily modified this function
     loadAddrs[currIdx] = -1L;
     loadPCs[currIdx] = -1L;
     loadSizes[currIdx] = -1L;
+
 }
 
 void OOOCore::branch(Address pc, bool taken, Address takenNpc, Address notTakenNpc) {
@@ -313,7 +353,12 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
                 uint64_t reqSatisfiedCycle = dispatchCycle;
                 if (addr != ((Address) -1L)) {
+//                    morteza << "load 0x" << setw(15) << std::hex << std::left << addr << " with index " << loadsCurrIdx << " ";
+//                    EmitMem(loadValues[loadsCurrIdx], size, addr & ((1U << lineBits) - 1));
+
                     reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+
+
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
 
@@ -358,7 +403,11 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 char* value = storeValues[storesCurrIdx];
                 UINT32 size = storeSizes[storesCurrIdx];
 
+//                morteza << "stor 0x" << setw(15) << std::hex << std::left << addr << " ";
+//                EmitMem(value, size, addr & ((1U << lineBits) - 1));
+
                 uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
                 // Fill the forwarding table
@@ -462,7 +511,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
         for (uint32_t i = 0; i < 5 * 64 / lineSize; i++) {
 
             char *value = new char[lineSize];
-            ADDRINT lineBegin = ((wrongPathAddr + lineSize * i) >> lineBits) << lineBits;
+            ADDRINT lineBegin = (((wrongPathAddr + lineSize * i) >> lineBits) | procMask) << lineBits;
             PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
             uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i,
@@ -495,7 +544,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
         // models (but we could move to a fetch-centric recorder to avoid this)
 
         char *value = new char[lineSize];
-        ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
+        ADDRINT lineBegin = ((fetchAddr >> lineBits) | procMask) << lineBits;
         PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
         uint64_t fetchLat = l1i->load(fetchAddr,
