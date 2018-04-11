@@ -46,6 +46,7 @@ public:
      * there may be some intervening calls to lookup. The implementation is
      * allowed to keep internal state in preinsert() and use it in postinsert()
      */
+
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t lineId) = 0;
 
     virtual void initStats(AggregateStat *parent) {}
