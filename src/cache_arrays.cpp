@@ -72,106 +72,6 @@ void SetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32
     rp->update(candidate, req);
 }
 
-DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
-                                               uint32_t _lineSize,
-                                               uint32_t _assoc,
-                                               ReplPolicy *_rp,
-                                               HashFamily *_hf) : SetAssocArray(_numLines, _assoc, _rp, _hf),
-                                                                  lineSize(_lineSize) {
-    values = gm_calloc<void *>(numLines);
-    dirty = gm_calloc<bool *>(numLines);
-
-    for (unsigned int i = 0; i < numLines; ++i) {
-        values[i] = gm_calloc<char>(_lineSize);
-        dirty[i] = gm_calloc<bool>(_lineSize);
-    }
-}
-
-//#include <fstream>
-//std::ofstream saed("trace2.txt");
-//
-//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
-//    ea = (void*)((uintptr_t)ea + offset);
-//    saed << " with size: " << std::dec << setw(3) << size << " with value ";
-//    switch (size) {
-//        case 0:
-//            cerr << "zero length data here" << std::endl;
-//            saed << setw(1);
-//            break;
-//
-//        case 1:
-//            saed << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
-//            break;
-//
-//        case 2:
-//            saed << *static_cast<UINT16 *>(ea);
-//            break;
-//
-//        case 4:
-//            saed << *static_cast<UINT32 *>(ea);
-//            break;
-//
-//        case 8:
-//            saed << *static_cast<UINT64 *>(ea);
-//            break;
-//
-//        default:
-//            saed << setw(1) << "0x";
-//            for (INT32 i = 0; i < size; i++) {
-//                saed << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
-//            }
-//            saed << std::setfill(' ');
-//            break;
-//    }
-//    saed << std::endl;
-//}
-
-void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
-    SetAssocArray::postinsert(lineAddr, req, candidate);
-    memcpy(values[candidate], req->value, lineSize);
-
-//    saed << req->type << " 0x" << setw(15) << std::hex << std::left << (array[candidate] << lineBits) + req->line_offset << " ";
-//    EmitMem(values[candidate], req->size, req->line_offset);
-
-    for (unsigned int i = 0; i < lineSize; ++i) {
-        dirty[candidate][i] = false;
-    }
-}
-
-
-
-void DataAwareSetAssocArray::updateValue(void* value, UINT32 size, unsigned int offset, uint32_t candidate) {
-    unsigned int writeSize = MIN(lineSize - offset, size);
-    void* dst = (void*)((uintptr_t)(values[candidate]) + offset);
-    void* src = (void*)((uintptr_t)(value) + offset);
-    memcpy(dst, src, writeSize);
-
-    for (unsigned int i = offset; i < writeSize + offset; ++i) {
-        dirty[candidate][i] = true;
-    }
-
-//    saed << "0x" << setw(15) << std::hex << std::left << (array[candidate] << lineBits) + offset << " ";
-//    EmitMem(dst, size, 0);
-}
-
-
-uint32_t
-DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) {
-    uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
-    memcpy(wbLineValue, values[candidate], lineSize);
-
-    // l1 eviction
-    int count = 0;
-    for (unsigned int i = 0; i < lineSize; ++i) {
-        if(dirty[candidate][i]){
-            count ++;
-        }
-    }
-//    std::cerr << count << std::endl;
-
-    return candidate;
-}
-
 
 /* ZCache implementation */
 
@@ -326,19 +226,158 @@ void ZArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t cand
     statSwaps.inc(swapArrayLen - 1);
 }
 
+//#include <fstream>
+//std::ofstream saed("trace2.txt");
+
+//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
+//    ea = (void*)((uintptr_t)ea + offset);
+//    saed << " with size: " << std::dec << setw(3) << size << " with value ";
+//    switch (size) {
+//        case 0:
+//            cerr << "zero length data here" << std::endl;
+//            saed << setw(1);
+//            break;
+//
+//        case 1:
+//            saed << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
+//            break;
+//
+//        case 2:
+//            saed << *static_cast<UINT16 *>(ea);
+//            break;
+//
+//        case 4:
+//            saed << *static_cast<UINT32 *>(ea);
+//            break;
+//
+//        case 8:
+//            saed << *static_cast<UINT64 *>(ea);
+//            break;
+//
+//        default:
+//            saed << setw(1) << "0x";
+//            for (INT32 i = 0; i < size; i++) {
+//                saed << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
+//            }
+//            saed << std::setfill(' ');
+//            break;
+//    }
+//    saed << std::endl;
+//}
+
+
+DataAwareSetAssocArray::DataAwareSetAssocArray(uint32_t _numLines,
+                                               uint32_t _lineSize,
+                                               uint32_t _assoc,
+                                               ReplPolicy *_rp,
+                                               HashFamily *_hf) : SetAssocArray(_numLines, _assoc, _rp, _hf),
+                                                                  lineSize(_lineSize) {
+    values = gm_calloc<void *>(numLines);
+    dirty = gm_calloc<bool *>(numLines);
+    write_counts = gm_calloc<int>(numLines);
+
+    for (unsigned int i = 0; i < numLines; ++i) {
+        values[i] = gm_calloc<char>(lineSize);
+        dirty[i] = gm_calloc<bool>(lineSize / word_bytes);
+    }
+}
+
+void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) {
+    SetAssocArray::postinsert(lineAddr, req, candidate);
+    memcpy(values[candidate], req->value, lineSize);
+
+//    saed << req->type << " 0x" << setw(15) << std::hex << std::left << (array[candidate] << lineBits) + req->line_offset << " ";
+//    EmitMem(values[candidate], req->size, req->line_offset);
+
+
+    // SMF : Bringing a new line into cache. all dirty set to false.
+    for (unsigned int i = 0; i < (lineSize / word_bytes); ++i) {
+        dirty[candidate][i] = false;
+    }
+    write_counts[candidate] = 0;
+}
+
+
+void DataAwareSetAssocArray::updateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate) {
+    unsigned int writeSize = MIN(lineSize - offset, size);
+    void *dst = (void *) ((uintptr_t) (values[candidate]) + offset);
+    void *src = (void *) ((uintptr_t) (value) + offset);
+    memcpy(dst, src, writeSize);
+
+    int start_word = offset / word_bytes;
+    int end_word = (writeSize + offset - 1) / word_bytes;
+
+    // SMF : setting the dirty bit for all the words that were affected by this operation.
+    for (int i = start_word; i <= end_word; ++i) {
+        dirty[candidate][i] = true;
+    }
+    write_counts[candidate]++;
+
+//    saed << "0x" << setw(15) << std::hex << std::left << (array[candidate] << lineBits) + offset << " ";
+//    EmitMem(dst, size, 0);
+}
+
+
+uint32_t
+DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) {
+    uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
+    memcpy(wbLineValue, values[candidate], lineSize);
+
+    // l1 eviction here
+    unsigned int word_count = (lineSize / word_bytes);
+    unsigned int dirty_words = 0;
+    unsigned int zero_words = 0;
+
+    // for each word
+    for (unsigned int i = 0; i < word_count; ++i) {
+        if (dirty[candidate][i]) {
+            dirty_words++;
+        }
+
+
+        bool is_word_zero = true;
+        // for each byte in the word
+        for (unsigned int j = i * word_bytes; j < (i + 1) * word_bytes; ++j) {
+            if (((char **) values)[candidate][j] != 0) {
+                is_word_zero = false;
+            }
+        }
+        if(is_word_zero) {
+            zero_words ++;
+        }
+    }
+
+    total_evictions++;
+
+    bool is_line_dirty = (dirty_words != 0);
+    bool is_line_zero = (zero_words == word_count);
+
+    dirty_line_evictions += is_line_dirty ? 1 : 0;
+    zero_line_evictions += is_line_zero ? 1 : 0;
+
+    dirty_word_evictions += dirty_words;
+
+    if(is_line_dirty){
+        dirty_line_zero_word_evictions += zero_words;
+    }
+
+    write_count_sum += write_counts[candidate];
+
+    return candidate;
+}
+
 CompressedDataAwareSetAssoc::CompressedDataAwareSetAssoc(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc,
                                                          ReplPolicy *_rp, HashFamily *_hf) : DataAwareSetAssocArray(
         _numLines, _lineSize, _assoc, _rp, _hf) {}
 
 
-//std::ofstream fuck("fuck.txt");
-
+//std::ofstream llcEvictionTrace("llcEvictionTrace.txt");
 //PIN_LOCK l;
 
 uint32_t CompressedDataAwareSetAssoc::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr,
                                                 char *wbLineValue) {
 
-    int candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
+    return SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
 
 //    llc eviction
 //
@@ -361,12 +400,10 @@ uint32_t CompressedDataAwareSetAssoc::preinsert(const Address lineAddr, const Me
 //        }
 //
 //        if(!equal){
-//            fuck << "riidiiim  " << std::hex << " " << *wbLineAddr << std::endl;
+//            llcEvictionTrace << "riidiiim  " << std::hex << " " << *wbLineAddr << std::endl;
 //        } else {
-//            fuck << "naridim   " << std::hex << " " << *wbLineAddr << std::endl;
+//            llcEvictionTrace << "naridim   " << std::hex << " " << *wbLineAddr << std::endl;
 //        }
 //        PIN_ReleaseLock(&l);
 //    }
-
-    return candidate;
 }

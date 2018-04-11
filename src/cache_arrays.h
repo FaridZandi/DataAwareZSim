@@ -85,6 +85,8 @@ protected:
     void **values;
     bool **dirty;
     uint32_t lineSize;
+    static const int word_bytes = 8;
+    int* write_counts;
 
 public:
     DataAwareSetAssocArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);

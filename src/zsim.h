@@ -207,6 +207,13 @@ extern uint32_t procIdx;
 extern uint32_t lineBits; //process-local for performance, but logically global
 extern uint64_t procMask;
 
+extern unsigned long total_evictions;
+extern unsigned long dirty_line_evictions;
+extern unsigned long dirty_word_evictions;
+extern unsigned long zero_line_evictions;
+extern unsigned long dirty_line_zero_word_evictions;
+extern unsigned long write_count_sum;
+
 extern GlobSimInfo *zinfo;
 
 //Process-wide functions, defined in zsim.cpp

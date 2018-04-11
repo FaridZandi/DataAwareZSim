@@ -103,6 +103,13 @@ uint32_t procIdx;
 uint32_t lineBits; //process-local for performance, but logically global
 Address procMask;
 
+unsigned long total_evictions;
+unsigned long dirty_line_evictions;
+unsigned long dirty_word_evictions;
+unsigned long zero_line_evictions;
+unsigned long dirty_line_zero_word_evictions;
+unsigned long write_count_sum;
+
 static ProcessTreeNode *procTreeNode;
 
 //tid to cid translation
@@ -807,7 +814,7 @@ VOID Instruction(INS ins) {
                 INS_InsertCall(ins, IPOINT_BEFORE, PredLoadFuncPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
                                IARG_MEMORYREAD2_EA, IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING, IARG_MEMORYREAD_SIZE,
                                IARG_END);
-                INS_InsertCall(ins, IPOINT_BEFORE, PredLoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                INS_InsertCall(ins, where, PredLoadFuncAfterPtr, IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
                                IARG_INST_PTR /*Kasraa*/, IARG_EXECUTING,
                                IARG_END);
             }
@@ -1397,6 +1404,11 @@ VOID SimEnd() {
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process
     //sleep(5);
 
+    std::cerr <<  (double) zero_line_evictions / dirty_line_evictions << std::endl;
+    std::cerr <<  (double) dirty_line_zero_word_evictions / (dirty_line_evictions * 8) << std::endl;
+    std::cerr <<  (double) dirty_word_evictions  / total_evictions << std::endl;
+    std::cerr <<  (double) write_count_sum / total_evictions << std::endl;
+
     exit(0);
 }
 
@@ -1781,6 +1793,13 @@ int main(int argc, char *argv[]) {
 
     lineBits = ilog2(zinfo->lineSize);
     procMask = ((uint64_t) procIdx) << (64 - lineBits);
+
+    total_evictions = 0;
+    dirty_line_evictions = 0;
+    dirty_word_evictions = 0;
+    zero_line_evictions = 0;
+    dirty_line_zero_word_evictions = 0;
+    write_count_sum = 0;
 
     //Initialize process-local per-thread state, even if ThreadStart does so later
     for (uint32_t i = 0; i < MAX_THREADS; i++) {
