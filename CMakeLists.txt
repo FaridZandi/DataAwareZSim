@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++0x -Wall -Wno-unknown-pragmas
 
 file(GLOB_RECURSE SOURCE_FILES "src/*.cpp" "src/*.hpp" "src/*.h")
 
-set(SOURCE_FILES_2 /home/farid/pin/source/include/pin/gen/types_foundation.TLH)
+set(SOURCE_FILES_2 /home/farid/pin/source/include/pin/gen/types_foundation.TLH src/BDICompressedCache.cpp src/BDICompressedCache.h src/BDICompressedCacheArray.cpp src/BDICompressedCacheArray.h src/BDILRUReplPolicy.cpp src/BDILRUReplPolicy.h)
 
 include_directories(/home/farid/pin/source/include/pin/)
 include_directories(/home/farid/pin/source/include/pin/gen)

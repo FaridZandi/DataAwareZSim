@@ -61,60 +61,7 @@ void Cache::initCacheStats(AggregateStat *cacheStat) {
     rp->initStats(cacheStat);
 }
 
-//#include <fstream>
-//#include <iomanip>
-//std::ofstream zavosh("trace4.txt");
-//
-//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
-//    ea = (void*)((uintptr_t)ea + offset);
-//    zavosh << " with size: " << std::dec << setw(3) << size << " with value ";
-//    switch (size) {
-//        case 0:
-//            cerr << "zero length data here" << std::endl;
-//            zavosh << setw(1);
-//            break;
-//
-//        case 1:
-//            zavosh << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
-//            break;
-//
-//        case 2:
-//            zavosh << *static_cast<UINT16 *>(ea);
-//            break;
-//
-//        case 4:
-//            zavosh << *static_cast<UINT32 *>(ea);
-//            break;
-//
-//        case 8:
-//            zavosh << *static_cast<UINT64 *>(ea);
-//            break;
-//
-//        default:
-//            zavosh << setw(1) << "0x";
-//            size = MIN((unsigned int)size, (1U << lineBits) - offset);
-//            for (INT32 i = 0; i < size; i++) {
-//                zavosh << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
-//            }
-//            zavosh << std::setfill(' ');
-//            break;
-//    }
-//    zavosh << std::endl;
-//}
-
 uint64_t Cache::access(MemReq &req) {
-//    if(req.type == GETX){
-//        zavosh << "getx ";
-//    } else if(req.type == GETS){
-//        zavosh << "gets ";
-//    } else if(req.type == PUTS){
-//        zavosh << "puts ";
-//    } else if(req.type == PUTX){
-//        zavosh << "putx ";
-//    }
-
-//    zavosh << "0x" << setw(15) << std::hex << std::left << (req.lineAddr << lineBits) + req.line_offset;
-//    EmitMem(req.value, req.size, req.line_offset);
 
     uint64_t respCycle = req.cycle;
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)

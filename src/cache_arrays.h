@@ -96,15 +96,6 @@ public:
     virtual void updateValue(void* value, UINT32 size, unsigned int offset, uint32_t candidate) override;
 };
 
-class CompressedDataAwareSetAssoc : public DataAwareSetAssocArray{
-public:
-    CompressedDataAwareSetAssoc(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp,
-                                HashFamily *_hf);
-
-    virtual uint32_t
-    preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) override;
-};
-
 /* The cache array that started this simulator :) */
 class ZArray : public CacheArray {
 private:

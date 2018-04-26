@@ -75,6 +75,9 @@
 #include "weave_md1_mem.h" //validation, could be taken out...
 #include "mc.h"
 #include "zsim.h"
+#include "BDICompressedCache.h"
+#include "BDICompressedCacheArray.h"
+#include "BDILRUReplPolicy.h"
 
 extern void EndOfPhaseActions(); //in zsim.cpp
 
@@ -85,6 +88,9 @@ extern void EndOfPhaseActions(); //in zsim.cpp
 
 BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, uint32_t bankSize, bool isTerminal,
                           uint32_t domain) {
+
+    string compression = config.get<const char *>(prefix + "compression", "none");
+
     string type = config.get<const char *>(prefix + "type", "Simple");
     // Shortcut for TraceDriven type
     if (type == "TraceDriven") {
@@ -106,7 +112,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     uint32_t candidates = (arrayType == "Z") ? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
 
     //Need to know number of hash functions before instantiating array
-    if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc" || arrayType == "CompressedDataAwareSetAssoc") {
+    if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc" || arrayType == "BDICompressedCacheArray") {
         numHashes = 1;
     } else if (arrayType == "Z") {
         numHashes = ways;
@@ -153,9 +159,17 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     if (replType == "LRU" || replType == "LRUNoSh") {
         bool sharersAware = (replType == "LRU") && !isTerminal;
         if (sharersAware) {
-            rp = new LRUReplPolicy<true>(numLines);
+            if (compression == "none") {
+                rp = new LRUReplPolicy<true>(numLines);
+            } else if (compression == "BDI") {
+                rp = new BDILRUReplPolicy<true>(numLines);
+            }
         } else {
-            rp = new LRUReplPolicy<false>(numLines);
+            if (compression == "none") {
+                rp = new LRUReplPolicy<false>(numLines);
+            } else if (compression == "BDI") {
+                rp = new BDILRUReplPolicy<false>(numLines);
+            }
         }
     } else if (replType == "LFU") {
         rp = new LFUReplPolicy(numLines);
@@ -238,10 +252,12 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
 
     //Alright, build the array
     CacheArray *array = nullptr;
-    if (arrayType == "CompressedDataAwareSetAssoc"){
-        array = new CompressedDataAwareSetAssoc(numLines, lineSize, ways, rp, hf);
-    } else if (arrayType == "DataAwareSetAssoc"){
-        array = new DataAwareSetAssocArray(numLines, lineSize, ways, rp, hf);
+    if (arrayType == "DataAwareSetAssoc") {
+        if (compression == "none") {
+            array = new DataAwareSetAssocArray(numLines, lineSize, ways, rp, hf);
+        } else if (compression == "BDI") {
+            array = new BDICompressedCacheArray(numLines, lineSize, ways, rp, hf);
+        }
     } else if (arrayType == "SetAssoc") {
         array = new SetAssocArray(numLines, ways, rp, hf);
     } else if (arrayType == "Z") {
@@ -282,7 +298,14 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     rp->setCC(cc);
     if (!isTerminal) {
         if (type == "Simple") {
-            cache = new Cache(numLines, cc, array, rp, accLat, invLat, name);
+            if (compression == "none") {
+                cache = new Cache(numLines, cc, array, rp, accLat, invLat, name);
+            } else if (compression == "BDI") {
+                cache = new BDICompressedCache(numLines, cc, array, rp, accLat, invLat, name);
+            } else {
+                std::cerr << "specify a supported compression type" << std::endl;
+                exit(1);
+            }
         } else if (type == "Timing") {
             uint32_t mshrs = config.get<uint32_t>(prefix + "mshrs", 16);
             uint32_t tagLat = config.get<uint32_t>(prefix + "tagLat", 5);
@@ -299,8 +322,9 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     } else {
         //Filter cache optimization
         if (type != "Simple") panic("Terminal cache %s can only have type == Simple", name.c_str());
-        if ((arrayType != "SetAssoc" && arrayType != "DataAwareSetAssoc") || hashType != "None" || replType != "LRU") panic("Invalid FilterCache config %s",
-                                                                                      name.c_str());
+        if ((arrayType != "SetAssoc" && arrayType != "DataAwareSetAssoc") || hashType != "None" ||
+            replType != "LRU") panic("Invalid FilterCache config %s",
+                                     name.c_str());
         cache = new FilterCache(numSets, numLines, cc, array, rp, accLat, invLat, name, config);
     }
 
