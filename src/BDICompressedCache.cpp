@@ -18,17 +18,27 @@ BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *
                                                                                                           _cc, _array,
                                                                                                           _rp, _accLat,
                                                                                                           _invLat,
-                                                                                                          _name) {}
+                                                                                                          _name) {
+
+    BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
+    uint32_t assoc = bdi_array->getAssoc();
+
+    evicted_lines = gm_calloc<uint32_t>(assoc);
+    wbLineAddrs = gm_calloc<Address>(assoc);
+    wbLineValues = gm_calloc<char*>(assoc);
+
+    for (uint32_t i = 0; i < assoc; ++i) {
+        wbLineValues[i] = gm_calloc<char>((1U << lineBits));
+    }
+}
 
 uint64_t BDICompressedCache::access(MemReq &req) {
 
     uint64_t respCycle = req.cycle;
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
 
-
-
     if (likely(!skipAccess)) {
-        BDICompressedCacheArray * bdi_array = (BDICompressedCacheArray*) array;
+        BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
 
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = bdi_array->lookup(req.lineAddr, &req, updateReplacement);
@@ -39,45 +49,41 @@ uint64_t BDICompressedCache::access(MemReq &req) {
 
             uint32_t compressed_size = BDICompress((char *) req.value);
 
-            uint32_t assoc = bdi_array->getAssoc();
-            uint32_t *evicted_lines = new uint32_t[assoc];
-            Address *wbLineAddrs = new Address[assoc];
-            char **wbLineValues = new char *[assoc];
-            for (int i = 0; i < assoc; ++i) {
-                wbLineValues[i] = new char[(1U << lineBits)];
-            }
-
             unsigned int eviction_count = bdi_array->BDIpreinsert(req.lineAddr, &req, compressed_size,
-                                                              wbLineAddrs, wbLineValues,
-                                                              evicted_lines); //find the lineIds to replace
+                                                                  wbLineAddrs, wbLineValues,
+                                                                  evicted_lines); //find the lineIds to replace
 
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
+            // many lines may be evicted. evicting each, one by one. not sure if this is okay.
+
             //Evictions are not in the critical path in any sane implementation -- we do not include their delays
             //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
-
-            for (int k = 0; k < eviction_count; ++k) {
+            for (uint32_t k = 0; k < eviction_count; ++k) {
                 cc->processEviction(req, wbLineAddrs[k], wbLineValues[k], evicted_lines[k], respCycle);
                 //1. if needed, send invalidates/downgrades to lower level //hereeeee
                 bdi_array->unsetCompressedSizes(evicted_lines[k]);
             }
 
             bdi_array->BDIpostinsert(req.lineAddr, &req, evicted_lines[0], compressed_size);
+            lineId = evicted_lines[0];
             //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
-
-            delete[] evicted_lines;
-            delete[] wbLineAddrs;
-            for (int j = 0; j < assoc; ++j) {
-                delete[] wbLineValues[j];
-            }
-            delete[] wbLineValues;
-
         }
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
         if (lookupLineId != -1) {
             if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
-                bdi_array->updateValue(req.value, req.size, req.line_offset, lookupLineId);
+
+                uint32_t compressed_size = BDICompress((char *) req.value);
+
+                unsigned int eviction_count = bdi_array->BDIupdateValue(req.value, req.size, req.line_offset,
+                                                                        lookupLineId, compressed_size,
+                                                                        wbLineAddrs, wbLineValues, evicted_lines);
+
+                for (uint32_t k = 0; k < eviction_count; ++k) {
+                    cc->processEviction(req, wbLineAddrs[k], wbLineValues[k], evicted_lines[k], respCycle);
+                    bdi_array->unsetCompressedSizes(evicted_lines[k]);
+                }
             }
         }
 
@@ -134,9 +140,8 @@ unsigned long long BDICompressedCache::my_llabs(long long x) {
     return (x ^ t) - t;
 }
 
-long long unsigned *BDICompressedCache::convertBuffer2Array(char *buffer, unsigned size, unsigned step) {
-    long long unsigned *values = (long long unsigned *) malloc(sizeof(long long unsigned) * size / step);
-
+void BDICompressedCache::convertBuffer2Array(char *buffer, unsigned size, unsigned step,
+                                             long long unsigned *values) {
     unsigned int i, j;
     for (i = 0; i < size / step; i++) {
         values[i] = 0;
@@ -148,7 +153,6 @@ long long unsigned *BDICompressedCache::convertBuffer2Array(char *buffer, unsign
             values[i / step] += (long long unsigned) ((unsigned char) buffer[i + j]) << (8 * j);
         }
     }
-    return values;
 }
 
 int BDICompressedCache::isZeroPackable(long long unsigned *values, unsigned size) {
@@ -229,8 +233,10 @@ unsigned BDICompressedCache::multBaseCompression(long long unsigned *values, uns
 }
 
 unsigned BDICompressedCache::BDICompress(char *buffer) {
+    long long unsigned values[64];
+
     unsigned int lineSize = (1U << lineBits);
-    long long unsigned *values = convertBuffer2Array(buffer, lineSize, 8);
+    convertBuffer2Array(buffer, lineSize, 8, values);
     unsigned bestCSize = lineSize;
     unsigned currCSize = lineSize;
 
@@ -251,9 +257,8 @@ unsigned BDICompressedCache::BDICompress(char *buffer) {
     currCSize = multBaseCompression(values, lineSize / 8, 4, 8);
     bestCSize = bestCSize > currCSize ? currCSize : bestCSize;
 
-    delete[] values;
 
-    values = convertBuffer2Array(buffer, lineSize, 4);
+    convertBuffer2Array(buffer, lineSize, 4, values);
 
     if (isSameValuePackable(values, lineSize / 4))
         currCSize = 4;
@@ -266,14 +271,10 @@ unsigned BDICompressedCache::BDICompress(char *buffer) {
     currCSize = multBaseCompression(values, lineSize / 4, 2, 4);
     bestCSize = bestCSize > currCSize ? currCSize : bestCSize;
 
-    delete[] values;
-
-    values = convertBuffer2Array(buffer, lineSize, 2);
+    convertBuffer2Array(buffer, lineSize, 2, values);
 
     currCSize = multBaseCompression(values, lineSize / 2, 1, 2);
     bestCSize = bestCSize > currCSize ? currCSize : bestCSize;
-
-    delete[] values;
 
     return bestCSize;
 }

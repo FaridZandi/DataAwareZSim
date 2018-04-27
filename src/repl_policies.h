@@ -56,6 +56,9 @@ public:
     virtual uint32_t rankCands(const MemReq *req, ZCands cands) = 0;
 
     virtual void initStats(AggregateStat *parent) {}
+
+    virtual uint32_t rankNthCands(uint32_t begin, uint32_t end, uint32_t n){return 0;};
+
 };
 
 /* Add DECL_RANK_BINDINGS to each class that implements the new interface,

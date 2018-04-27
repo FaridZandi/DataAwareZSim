@@ -33,7 +33,7 @@ public:
         array[id] = 0;
     }
 
-    uint32_t rankNthCands(uint32_t begin, uint32_t end, uint32_t n) {
+    uint32_t rankNthCands(uint32_t begin, uint32_t end, uint32_t n) override {
         std::vector<uint64_t> scores;
 
         std::priority_queue<std::pair<uint64_t, uint32_t>,

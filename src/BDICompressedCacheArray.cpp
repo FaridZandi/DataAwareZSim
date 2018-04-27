@@ -54,7 +54,6 @@ BDICompressedCacheArray::BDIpreinsert(const Address lineAddr, const MemReq *req,
         current_size += compressed_sizes[id];
     }
 
-    BDILRUReplPolicy* bdi_rp = (BDILRUReplPolicy*) rp;
 
     uint32_t candidate = rp->rankCands(req, SetAssocCands(first, first + assoc));
 
@@ -64,10 +63,10 @@ BDICompressedCacheArray::BDIpreinsert(const Address lineAddr, const MemReq *req,
 
     current_size -= compressed_sizes[candidate];
 
-    eviction_index ++;
+    eviction_index++;
 
     while (current_size + compressed_size > max_size) {
-        candidate = bdi_rp->rankNthCands(first, first + assoc, eviction_index);
+        candidate = rp->rankNthCands(first, first + assoc, eviction_index);
 
         wbLineAddrs[eviction_index] = array[candidate];
         memcpy(wbLineValues[eviction_index], uncompressed_values[candidate], lineSize);
@@ -75,9 +74,10 @@ BDICompressedCacheArray::BDIpreinsert(const Address lineAddr, const MemReq *req,
 
         current_size -= compressed_sizes[candidate];
 
-        eviction_index ++;
+        eviction_index++;
     }
 
+//    std::cerr << "eviction index" << " " << eviction_index << std::endl;
     return eviction_index;
 }
 
@@ -90,8 +90,59 @@ void BDICompressedCacheArray::BDIpostinsert(const Address lineAddr, const MemReq
     rp->update(candidate, req);
 }
 
-void BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate) {
+uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate,
+                                             uint32_t compressed_size, Address *wbLineAddrs, char **wbLineValues,
+                                             uint32_t *evicted_lines) {
 
+    unsigned int writeSize = MIN(lineSize - offset, size);
+    void *dst = (void *) ((uintptr_t) (uncompressed_values[candidate]) + offset);
+    void *src = (void *) ((uintptr_t) (value) + offset);
+    memcpy(dst, src, writeSize);
+    compressed_sizes[candidate] = compressed_size;
+
+    uint32_t first = (candidate / assoc) * assoc;
+    uint32_t max_size = assoc / 2 * lineSize;
+    uint32_t current_size = 0;
+    for (uint32_t id = first; id < first + assoc; id++) {
+        current_size += compressed_sizes[id];
+    }
+    
+    if(current_size <= max_size){
+        return 0;
+    } else {
+        uint32_t eviction_index = 0;
+        uint32_t nth_lru = 0;
+
+        uint32_t evicted_line = rp->rankCands(NULL, SetAssocCands(first, first + assoc));
+
+        if(evicted_line != candidate) {
+            wbLineAddrs[eviction_index] = array[evicted_line];
+            memcpy(wbLineValues[eviction_index], uncompressed_values[evicted_line], lineSize);
+            evicted_lines[eviction_index] = evicted_line;
+
+            current_size -= compressed_sizes[evicted_line];
+
+            eviction_index++;
+        }
+        nth_lru ++;
+
+        while (current_size > max_size) {
+            evicted_line = rp->rankNthCands(first, first + assoc, nth_lru);
+
+            if(evicted_line != candidate) {
+                wbLineAddrs[eviction_index] = array[evicted_line];
+                memcpy(wbLineValues[eviction_index], uncompressed_values[evicted_line], lineSize);
+                evicted_lines[eviction_index] = evicted_line;
+
+                current_size -= compressed_sizes[evicted_line];
+
+                eviction_index++;
+            }
+            nth_lru ++;
+        }
+
+        return eviction_index;
+    }
 }
 
 uint32_t BDICompressedCacheArray::getAssoc() {

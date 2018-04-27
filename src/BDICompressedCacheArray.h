@@ -19,30 +19,28 @@ protected :
     HashFamily *hf;
     uint32_t numLines;
     uint32_t numSets;
-public:
-    virtual uint32_t getAssoc() override;
-
-protected:
     uint32_t assoc;
     uint32_t setMask;
 
 public:
+    virtual uint32_t getAssoc();
+
     BDICompressedCacheArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
     virtual int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement) override;
 
     uint32_t BDIpreinsert(const Address lineAddr, const MemReq *req, uint32_t compressed_size,
-                                  Address *wbLineAddrs, char ** wbLineValues, uint32_t * evicted_lines);
+                          Address *wbLineAddrs, char **wbLineValues, uint32_t *evicted_lines);
 
-    void BDIpostinsert(const Address lineAddr, const MemReq *req, uint32_t lineId,
-                                   uint32_t compressed_size);
+    void BDIpostinsert(const Address lineAddr, const MemReq *req, uint32_t lineId, uint32_t compressed_size);
 
-    void BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate);
+    uint32_t BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate, uint32_t compressed_size,
+                        Address *wbLineAddrs, char **wbLineValues, uint32_t *evicted_lines);
 
     void unsetCompressedSizes(uint32_t id);
 
     virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue,
-                               uint32_t compressed_size) override {return 0;};
+                               uint32_t compressed_size) override { return 0; };
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t lineId) override {};
 };

@@ -7,8 +7,10 @@
 
 #include "cache.h"
 
-class BDICompressedCache : public Cache{
-
+class BDICompressedCache : public Cache {
+    uint32_t *evicted_lines;
+    Address *wbLineAddrs;
+    char **wbLineValues;
 
 public:
     BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat,
@@ -18,7 +20,8 @@ public:
 
     static unsigned long long my_llabs(long long x);
 
-    static long long unsigned *convertBuffer2Array(char *buffer, unsigned size, unsigned step);
+    static void convertBuffer2Array(char *buffer, unsigned size, unsigned step,
+                                    long long unsigned *values);
 
     static int isZeroPackable(long long unsigned *values, unsigned size);
 
@@ -27,7 +30,6 @@ public:
     static unsigned multBaseCompression(long long unsigned *values, unsigned size, unsigned limit_bits, unsigned bsize);
 
     unsigned BDICompress(char *buffer);
-
 };
 
 
