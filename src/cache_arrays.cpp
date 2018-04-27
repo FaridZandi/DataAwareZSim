@@ -56,7 +56,7 @@ int32_t SetAssocArray::lookup(const Address lineAddr, const MemReq *req, bool up
 }
 
 uint32_t SetAssocArray::preinsert(const Address lineAddr, const MemReq *req,
-                                  Address *wbLineAddr, char *wbLineValue) { //TODO: Give out valid bit of wb cand?
+                                  Address *wbLineAddr, char *wbLineValue, uint32_t compressed_size) { //TODO: Give out valid bit of wb cand?
     uint32_t set = hf->hash(0, lineAddr) & setMask;
     uint32_t first = set * assoc;
 
@@ -117,19 +117,9 @@ void DataAwareSetAssocArray::updateValue(void* value, UINT32 size, unsigned int 
 
 
 uint32_t
-DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) {
-    uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
+DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue, uint32_t compressed_size) {
+    uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue, 0);
     memcpy(wbLineValue, values[candidate], lineSize);
-
-    // l1 eviction
-    int count = 0;
-    for (unsigned int i = 0; i < lineSize; ++i) {
-        if(dirty[candidate][i]){
-            count ++;
-        }
-    }
-//    std::cerr << count << std::endl;
-
     return candidate;
 }
 
@@ -184,7 +174,7 @@ int32_t ZArray::lookup(const Address lineAddr, const MemReq *req, bool updateRep
     return -1;
 }
 
-uint32_t ZArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) {
+uint32_t ZArray::preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue, uint32_t compressed_size) {
     ZWalkInfo candidates[cands + ways]; //extra ways entries to avoid checking on every expansion
 
     bool all_valid = true;

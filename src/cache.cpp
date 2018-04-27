@@ -75,7 +75,7 @@ uint64_t Cache::access(MemReq &req) {
             //Make space for new line
             Address wbLineAddr;
             char *wbLineValue = new char[(1U << lineBits)];
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue); //find the lineId to replace
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue, 0); //find the lineId to replace
 
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
@@ -86,8 +86,8 @@ uint64_t Cache::access(MemReq &req) {
 
             delete[] wbLineValue;
 
-            array->postinsert(req.lineAddr, &req,
-                              lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
+            //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
+            array->postinsert(req.lineAddr, &req, lineId);
         }
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.

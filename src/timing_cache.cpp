@@ -148,7 +148,7 @@ uint64_t TimingCache::access(MemReq &req) {
             Address wbLineAddr;
             unsigned int lineSize = (1U << lineBits);
             char* wbLineValue = new char[lineSize];
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue); //find the lineId to replace
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue, 0); //find the lineId to replace
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
             //Evictions are not in the critical path in any sane implementation -- we do not include their delays
