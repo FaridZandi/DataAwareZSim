@@ -105,6 +105,10 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
 
     uint32_t numLines = bankSize / lineSize;
 
+    if(compression == "BDI"){
+        numLines *= 2;
+    }
+
     //Array
     uint32_t numHashes = 1;
     uint32_t ways = config.get<uint32_t>(prefix + "array.ways", 4);
@@ -154,6 +158,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     //Replacement policy
     string replType = config.get<const char *>(prefix + "repl.type",
                                                (arrayType == "IdealLRUPart") ? "IdealLRUPart" : "LRU");
+
     ReplPolicy *rp = nullptr;
 
     if (replType == "LRU" || replType == "LRUNoSh") {

@@ -30,6 +30,9 @@ public:
     static unsigned multBaseCompression(long long unsigned *values, unsigned size, unsigned limit_bits, unsigned bsize);
 
     unsigned BDICompress(char *buffer);
+
+protected:
+    virtual uint64_t finishInvalidate(const InvReq &req) override;
 };
 
 

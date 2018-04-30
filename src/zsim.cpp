@@ -212,7 +212,8 @@ resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_meme
 
     unsigned int lineSize = (1U << lineBits);
     ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
-    char *value = new char[lineSize];
+    char *value = gm_calloc<char>(lineSize);
+
     PIN_SafeCopy(value, ((ADDRINT *) lineBegin), lineSize);
 
     PIN_GetLock(&lock, tid + 1);
@@ -295,7 +296,7 @@ IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
 
     fPtrs[tid].loadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
 
-    delete[] s.value;
+    gm_free(s.value);
 }
 
 
@@ -333,7 +334,7 @@ IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
 
     fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
 
-    delete[] s.value;
+//    gm_free(s.value);
 }
 
 VOID PIN_FAST_ANALYSIS_CALL IndirectBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -376,7 +377,7 @@ IndirectPredLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
 
     fPtrs[tid].predLoadPtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred);
 
-    delete[] s.value;
+    gm_free(s.value);
 }
 
 
@@ -410,7 +411,7 @@ IndirectPredStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/, BOOL pred) {
 
     fPtrs[tid].predStorePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size, pred);
 
-    delete[] s.value;
+    gm_free(s.value);
 }
 
 //Non-simulation variants of analysis functions

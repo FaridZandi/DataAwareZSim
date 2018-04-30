@@ -70,7 +70,7 @@ void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
     for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
 
         unsigned int lineSize = (unsigned int) 1 << lineBits;
-        char * value = new char[lineSize];
+        char * value = gm_calloc<char>(lineSize);
         ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
         PIN_SafeCopy(value, (ADDRINT*) lineBegin, lineSize);
 
@@ -78,7 +78,7 @@ void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                              fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
                              value, lineSize);
 
-        delete[] value;
+        gm_free(value);
     }
 }
 

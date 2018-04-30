@@ -57,7 +57,9 @@ public:
 
     virtual void initStats(AggregateStat *parent) {}
 
-    virtual uint32_t rankNthCands(uint32_t begin, uint32_t end, uint32_t n){return 0;};
+    virtual void buildCandsPriorityQueue(uint32_t begin, uint32_t end){}
+
+    virtual uint32_t getNextCand(){return 0;};
 
 };
 

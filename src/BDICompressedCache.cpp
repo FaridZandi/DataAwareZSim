@@ -4,6 +4,7 @@
 
 #include "BDICompressedCache.h"
 #include <fstream>
+#include <iomanip>
 #include "cache.h"
 #include "hash.h"
 
@@ -12,6 +13,7 @@
 #include "zsim.h"
 #include "BDICompressedCacheArray.h"
 
+std::ofstream mori("a.txt");
 
 BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp,
                                        uint32_t _accLat, uint32_t _invLat, const g_string &_name) : Cache(_numLines,
@@ -19,14 +21,13 @@ BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *
                                                                                                           _rp, _accLat,
                                                                                                           _invLat,
                                                                                                           _name) {
-
     BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
     uint32_t assoc = bdi_array->getAssoc();
 
     evicted_lines = gm_calloc<uint32_t>(assoc);
     wbLineAddrs = gm_calloc<Address>(assoc);
-    wbLineValues = gm_calloc<char*>(assoc);
 
+    wbLineValues = gm_calloc<char*>(assoc);
     for (uint32_t i = 0; i < assoc; ++i) {
         wbLineValues[i] = gm_calloc<char>((1U << lineBits));
     }
@@ -49,9 +50,17 @@ uint64_t BDICompressedCache::access(MemReq &req) {
 
             uint32_t compressed_size = BDICompress((char *) req.value);
 
+//            mori << "compressed size " << compressed_size << std::endl;
+//            for (int i = 0; i < 64; ++i) {
+//                mori << std::hex << std::setfill('0') << std::setw(2) << int(*(((unsigned char*) req.value) + i));
+//            }
+//            mori << std::dec;
+//            mori << std::endl;
+
             unsigned int eviction_count = bdi_array->BDIpreinsert(req.lineAddr, &req, compressed_size,
                                                                   wbLineAddrs, wbLineValues,
                                                                   evicted_lines); //find the lineIds to replace
+            lineId = evicted_lines[0];
 
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
@@ -65,8 +74,7 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 bdi_array->unsetCompressedSizes(evicted_lines[k]);
             }
 
-            bdi_array->BDIpostinsert(req.lineAddr, &req, evicted_lines[0], compressed_size);
-            lineId = evicted_lines[0];
+            bdi_array->BDIpostinsert(req.lineAddr, &req, lineId, compressed_size);
             //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
 
@@ -279,3 +287,20 @@ unsigned BDICompressedCache::BDICompress(char *buffer) {
     return bestCSize;
 }
 
+uint64_t BDICompressedCache::finishInvalidate(const InvReq &req) {
+    int32_t lineId = array->lookup(req.lineAddr, nullptr, false);
+    assert_msg(lineId != -1, "[%s] Invalidate on non-existing address 0x%lx type %s lineId %d, reqWriteback %d",
+               name.c_str(), req.lineAddr, InvTypeName(req.type), lineId, *req.writeback);
+
+    ((BDICompressedCacheArray*)array)->unsetCompressedSizes(lineId);
+
+    uint64_t respCycle = req.cycle + invLat;
+    trace(Cache, "[%s] Invalidate start 0x%lx type %s lineId %d, reqWriteback %d", name.c_str(), req.lineAddr,
+          InvTypeName(req.type), lineId, *req.writeback);
+    respCycle = cc->processInv(req, lineId,
+                               respCycle); //send invalidates or downgrades to children, and adjust our own state
+    trace(Cache, "[%s] Invalidate end 0x%lx type %s lineId %d, reqWriteback %d, latency %ld", name.c_str(),
+          req.lineAddr, InvTypeName(req.type), lineId, *req.writeback, respCycle - req.cycle);
+
+    return respCycle;
+}

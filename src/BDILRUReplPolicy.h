@@ -9,6 +9,10 @@
 #include <queue>
 #include "repl_policies.h"
 
+typedef std::priority_queue<std::pair<uint64_t, uint32_t>,
+        std::vector<std::pair<uint64_t, uint32_t> >,
+        std::greater<std::pair<uint64_t, uint32_t> > > candsPriorityQueue;
+
 template<bool sharersAware>
 class BDILRUReplPolicy : public ReplPolicy {
 protected:
@@ -16,9 +20,14 @@ protected:
     uint64_t *array;
     uint32_t numLines;
 
+    candsPriorityQueue scores;
+
 public:
     explicit BDILRUReplPolicy(uint32_t _numLines) : timestamp(1), numLines(_numLines) {
         array = gm_calloc<uint64_t>(numLines);
+        while(not scores.empty()){
+            scores.pop();
+        };
     }
 
     ~BDILRUReplPolicy() {
@@ -33,22 +42,19 @@ public:
         array[id] = 0;
     }
 
-    uint32_t rankNthCands(uint32_t begin, uint32_t end, uint32_t n) override {
-        std::vector<uint64_t> scores;
-
-        std::priority_queue<std::pair<uint64_t, uint32_t>,
-                std::vector<std::pair<uint64_t, uint32_t> >,
-                std::greater<std::pair<uint64_t, uint32_t> > > q;
+    void buildCandsPriorityQueue(uint32_t begin, uint32_t end){
+        while(not scores.empty()){
+            scores.pop();
+        };
 
         for (uint32_t i = begin; i < end; ++i) {
-            q.push(std::pair<uint64_t, uint32_t>(score(i), i));
+            scores.push(std::pair<uint64_t, uint32_t>(score(i), i));
         }
+    }
 
-        for (int i = 0; i < n; ++i) {
-            q.pop();
-        }
-
-        return q.top().second;
+    uint32_t getNextCand() override {
+        scores.pop();
+        return scores.top().second;
     }
 
     template<typename C>
