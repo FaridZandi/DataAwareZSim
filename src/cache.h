@@ -42,7 +42,6 @@ class Network;
  * controllers, since for now we only have MESI controllers
  */
 class Cache : public BaseCache {
-public:
 protected:
     CC *cc;
     CacheArray *array;
@@ -81,7 +80,7 @@ protected:
 
     void startInvalidate(); // grabs cc's downLock
 
-    uint64_t finishInvalidate(const InvReq &req); // performs inv and releases downLock
+    virtual uint64_t finishInvalidate(const InvReq &req); // performs inv and releases downLock
 };
 
 #endif  // CACHE_H_
