@@ -387,6 +387,7 @@ public:
             (((req.type == PUTS) || (req.type == PUTX)) && !bcc->isValid(lineId))) { //can only be a non-inclusive wback
             assert(nonInclusiveHack);
             assert((req.type == PUTS) || (req.type == PUTX));
+
             respCycle = bcc->processNonInclusiveWriteback(req.lineAddr, req.type, startCycle, req.state, req.srcId,
                                                           req.flags, req.pc /*Kasraa*/, req.value, req.size,
                                                           req.line_offset, req.vLineAddr);

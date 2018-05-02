@@ -141,11 +141,13 @@ void DataAwareSetAssocArray::postinsert(const Address lineAddr, const MemReq *re
 
 
 void DataAwareSetAssocArray::updateValue(void* value, UINT32 size, unsigned int offset, uint32_t candidate) {
-    unsigned int writeSize = MIN(lineSize - offset, size);
-    void* dst = (void*)((uintptr_t)(values[candidate]) + offset);
-    void* src = (void*)((uintptr_t)(value) + offset);
-    memcpy(dst, src, writeSize);
+//    void* dst = (void*)((uintptr_t)(values[candidate]) + offset);
+//    void* src = (void*)((uintptr_t)(value) + offset);
+//    memcpy(dst, src, writeSize);
 
+    memcpy(values[candidate], value, lineSize);
+
+    unsigned int writeSize = MIN(lineSize - offset, size);
     for (unsigned int i = offset; i < writeSize + offset; ++i) {
         dirty[candidate][i] = true;
     }

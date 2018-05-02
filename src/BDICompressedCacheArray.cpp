@@ -120,18 +120,20 @@ void BDICompressedCacheArray::BDIpostinsert(const Address lineAddr, const MemReq
                                             uint32_t compressed_size) {
     rp->replaced(lineId);
     array[lineId] = lineAddr;
-    rp->update(lineId, req);
     memcpy(uncompressed_values[lineId], req->value, lineSize);
     compressed_sizes[lineId] = compressed_size;
+    rp->update(lineId, req);
 }
 
 uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate,
                                                  uint32_t compressed_size, Address *wbLineAddrs, char **wbLineValues,
                                                  uint32_t *evicted_lines) {
-    unsigned int writeSize = MIN(lineSize - offset, size);
-    void *dst = (void *) ((uintptr_t) (uncompressed_values[candidate]) + offset);
-    void *src = (void *) ((uintptr_t) (value) + offset);
-    memcpy(dst, src, writeSize);
+//    unsigned int writeSize = MIN(lineSize - offset, size);
+//    void *dst = (void *) ((uintptr_t) (uncompressed_values[candidate]) + offset);
+//    void *src = (void *) ((uintptr_t) (value) + offset);
+
+    memcpy(uncompressed_values[candidate], value, lineSize);
+
     compressed_sizes[candidate] = compressed_size;
 
     uint32_t first = (candidate / assoc) * assoc;
@@ -140,7 +142,6 @@ uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsig
     for (uint32_t id = first; id < first + assoc; id++) {
         current_size += compressed_sizes[id];
     }
-
 
     if (current_size <= max_size) {
         return 0;

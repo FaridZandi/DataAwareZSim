@@ -25,16 +25,28 @@ uint64_t BDICompressedCache::access(MemReq &req) {
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
     if (likely(!skipAccess)) {
 
+        updateValueLog << "|----------------------------------------|" << std::endl;
+        updateValueLog << "|     going to handle a new access       |" << std::endl;
+        updateValueLog << "|----------------------------------------|" << std::endl;
+
         BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = bdi_array->lookup(req.lineAddr, &req, updateReplacement);
         respCycle += accLat;
         int32_t lookupLineId = lineId;
 
+        updateValueLog << "hello, my name is : " << getName() << std::endl;
+
         if (lineId == -1 && cc->shouldAllocate(req)) {
             //Make space for new line
 
             uint32_t compressed_size = BDICompress((char *) req.value);
+
+            updateValueLog << "the address was not found in the array." << std::endl;
+            updateValueLog << "compressed value size : " << compressed_size << std::endl;
+
+            sum_compressed += compressed_size;
+            sum_all += (1U << lineBits);
 
             uint32_t assoc = bdi_array->getAssoc();
 
@@ -46,17 +58,21 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 wbLineValues[i] = gm_calloc<char>((1U << lineBits));
             }
 
+            updateValueLog << "going to evict some lines to open up space." << std::endl;
+
             uint32_t eviction_count = bdi_array->BDIpreinsert(req.lineAddr, &req, compressed_size,
                                                               wbLineAddrs, wbLineValues,
                                                               evicted_lines); //find the lineId to replace
 
-            lineId = evicted_lines[0];
+            updateValueLog << "eviction count : " << eviction_count << std::endl;
 
-            trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
+            lineId = evicted_lines[eviction_count - 1];
 
-            //Evictions are not in the critical path in any sane implementation -- we do not include their delays
-            //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
+            updateValueLog << "is the chosen line valid ? " << cc->isValid(lineId) << std::endl;
+
             for (uint32_t j = 0; j < eviction_count; ++j) {
+                //Evictions are not in the critical path in any sane implementation -- we do not include their delays
+                //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
                 cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
                                     respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
                 bdi_array->unsetCompressedSizes(evicted_lines[j]);
@@ -69,45 +85,18 @@ uint64_t BDICompressedCache::access(MemReq &req) {
             }
             gm_free(wbLineValues);
 
-            bdi_array->BDIpostinsert(req.lineAddr, &req,
-                                     lineId,
+            bdi_array->BDIpostinsert(req.lineAddr, &req, lineId,
                                      compressed_size); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
         if (lookupLineId != -1) {
-            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
-                uint32_t assoc = bdi_array->getAssoc();
-                uint32_t *evicted_lines = gm_calloc<uint32_t>(assoc);
-                Address *wbLineAddrs = gm_calloc<Address>(assoc);
+            updateValueLog << "yes! the address was found in the cache. " << std::endl;
 
-                char **wbLineValues = gm_calloc<char *>(assoc);
-                for (uint32_t i = 0; i < assoc; ++i) {
-                    wbLineValues[i] = gm_calloc<char>((1U << lineBits));
-                }
+            updateValueLog << "is it valid ? " << cc->isValid(lookupLineId) <<std::endl;
 
-                uint32_t compressed_size = BDICompress((char *) req.value);
-
-                uint32_t eviction_count = bdi_array->BDIupdateValue(req.value, req.size, req.line_offset, lookupLineId,
-                                                                    compressed_size, wbLineAddrs, wbLineValues,
-                                                                    evicted_lines);
-
-                updateValueLog << eviction_count << std::endl;
-
-                for (uint32_t j = 0; j < eviction_count; ++j) {
-                    cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
-                                        respCycle); //1. if needed, send invalidates/downgrades to lower level //here !
-
-                    bdi_array->unsetCompressedSizes(evicted_lines[j]);
-                }
-
-                gm_free(evicted_lines);
-                gm_free(wbLineAddrs);
-
-                for (uint32_t i = 0; i < assoc; ++i) {
-                    gm_free(wbLineValues[i]);
-                }
-                gm_free(wbLineValues);
+            if(cc->isValid(lookupLineId)){
+                updateValues(req, respCycle, bdi_array, lookupLineId);
             }
         }
 
@@ -157,6 +146,49 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                name.c_str(), req.lineAddr, AccessTypeName(req.type), MESIStateName(*req.state), respCycle, req.cycle);
     return respCycle;
 
+}
+
+void BDICompressedCache::updateValues(const MemReq &req, uint64_t respCycle, BDICompressedCacheArray *bdi_array,
+                                      int32_t lookupLineId) {
+
+    uint32_t assoc = bdi_array->getAssoc();
+    uint32_t *evicted_lines = gm_calloc<uint32_t>(assoc);
+    Address *wbLineAddrs = gm_calloc<Address>(assoc);
+
+    char **wbLineValues = gm_calloc<char *>(assoc);
+    for (uint32_t i = 0; i < assoc; ++i) {
+                    wbLineValues[i] = gm_calloc<char>((1U << lineBits));
+                }
+
+    uint32_t compressed_size = BDICompress((char *) req.value);
+
+    sum_compressed += compressed_size;
+    sum_all += (1U << lineBits);
+
+    updateValueLog << "let's see how many lines should be evicted because of this value update. " << std::endl;
+
+    uint32_t eviction_count = bdi_array->BDIupdateValue(req.value, req.size, req.line_offset, lookupLineId,
+                                                                    compressed_size, wbLineAddrs, wbLineValues,
+                                                                    evicted_lines);
+
+    updateValueLog << "eviction count : " << eviction_count << std::endl;
+
+    for (uint32_t j = 0; j < eviction_count; ++j) {
+        cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
+                                        respCycle); //1. if needed, send invalidates/downgrades to lower level //here !
+
+        bdi_array->unsetCompressedSizes(evicted_lines[j]);
+    }
+
+    updateValueLog << "is the lineId valid after eviction ? " << cc->isValid(lookupLineId) << std::endl;
+
+    gm_free(evicted_lines);
+    gm_free(wbLineAddrs);
+
+    for (uint32_t i = 0; i < assoc; ++i) {
+                    gm_free(wbLineValues[i]);
+                }
+    gm_free(wbLineValues);
 }
 
 uint64_t BDICompressedCache::finishInvalidate(const InvReq &req) {

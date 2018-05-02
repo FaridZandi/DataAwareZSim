@@ -145,9 +145,9 @@ uint64_t Cache::access(MemReq &req) {
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
         if (lookupLineId != -1) {
-            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
+//            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
                 array->updateValue(req.value, req.size, req.line_offset, lineId);
-            }
+//            }
         }
 
         // Enforce single-record invariant: Writeback access may have a timing

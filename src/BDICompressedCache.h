@@ -6,6 +6,7 @@
 #define DATA_AWARE_ZSIM_BDICOMPRESSEDCACHE_H
 
 #include "cache.h"
+#include "BDICompressedCacheArray.h"
 
 class BDICompressedCache : public Cache{
 public:
@@ -30,6 +31,7 @@ public:
 protected:
     virtual uint64_t finishInvalidate(const InvReq &req) override;
 
+    void updateValues(const MemReq &req, uint64_t respCycle, BDICompressedCacheArray *bdi_array, int32_t lookupLineId);
 };
 
 

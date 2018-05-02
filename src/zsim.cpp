@@ -103,6 +103,9 @@ uint32_t procIdx;
 uint32_t lineBits; //process-local for performance, but logically global
 Address procMask;
 
+uint64_t sum_all;
+uint64_t sum_compressed;
+
 static ProcessTreeNode *procTreeNode;
 
 //tid to cid translation
@@ -1394,6 +1397,9 @@ VOID SimEnd() {
         if (zinfo->sched) zinfo->sched->notifyTermination();
     }
 
+    std::cout << "total size is " << sum_all << std::endl;
+    std::cout << "total compressed size is " << sum_compressed << std::endl;
+
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process
     //sleep(5);
 
@@ -1781,6 +1787,9 @@ int main(int argc, char *argv[]) {
 
     lineBits = ilog2(zinfo->lineSize);
     procMask = ((uint64_t) procIdx) << (64 - lineBits);
+
+    sum_all = 0;
+    sum_compressed = 0;
 
     //Initialize process-local per-thread state, even if ThreadStart does so later
     for (uint32_t i = 0; i < MAX_THREADS; i++) {
