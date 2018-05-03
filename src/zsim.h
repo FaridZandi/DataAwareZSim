@@ -207,9 +207,10 @@ extern uint32_t procIdx;
 extern uint32_t lineBits; //process-local for performance, but logically global
 extern uint64_t procMask;
 
-extern uint64_t sum_all;
-extern uint64_t sum_compressed;
-
+extern uint64_t l2_sum_all;
+extern uint64_t l2_sum_full;
+extern uint64_t llc_sum_all;
+extern uint64_t llc_sum_full;
 
 extern GlobSimInfo *zinfo;
 

@@ -22,6 +22,8 @@ protected:
     uint32_t *compressed_sizes;
     uint32_t lineSize;
 
+    uint32_t fullLines;
+
 public:
     BDICompressedCacheArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
 
@@ -44,6 +46,14 @@ public:
     uint32_t getAssoc() const;
 
     void unsetCompressedSizes(uint32_t id);
+
+    bool isCompressed(int32_t i);
+
+    uint64_t getFullLinesNum();
+
+    uint64_t getMaxLinesNum();
+
+    void dec_full_lines();
 };
 
 

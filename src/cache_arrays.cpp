@@ -162,6 +162,8 @@ DataAwareSetAssocArray::preinsert(const Address lineAddr, const MemReq *req, Add
     uint32_t candidate = SetAssocArray::preinsert(lineAddr, req, wbLineAddr, wbLineValue);
     memcpy(wbLineValue, values[candidate], lineSize);
 
+
+
     // l1 eviction
     int count = 0;
     for (unsigned int i = 0; i < lineSize; ++i) {

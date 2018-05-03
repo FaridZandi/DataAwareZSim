@@ -402,6 +402,7 @@ public:
                                            req.pc /*Kasraa*/, req.value, req.size, req.line_offset, req.vLineAddr);
 
             if (getDoneCycle) *getDoneCycle = respCycle;
+
             if (!isPrefetch) { //prefetches only touch bcc; the demand request from the core will pull the line to lower level
                 //At this point, the line is in a good state w.r.t. upper levels
                 bool lowerLevelWriteback = false;
@@ -538,6 +539,7 @@ public:
 
     //Repl policy interface
     uint32_t numSharers(uint32_t lineId) { return 0; } //no sharers
+
     bool isValid(uint32_t lineId) { return bcc->isValid(lineId); }
 };
 

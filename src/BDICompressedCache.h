@@ -9,6 +9,8 @@
 #include "BDICompressedCacheArray.h"
 
 class BDICompressedCache : public Cache{
+    static const uint64_t DecompressionLat = 1;
+
 public:
     BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat,
                        uint32_t _invLat, const g_string &_name);
@@ -32,6 +34,7 @@ protected:
     virtual uint64_t finishInvalidate(const InvReq &req) override;
 
     void updateValues(const MemReq &req, uint64_t respCycle, BDICompressedCacheArray *bdi_array, int32_t lookupLineId);
+
 };
 
 

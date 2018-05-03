@@ -23,6 +23,7 @@ BDICompressedCacheArray::BDICompressedCacheArray(uint32_t _numLines, uint32_t _l
         uncompressed_values[i] = gm_calloc<char>(_lineSize);
     }
 
+    fullLines = 0;
 }
 
 int32_t BDICompressedCacheArray::lookup(const Address lineAddr, const MemReq *req, bool updateReplacement) {
@@ -184,3 +185,30 @@ uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsig
 void BDICompressedCacheArray::unsetCompressedSizes(uint32_t id) {
     compressed_sizes[id] = 0;
 }
+
+bool BDICompressedCacheArray::isCompressed(int32_t i) {
+    return compressed_sizes[i] < lineSize;
+}
+
+uint64_t BDICompressedCacheArray::getFullLinesNum() {
+    uint64_t sum = 0;
+
+    for (uint32_t i = 0; i < numLines; ++i) {
+        if(compressed_sizes[i] > 0){
+            sum ++;
+        }
+    }
+
+    return sum;
+}
+
+uint64_t BDICompressedCacheArray::getMaxLinesNum() {
+    return numLines / 2;
+}
+
+void BDICompressedCacheArray::dec_full_lines() {
+    fullLines --;
+}
+
+
+
