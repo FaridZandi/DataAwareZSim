@@ -123,7 +123,7 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 if (cc->isValid(lookupLineId)) {
                     if (bdi_array->isCompressed(lookupLineId)) {
                         // if the line is compressed it has to decompressed before it is handed to lower levels.
-                        respCycle += DecompressionLat;
+//                        respCycle += DecompressionLat;
                     }
                 } else {
                     updateValues(req, respCycle, bdi_array, lookupLineId);
@@ -132,7 +132,7 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 if (cc->isValid(lookupLineId)) {
                     if (bdi_array->isCompressed(lookupLineId)) {
                         // if the line is compressed it has to decompressed before it is handed to lower levels.
-                        respCycle += DecompressionLat;
+//                        respCycle += DecompressionLat;
                     }
                 }
                 updateValues(req, respCycle, bdi_array, lookupLineId);
