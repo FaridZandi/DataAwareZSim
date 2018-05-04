@@ -372,6 +372,7 @@ public:
         evCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, evCycle, triggerReq.srcId,
                                        triggerReq.pc /*Kasraa*/, wbLineValue, lineSize, 0, 0); //2. if needed, write back line to upper level
 
+
         return evCycle;
     }
 

@@ -97,8 +97,7 @@ public:
         return lineId;
     }
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue,
-                       uint32_t compressed_size) {
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue) {
         Entry *e = lruList.back();
         *wbLineAddr = e->lineAddr;
         return e->lineId;
@@ -284,8 +283,7 @@ public:
         return lineId;
     }
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue,
-                       uint32_t compressed_size) {
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue) {
         uint32_t lineId = rp->rank(req);
         *wbLineAddr = lineAddrs[lineId];
         return lineId;

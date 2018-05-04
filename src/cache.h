@@ -55,8 +55,6 @@ protected:
 
     g_string name;
 
-    char* wbLineValue;
-
 public:
     Cache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat, uint32_t _invLat,
           const g_string &_name);

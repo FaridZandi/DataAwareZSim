@@ -39,8 +39,7 @@ public:
     virtual int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement) = 0;
 
     /* Runs replacement scheme, returns tag ID of new pos and address of line to write back*/
-    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue,
-                                   uint32_t compressed_size) = 0;
+    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue) = 0;
 
     /* Actually do the replacement, writing the new address in lineId.
      * NOTE: This method is guaranteed to be called after preinsert, although
@@ -76,7 +75,7 @@ public:
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue, uint32_t compressed_size);
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue);
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
 };
@@ -92,9 +91,18 @@ public:
 
     virtual void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate) override;
 
-    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue, uint32_t compressed_size) override;
+    virtual uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue) override;
 
     virtual void updateValue(void* value, UINT32 size, unsigned int offset, uint32_t candidate) override;
+};
+
+class CompressedDataAwareSetAssoc : public DataAwareSetAssocArray{
+public:
+    CompressedDataAwareSetAssoc(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp,
+                                HashFamily *_hf);
+
+    virtual uint32_t
+    preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char *wbLineValue) override;
 };
 
 /* The cache array that started this simulator :) */
@@ -123,7 +131,7 @@ public:
 
     int32_t lookup(const Address lineAddr, const MemReq *req, bool updateReplacement);
 
-    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue, uint32_t compressed_size);
+    uint32_t preinsert(const Address lineAddr, const MemReq *req, Address *wbLineAddr, char* wbLineValue);
 
     void postinsert(const Address lineAddr, const MemReq *req, uint32_t candidate);
 
