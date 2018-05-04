@@ -1,97 +1,143 @@
 //
-// Created by farid on 4/25/18.
+// Created by farid on 5/1/18.
 //
 
-#include "BDICompressedCache.h"
 #include <fstream>
 #include <iomanip>
-#include "cache.h"
-#include "hash.h"
-
+#include "BDICompressedCache.h"
 #include "event_recorder.h"
 #include "timing_event.h"
 #include "zsim.h"
 #include "BDICompressedCacheArray.h"
 
-std::ofstream mori("a.txt");
+// std::ofstream updateValueLog("update_values_log.log");
 
-BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp,
-                                       uint32_t _accLat, uint32_t _invLat, const g_string &_name) : Cache(_numLines,
-                                                                                                          _cc, _array,
-                                                                                                          _rp, _accLat,
-                                                                                                          _invLat,
-                                                                                                          _name) {
-    BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
-    uint32_t assoc = bdi_array->getAssoc();
+BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc,
+                                       CacheArray *_array, ReplPolicy *_rp,
+                                       uint32_t _accLat, uint32_t _invLat,
+                                       const g_string &_name) : Cache(_numLines, _cc, _array, _rp,
+                                                                      _accLat, _invLat, _name) {
 
-    evicted_lines = gm_calloc<uint32_t>(assoc);
-    wbLineAddrs = gm_calloc<Address>(assoc);
-
-    wbLineValues = gm_calloc<char*>(assoc);
-    for (uint32_t i = 0; i < assoc; ++i) {
-        wbLineValues[i] = gm_calloc<char>((1U << lineBits));
-    }
 }
 
+
+uint64_t l2_stat_counter = 0;
+uint64_t llc_stat_counter = 0;
+
 uint64_t BDICompressedCache::access(MemReq &req) {
-
     uint64_t respCycle = req.cycle;
-    bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
 
+    bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
     if (likely(!skipAccess)) {
+
         BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
+
+
+        if (strcmp(getName(), "l2-0") == 0) {
+            l2_stat_counter ++;
+            if(l2_stat_counter % 10000 == 0) {
+                l2_sum_full = bdi_array->getFullLinesNum();
+                l2_sum_all = bdi_array->getMaxLinesNum();
+
+
+                std::cerr << "l2 sum full  :  " << l2_sum_full << std::endl;
+                std::cerr << "l2 sum all   :  " << l2_sum_all  << std::endl;
+                std::cerr << "l2 comp ratio:  " << (double) l2_sum_full / l2_sum_all << std::endl;
+                std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
+                std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
+                std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
+                std::cerr << "---------------------------------------------------------" << std::endl;
+                std::cerr << "---------------------------------------------------------" << std::endl;
+            }
+        }
+
+        if (strcmp(getName(), "llc-0") == 0) {
+            llc_stat_counter ++;
+            if(llc_stat_counter % 10000 == 0) {
+                llc_sum_full = bdi_array->getFullLinesNum();
+                llc_sum_all = bdi_array->getMaxLinesNum();
+
+
+                std::cerr << "l2 sum full  :  " << l2_sum_full << std::endl;
+                std::cerr << "l2 sum all   :  " << l2_sum_all  << std::endl;
+                std::cerr << "l2 comp ratio:  " << (double) l2_sum_full / l2_sum_all << std::endl;
+                std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
+                std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
+                std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
+                std::cerr << "---------------------------------------------------------" << std::endl;
+                std::cerr << "---------------------------------------------------------" << std::endl;
+            }
+        }
+
+
 
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = bdi_array->lookup(req.lineAddr, &req, updateReplacement);
-        int32_t lookupLineId = lineId;
         respCycle += accLat;
+        int32_t lookupLineId = lineId;
+
 
         if (lineId == -1 && cc->shouldAllocate(req)) {
+            //Make space for new line
 
             uint32_t compressed_size = BDICompress((char *) req.value);
 
-//            mori << "compressed size " << compressed_size << std::endl;
-//            for (int i = 0; i < 64; ++i) {
-//                mori << std::hex << std::setfill('0') << std::setw(2) << int(*(((unsigned char*) req.value) + i));
-//            }
-//            mori << std::dec;
-//            mori << std::endl;
+            uint32_t assoc = bdi_array->getAssoc();
 
-            unsigned int eviction_count = bdi_array->BDIpreinsert(req.lineAddr, &req, compressed_size,
-                                                                  wbLineAddrs, wbLineValues,
-                                                                  evicted_lines); //find the lineIds to replace
-            lineId = evicted_lines[0];
+            uint32_t *evicted_lines = gm_calloc<uint32_t>(assoc);
+            Address *wbLineAddrs = gm_calloc<Address>(assoc);
 
-            trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
+            char **wbLineValues = gm_calloc<char *>(assoc);
+            for (uint32_t i = 0; i < assoc; ++i) {
+                wbLineValues[i] = gm_calloc<char>((1U << lineBits));
+            }
+            uint32_t eviction_count = bdi_array->BDIpreinsert(req.lineAddr, &req, compressed_size,
+                                                              wbLineAddrs, wbLineValues,
+                                                              evicted_lines); //find the lineId to replace
+            lineId = evicted_lines[eviction_count - 1];
 
-            // many lines may be evicted. evicting each, one by one. not sure if this is okay.
+            for (uint32_t j = 0; j < eviction_count; ++j) {
+                //Evictions are not in the critical path in any sane implementation -- we do not include their delays
+                //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
 
-            //Evictions are not in the critical path in any sane implementation -- we do not include their delays
-            //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
-            for (uint32_t k = 0; k < eviction_count; ++k) {
-                cc->processEviction(req, wbLineAddrs[k], wbLineValues[k], evicted_lines[k], respCycle);
-                //1. if needed, send invalidates/downgrades to lower level //hereeeee
-                bdi_array->unsetCompressedSizes(evicted_lines[k]);
+                cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
+                                    respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
+                bdi_array->unsetCompressedSizes(evicted_lines[j]);
             }
 
-            bdi_array->BDIpostinsert(req.lineAddr, &req, lineId, compressed_size);
-            //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
+            gm_free(evicted_lines);
+            gm_free(wbLineAddrs);
+            for (uint32_t i = 0; i < assoc; ++i) {
+                gm_free(wbLineValues[i]);
+            }
+            gm_free(wbLineValues);
+
+            bdi_array->BDIpostinsert(req.lineAddr, &req, lineId,
+                                     compressed_size); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
 
-        // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
-        if (lookupLineId != -1) {
-            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
-
-                uint32_t compressed_size = BDICompress((char *) req.value);
-
-                unsigned int eviction_count = bdi_array->BDIupdateValue(req.value, req.size, req.line_offset,
-                                                                        lookupLineId, compressed_size,
-                                                                        wbLineAddrs, wbLineValues, evicted_lines);
-
-                for (uint32_t k = 0; k < eviction_count; ++k) {
-                    cc->processEviction(req, wbLineAddrs[k], wbLineValues[k], evicted_lines[k], respCycle);
-                    bdi_array->unsetCompressedSizes(evicted_lines[k]);
+        if (lookupLineId != -1) { // so the line was present in the cache in the first place.
+            if (req.type == PUTS or req.type == PUTX) {
+                updateValues(req, respCycle, bdi_array, lookupLineId);
+            } else if (req.type == GETS) {
+                if (cc->isValid(lookupLineId)) {
+                    if (bdi_array->isCompressed(lookupLineId)) {
+                        // if the line is compressed it has to decompressed before it is handed to lower levels.
+                        respCycle += DecompressionLat;
+                    }
+                } else {
+                    updateValues(req, respCycle, bdi_array, lookupLineId);
                 }
+            } else if(req.type == GETX){
+                if (cc->isValid(lookupLineId)) {
+                    if (bdi_array->isCompressed(lookupLineId)) {
+                        // if the line is compressed it has to decompressed before it is handed to lower levels.
+                        respCycle += DecompressionLat;
+                    }
+                }
+                updateValues(req, respCycle, bdi_array, lookupLineId);
+            } else {
+                panic("?!");
             }
         }
 
@@ -140,8 +186,62 @@ uint64_t BDICompressedCache::access(MemReq &req) {
     assert_msg(respCycle >= req.cycle, "[%s] resp < req? 0x%lx type %s childState %s, respCycle %ld reqCycle %ld",
                name.c_str(), req.lineAddr, AccessTypeName(req.type), MESIStateName(*req.state), respCycle, req.cycle);
     return respCycle;
+
 }
 
+void BDICompressedCache::updateValues(const MemReq &req, uint64_t respCycle, BDICompressedCacheArray *bdi_array,
+                                      int32_t lookupLineId) {
+
+    uint32_t assoc = bdi_array->getAssoc();
+    uint32_t *evicted_lines = gm_calloc<uint32_t>(assoc);
+    Address *wbLineAddrs = gm_calloc<Address>(assoc);
+
+    char **wbLineValues = gm_calloc<char *>(assoc);
+    for (uint32_t i = 0; i < assoc; ++i) {
+        wbLineValues[i] = gm_calloc<char>((1U << lineBits));
+    }
+
+    uint32_t compressed_size = BDICompress((char *) req.value);
+
+    uint32_t eviction_count = bdi_array->BDIupdateValue(req.value, req.size, req.line_offset, lookupLineId,
+                                                        compressed_size, wbLineAddrs, wbLineValues,
+                                                        evicted_lines);
+
+    for (uint32_t j = 0; j < eviction_count; ++j) {
+        cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
+                            respCycle); //1. if needed, send invalidates/downgrades to lower level //here !
+
+        bdi_array->unsetCompressedSizes(evicted_lines[j]);
+    }
+
+    gm_free(evicted_lines);
+    gm_free(wbLineAddrs);
+
+    for (uint32_t i = 0; i < assoc; ++i) {
+        gm_free(wbLineValues[i]);
+    }
+    gm_free(wbLineValues);
+}
+
+uint64_t BDICompressedCache::finishInvalidate(const InvReq &req) {
+    int32_t lineId = array->lookup(req.lineAddr, nullptr, false);
+    assert_msg(lineId != -1, "[%s] Invalidate on non-existing address 0x%lx type %s lineId %d, reqWriteback %d",
+               name.c_str(), req.lineAddr, InvTypeName(req.type), lineId, *req.writeback);
+    uint64_t respCycle = req.cycle + invLat;
+
+    BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
+
+    bdi_array->unsetCompressedSizes(lineId);
+
+    trace(Cache, "[%s] Invalidate start 0x%lx type %s lineId %d, reqWriteback %d", name.c_str(), req.lineAddr,
+          InvTypeName(req.type), lineId, *req.writeback);
+    respCycle = cc->processInv(req, lineId,
+                               respCycle); //send invalidates or downgrades to children, and adjust our own state
+    trace(Cache, "[%s] Invalidate end 0x%lx type %s lineId %d, reqWriteback %d, latency %ld", name.c_str(),
+          req.lineAddr, InvTypeName(req.type), lineId, *req.writeback, respCycle - req.cycle);
+
+    return respCycle;
+}
 
 unsigned long long BDICompressedCache::my_llabs(long long x) {
     unsigned long long t = (unsigned long long int) (x >> 63);
@@ -285,22 +385,4 @@ unsigned BDICompressedCache::BDICompress(char *buffer) {
     bestCSize = bestCSize > currCSize ? currCSize : bestCSize;
 
     return bestCSize;
-}
-
-uint64_t BDICompressedCache::finishInvalidate(const InvReq &req) {
-    int32_t lineId = array->lookup(req.lineAddr, nullptr, false);
-    assert_msg(lineId != -1, "[%s] Invalidate on non-existing address 0x%lx type %s lineId %d, reqWriteback %d",
-               name.c_str(), req.lineAddr, InvTypeName(req.type), lineId, *req.writeback);
-
-    ((BDICompressedCacheArray*)array)->unsetCompressedSizes(lineId);
-
-    uint64_t respCycle = req.cycle + invLat;
-    trace(Cache, "[%s] Invalidate start 0x%lx type %s lineId %d, reqWriteback %d", name.c_str(), req.lineAddr,
-          InvTypeName(req.type), lineId, *req.writeback);
-    respCycle = cc->processInv(req, lineId,
-                               respCycle); //send invalidates or downgrades to children, and adjust our own state
-    trace(Cache, "[%s] Invalidate end 0x%lx type %s lineId %d, reqWriteback %d, latency %ld", name.c_str(),
-          req.lineAddr, InvTypeName(req.type), lineId, *req.writeback, respCycle - req.cycle);
-
-    return respCycle;
 }

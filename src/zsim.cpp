@@ -103,6 +103,11 @@ uint32_t procIdx;
 uint32_t lineBits; //process-local for performance, but logically global
 Address procMask;
 
+uint64_t l2_sum_all;
+uint64_t l2_sum_full;
+uint64_t llc_sum_all;
+uint64_t llc_sum_full;
+
 static ProcessTreeNode *procTreeNode;
 
 //tid to cid translation
@@ -213,7 +218,6 @@ resolve_memory_value(THREADID &tid, std::map<ADDRINT, std::queue<unresolved_meme
     unsigned int lineSize = (1U << lineBits);
     ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
     char *value = gm_calloc<char>(lineSize);
-
     PIN_SafeCopy(value, ((ADDRINT *) lineBegin), lineSize);
 
     PIN_GetLock(&lock, tid + 1);
@@ -334,7 +338,7 @@ IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
 
     fPtrs[tid].storePtr(tid, s.addr, pc /*Kasraa*/, s.value, s.size);
 
-//    gm_free(s.value);
+    gm_free(s.value);
 }
 
 VOID PIN_FAST_ANALYSIS_CALL IndirectBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
@@ -1395,6 +1399,9 @@ VOID SimEnd() {
         if (zinfo->sched) zinfo->sched->notifyTermination();
     }
 
+    std::cout << "total size is " << l2_sum_all << std::endl;
+    std::cout << "total compressed size is " << l2_sum_full << std::endl;
+
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process
     //sleep(5);
 
@@ -1782,6 +1789,9 @@ int main(int argc, char *argv[]) {
 
     lineBits = ilog2(zinfo->lineSize);
     procMask = ((uint64_t) procIdx) << (64 - lineBits);
+
+    l2_sum_all = 0;
+    l2_sum_full = 0;
 
     //Initialize process-local per-thread state, even if ThreadStart does so later
     for (uint32_t i = 0; i < MAX_THREADS; i++) {

@@ -197,6 +197,7 @@ static time_t startTime;
 static time_t lastHeartbeatTime;
 static uint64_t lastCycles = 0;
 
+
 static void printHeartbeat(GlobSimInfo *zinfo) {
     uint64_t cycles = zinfo->numPhases * zinfo->phaseLength;
     time_t curTime = time(nullptr);
@@ -220,6 +221,9 @@ static void printHeartbeat(GlobSimInfo *zinfo) {
     hb << " " << (cycles) / elapsedSecs << " cycles/s" << std::endl;
     hb << "Stats since last heartbeat (" << heartbeatSecs << "s):" << std::endl;
     hb << " " << (cycles - lastCycles) / heartbeatSecs << " cycles/s" << std::endl;
+//    hb << std::endl;
+//    hb << "l2 sum all : " << l2_sum_all << std::endl;
+//    hb << "l2 sum full : " << l2_sum_full << std::endl;
 
     lastHeartbeatTime = curTime;
     lastCycles = cycles;

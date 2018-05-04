@@ -66,9 +66,9 @@ void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
     instrs += bblInfo->instrs;
     curCycle += bblInfo->instrs;
 
+
     Address endBblAddr = bblAddr + bblInfo->bytes;
     for (Address fetchAddr = bblAddr; fetchAddr < endBblAddr; fetchAddr += (1 << lineBits)) {
-
         unsigned int lineSize = (unsigned int) 1 << lineBits;
         char * value = gm_calloc<char>(lineSize);
         ADDRINT lineBegin = (fetchAddr >> lineBits) << lineBits;
@@ -80,6 +80,7 @@ void SimpleCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
         gm_free(value);
     }
+
 }
 
 void SimpleCore::contextSwitch(int32_t gid) {
@@ -139,4 +140,3 @@ void SimpleCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo *bblInfo) {
         if (newCid != cid) break; /*context-switch*/
     }
 }
-

@@ -1,10 +1,9 @@
 //
-// Created by farid on 4/25/18.
+// Created by farid on 5/1/18.
 //
 
 #ifndef DATA_AWARE_ZSIM_BDILRUREPLPOLICY_H
 #define DATA_AWARE_ZSIM_BDILRUREPLPOLICY_H
-
 
 #include <queue>
 #include "repl_policies.h"
@@ -25,10 +24,11 @@ protected:
 public:
     explicit BDILRUReplPolicy(uint32_t _numLines) : timestamp(1), numLines(_numLines) {
         array = gm_calloc<uint64_t>(numLines);
-        while(not scores.empty()){
+        while (not scores.empty()) {
             scores.pop();
         };
     }
+
 
     ~BDILRUReplPolicy() {
         gm_free(array);
@@ -42,8 +42,8 @@ public:
         array[id] = 0;
     }
 
-    void buildCandsPriorityQueue(uint32_t begin, uint32_t end){
-        while(not scores.empty()){
+    void buildCandsPriorityQueue(uint32_t begin, uint32_t end) override {
+        while (not scores.empty()) {
             scores.pop();
         };
 

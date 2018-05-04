@@ -57,11 +57,12 @@ public:
 
     virtual void initStats(AggregateStat *parent) {}
 
-    virtual void buildCandsPriorityQueue(uint32_t begin, uint32_t end){}
+    virtual void buildCandsPriorityQueue(uint32_t begin, uint32_t end) {};
 
-    virtual uint32_t getNextCand(){return 0;};
+    virtual uint32_t getNextCand() { return 0; }
 
 };
+
 
 /* Add DECL_RANK_BINDINGS to each class that implements the new interface,
  * then implement a single, templated rank() function (see below for examples)

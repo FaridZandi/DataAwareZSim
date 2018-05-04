@@ -93,6 +93,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                                      void* value, UINT32 size, unsigned int line_offset, Address vLineAddr) {
     uint64_t respCycle = cycle;
     MESIState *state = &array[lineId];
+
     switch (type) {
         // A PUTS/PUTX does nothing w.r.t. higher coherence levels --- it dies here
         case PUTS: //Clean writeback, nothing to do (except profiling)

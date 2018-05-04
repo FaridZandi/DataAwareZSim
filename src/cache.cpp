@@ -24,19 +24,17 @@
  */
 
 #include <fstream>
+#include <iomanip>
 #include "cache.h"
 #include "hash.h"
 
 #include "event_recorder.h"
 #include "timing_event.h"
 #include "zsim.h"
-#include "BDICompressedCacheArray.h"
 
 Cache::Cache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat, uint32_t _invLat,
              const g_string &_name)
-        : cc(_cc), array(_array), rp(_rp), numLines(_numLines), accLat(_accLat), invLat(_invLat), name(_name) {
-    wbLineValue = new char[(1U << lineBits)];
-}
+        : cc(_cc), array(_array), rp(_rp), numLines(_numLines), accLat(_accLat), invLat(_invLat), name(_name) {}
 
 const char *Cache::getName() {
     return name.c_str();
@@ -64,6 +62,7 @@ void Cache::initCacheStats(AggregateStat *cacheStat) {
     rp->initStats(cacheStat);
 }
 
+
 uint64_t Cache::access(MemReq &req) {
 
     uint64_t respCycle = req.cycle;
@@ -77,8 +76,8 @@ uint64_t Cache::access(MemReq &req) {
         if (lineId == -1 && cc->shouldAllocate(req)) {
             //Make space for new line
             Address wbLineAddr;
-
-            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue, 0); //find the lineId to replace
+            char *wbLineValue = new char[(1U << lineBits)];
+            lineId = array->preinsert(req.lineAddr, &req, &wbLineAddr, wbLineValue); //find the lineId to replace
 
             trace(Cache, "[%s] Evicting 0x%lx", name.c_str(), wbLineAddr);
 
@@ -87,16 +86,17 @@ uint64_t Cache::access(MemReq &req) {
             cc->processEviction(req, wbLineAddr, wbLineValue, lineId,
                                 respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
 
+            delete[] wbLineValue;
 
-            //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
-            array->postinsert(req.lineAddr, &req, lineId);
+            array->postinsert(req.lineAddr, &req,
+                              lineId); //do the actual insertion. NOTE: Now we must split insert into a 2-phase thing because cc unlocks us.
         }
 
         // SMF : when storing, if the lineAddr is present in the array, the value should be updated.
         if (lookupLineId != -1) {
-            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
+//            if (req.type == GETX or req.type == PUTS or req.type == PUTX) {
                 array->updateValue(req.value, req.size, req.line_offset, lineId);
-            }
+//            }
         }
 
         // Enforce single-record invariant: Writeback access may have a timing

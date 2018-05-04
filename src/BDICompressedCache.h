@@ -1,16 +1,15 @@
 //
-// Created by farid on 4/25/18.
+// Created by farid on 5/1/18.
 //
 
 #ifndef DATA_AWARE_ZSIM_BDICOMPRESSEDCACHE_H
 #define DATA_AWARE_ZSIM_BDICOMPRESSEDCACHE_H
 
 #include "cache.h"
+#include "BDICompressedCacheArray.h"
 
-class BDICompressedCache : public Cache {
-    uint32_t *evicted_lines;
-    Address *wbLineAddrs;
-    char **wbLineValues;
+class BDICompressedCache : public Cache{
+    static const uint64_t DecompressionLat = 1;
 
 public:
     BDICompressedCache(uint32_t _numLines, CC *_cc, CacheArray *_array, ReplPolicy *_rp, uint32_t _accLat,
@@ -33,7 +32,14 @@ public:
 
 protected:
     virtual uint64_t finishInvalidate(const InvReq &req) override;
+
+    void updateValues(const MemReq &req, uint64_t respCycle, BDICompressedCacheArray *bdi_array, int32_t lookupLineId);
+
 };
+
+
+
+
 
 
 #endif //DATA_AWARE_ZSIM_BDICOMPRESSEDCACHE_H
