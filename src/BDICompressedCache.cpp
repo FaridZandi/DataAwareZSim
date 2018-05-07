@@ -32,35 +32,12 @@ uint64_t BDICompressedCache::access(MemReq &req) {
 
         BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
 
-
-        if (strcmp(getName(), "l2-0") == 0) {
-            l2_stat_counter ++;
-            if(l2_stat_counter % 10000 == 0) {
-                l2_sum_full = bdi_array->getFullLinesNum();
-                l2_sum_all = bdi_array->getMaxLinesNum();
-
-
-                std::cerr << "l2 sum full  :  " << l2_sum_full << std::endl;
-                std::cerr << "l2 sum all   :  " << l2_sum_all  << std::endl;
-                std::cerr << "l2 comp ratio:  " << (double) l2_sum_full / l2_sum_all << std::endl;
-                std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
-                std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
-                std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
-                std::cerr << "---------------------------------------------------------" << std::endl;
-                std::cerr << "---------------------------------------------------------" << std::endl;
-            }
-        }
-
         if (strcmp(getName(), "llc-0") == 0) {
             llc_stat_counter ++;
             if(llc_stat_counter % 10000 == 0) {
                 llc_sum_full = bdi_array->getFullLinesNum();
                 llc_sum_all = bdi_array->getMaxLinesNum();
 
-
-                std::cerr << "l2 sum full  :  " << l2_sum_full << std::endl;
-                std::cerr << "l2 sum all   :  " << l2_sum_all  << std::endl;
-                std::cerr << "l2 comp ratio:  " << (double) l2_sum_full / l2_sum_all << std::endl;
                 std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
                 std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
                 std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
@@ -68,8 +45,6 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 std::cerr << "---------------------------------------------------------" << std::endl;
             }
         }
-
-
 
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = bdi_array->lookup(req.lineAddr, &req, updateReplacement);
