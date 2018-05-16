@@ -213,6 +213,7 @@ uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType
 }
 
 
+
 /* MESITopCC implementation */
 
 void MESITopCC::init(const g_vector<BaseCache *> &_children, Network *network, const char *name) {

@@ -16,7 +16,7 @@ BDICompressedCacheArray::BDICompressedCacheArray(uint32_t _numLines, uint32_t _l
     setMask = numSets - 1;
     assert_msg(isPow2(numSets), "must have a power of 2 # sets, but you specified %d", numSets);
 
-    compressed_sizes = gm_calloc<uint32_t>(numLines);
+    compressed_segments = gm_calloc<uint32_t>(numLines);
     uncompressed_values = gm_calloc<void *>(numLines);
 
     for (unsigned int i = 0; i < numLines; ++i) {
@@ -74,18 +74,18 @@ uint32_t BDICompressedCacheArray::getAssoc() const {
 
 uint32_t BDICompressedCacheArray::BDIpreinsert(const Address lineAddr, const MemReq *req, uint32_t compressed_size,
                                                Address *wbLineAddrs, char **wbLineValues, uint32_t *evicted_lines) {
-
-
     uint32_t eviction_index = 0;
+
+    uint32_t needed_segments = (compressed_size + Segment_Size - 1) / Segment_Size;
 
     uint32_t set = (uint32_t) (hf->hash(0, lineAddr) & setMask);
     uint32_t first = set * assoc;
 
-    uint32_t max_size = assoc / 2 * lineSize;
-    uint32_t current_size = 0;
+    uint32_t max_segments = (assoc / 2) * (lineSize / Segment_Size);
+    uint32_t current_segments = 0;
 
     for (uint32_t id = first; id < first + assoc; id++) {
-        current_size += compressed_sizes[id];
+        current_segments += compressed_segments[id];
     }
 
     uint32_t candidate = rp->rankCands(req, SetAssocCands(first, first + assoc));
@@ -94,25 +94,27 @@ uint32_t BDICompressedCacheArray::BDIpreinsert(const Address lineAddr, const Mem
     evicted_lines[eviction_index] = candidate;
     memcpy(wbLineValues[eviction_index], uncompressed_values[candidate], lineSize);
 
-    current_size -= compressed_sizes[candidate];
+    current_segments -= compressed_segments[candidate];
 
     eviction_index++;
 
-    if (current_size + compressed_size > max_size) {
-        rp->buildCandsPriorityQueue(first, first + assoc);
+    if (current_segments + needed_segments > max_segments) {
+        candsPriorityQueue scores = rp->buildCandsPriorityQueue(first, first + assoc);
+
+        while (current_segments + needed_segments > max_segments) {
+            scores.pop();
+            candidate = scores.top().second;
+
+            wbLineAddrs[eviction_index] = array[candidate];
+            memcpy(wbLineValues[eviction_index], uncompressed_values[candidate], lineSize);
+            evicted_lines[eviction_index] = candidate;
+
+            current_segments -= compressed_segments[candidate];
+
+            eviction_index++;
+        }
     }
 
-    while (current_size + compressed_size > max_size) {
-        candidate = rp->getNextCand();
-
-        wbLineAddrs[eviction_index] = array[candidate];
-        memcpy(wbLineValues[eviction_index], uncompressed_values[candidate], lineSize);
-        evicted_lines[eviction_index] = candidate;
-
-        current_size -= compressed_sizes[candidate];
-
-        eviction_index++;
-    }
 
     return eviction_index;
 }
@@ -122,29 +124,27 @@ void BDICompressedCacheArray::BDIpostinsert(const Address lineAddr, const MemReq
     rp->replaced(lineId);
     array[lineId] = lineAddr;
     memcpy(uncompressed_values[lineId], req->value, lineSize);
-    compressed_sizes[lineId] = compressed_size;
+    compressed_segments[lineId] = (compressed_size + Segment_Size - 1) / Segment_Size;
     rp->update(lineId, req);
 }
 
 uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsigned int offset, uint32_t candidate,
                                                  uint32_t compressed_size, Address *wbLineAddrs, char **wbLineValues,
                                                  uint32_t *evicted_lines) {
-//    unsigned int writeSize = MIN(lineSize - offset, size);
-//    void *dst = (void *) ((uintptr_t) (uncompressed_values[candidate]) + offset);
-//    void *src = (void *) ((uintptr_t) (value) + offset);
 
     memcpy(uncompressed_values[candidate], value, lineSize);
 
-    compressed_sizes[candidate] = compressed_size;
+    compressed_segments[candidate] = (compressed_size + Segment_Size - 1) / Segment_Size;
 
     uint32_t first = (candidate / assoc) * assoc;
-    uint32_t max_size = assoc / 2 * lineSize;
-    uint32_t current_size = 0;
+    uint32_t max_segments = (assoc / 2) * (lineSize / Segment_Size);
+
+    uint32_t current_segments = 0;
     for (uint32_t id = first; id < first + assoc; id++) {
-        current_size += compressed_sizes[id];
+        current_segments += compressed_segments[id];
     }
 
-    if (current_size <= max_size) {
+    if (current_segments <= max_segments) {
         return 0;
     } else {
         uint32_t eviction_index = 0;
@@ -155,26 +155,27 @@ uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsig
             memcpy(wbLineValues[eviction_index], uncompressed_values[evicted_line], lineSize);
             evicted_lines[eviction_index] = evicted_line;
 
-            current_size -= compressed_sizes[evicted_line];
+            current_segments -= compressed_segments[evicted_line];
 
             eviction_index++;
         }
 
-        if (current_size > max_size) {
-            rp->buildCandsPriorityQueue(first, first + assoc);
-        }
+        if (current_segments > max_segments) {
+            candsPriorityQueue scores = rp->buildCandsPriorityQueue(first, first + assoc);
 
-        while (current_size > max_size) {
-            evicted_line = rp->getNextCand();
+            while (current_segments > max_segments) {
+                scores.pop();
+                evicted_line = scores.top().second;
 
-            if (evicted_line != candidate) {
-                wbLineAddrs[eviction_index] = array[evicted_line];
-                memcpy(wbLineValues[eviction_index], uncompressed_values[evicted_line], lineSize);
-                evicted_lines[eviction_index] = evicted_line;
+                if (evicted_line != candidate) {
+                    wbLineAddrs[eviction_index] = array[evicted_line];
+                    memcpy(wbLineValues[eviction_index], uncompressed_values[evicted_line], lineSize);
+                    evicted_lines[eviction_index] = evicted_line;
 
-                current_size -= compressed_sizes[evicted_line];
+                    current_segments -= compressed_segments[evicted_line];
 
-                eviction_index++;
+                    eviction_index++;
+                }
             }
         }
 
@@ -183,18 +184,18 @@ uint32_t BDICompressedCacheArray::BDIupdateValue(void *value, UINT32 size, unsig
 }
 
 void BDICompressedCacheArray::unsetCompressedSizes(uint32_t id) {
-    compressed_sizes[id] = 0;
+    compressed_segments[id] = 0;
 }
 
 bool BDICompressedCacheArray::isCompressed(int32_t i) {
-    return compressed_sizes[i] < lineSize;
+    return compressed_segments[i] < (lineSize / Segment_Size);
 }
 
 uint64_t BDICompressedCacheArray::getFullLinesNum() {
     uint64_t sum = 0;
 
     for (uint32_t i = 0; i < numLines; ++i) {
-        if(compressed_sizes[i] > 0){
+        if(isFull(i)){
             sum ++;
         }
     }
@@ -208,6 +209,10 @@ uint64_t BDICompressedCacheArray::getMaxLinesNum() {
 
 void BDICompressedCacheArray::dec_full_lines() {
     fullLines --;
+}
+
+bool BDICompressedCacheArray::isFull(uint32_t lineId) {
+    return compressed_segments[lineId] > 0;
 }
 
 

@@ -19,10 +19,12 @@ protected:
 protected:
     uint32_t setMask;
     void **uncompressed_values;
-    uint32_t *compressed_sizes;
+    uint32_t *compressed_segments;
     uint32_t lineSize;
 
     uint32_t fullLines;
+
+    static const uint32_t Segment_Size = 8;
 
 public:
     BDICompressedCacheArray(uint32_t _numLines, uint32_t _lineSize, uint32_t _assoc, ReplPolicy *_rp, HashFamily *_hf);
@@ -54,6 +56,8 @@ public:
     uint64_t getMaxLinesNum();
 
     void dec_full_lines();
+
+    bool isFull(uint32_t lineId);
 };
 
 

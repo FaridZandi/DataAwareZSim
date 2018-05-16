@@ -27,11 +27,17 @@
 #define REPL_POLICIES_H_
 
 #include <functional>
+#include <queue>
 #include "bithacks.h"
 #include "cache_arrays.h"
 #include "coherence_ctrls.h"
 #include "memory_hierarchy.h"
 #include "mtrand.h"
+
+typedef std::priority_queue<std::pair<uint64_t, uint32_t>,
+        std::vector<std::pair<uint64_t, uint32_t> >,
+        std::greater<std::pair<uint64_t, uint32_t> > > candsPriorityQueue;
+
 
 /* Generic replacement policy interface. A replacement policy is initialized by the cache (by calling setTop/BottomCC) and used by the cache array. Usage follows two models:
  * - On lookups, update() is called if the replacement policy is to be updated on a hit
@@ -57,10 +63,7 @@ public:
 
     virtual void initStats(AggregateStat *parent) {}
 
-    virtual void buildCandsPriorityQueue(uint32_t begin, uint32_t end) {};
-
-    virtual uint32_t getNextCand() { return 0; }
-
+    virtual candsPriorityQueue buildCandsPriorityQueue(uint32_t begin, uint32_t end) {return candsPriorityQueue();};
 };
 
 

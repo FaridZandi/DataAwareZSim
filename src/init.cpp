@@ -104,17 +104,19 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
 
     uint32_t numLines = bankSize / lineSize;
 
-    string compression = config.get<const char *>(prefix + "compression", "none");
-
-    if(compression == "BDI"){
-        numLines *= 2;
-    }
-
     //Array
     uint32_t numHashes = 1;
     uint32_t ways = config.get<uint32_t>(prefix + "array.ways", 4);
     string arrayType = config.get<const char *>(prefix + "array.type", "SetAssoc");
     uint32_t candidates = (arrayType == "Z") ? config.get<uint32_t>(prefix + "array.candidates", 16) : ways;
+
+    //Compression
+    string compression = config.get<const char *>(prefix + "compression", "none");
+    if(compression == "BDI"){
+        numLines *= 2;
+        ways *= 2;
+    }
+
 
     //Need to know number of hash functions before instantiating array
     if (arrayType == "SetAssoc" || arrayType == "DataAwareSetAssoc" || arrayType == "CompressedDataAwareSetAssoc") {

@@ -21,30 +21,49 @@ BDICompressedCache::BDICompressedCache(uint32_t _numLines, CC *_cc,
 }
 
 
-uint64_t l2_stat_counter = 0;
-uint64_t llc_stat_counter = 0;
+//uint64_t llc_stat_counter = 0;
+
+//uint64_t getss = 0;
+//uint64_t getxs = 0;
+//uint64_t putss = 0;
+//uint64_t putxs = 0;
+//
+//std::ofstream dude("dude.txt");
 
 uint64_t BDICompressedCache::access(MemReq &req) {
     uint64_t respCycle = req.cycle;
 
+//    if(req.type == GETS){
+//        getss ++;
+//    } else if (req.type == GETX){
+//        getxs ++;
+//    } else if (req.type == PUTS){
+//        putss ++;
+//    } else if(req.type == PUTX){
+//        putxs ++;
+//    }
+//    dude << getss << "\t" << getxs << "\t" << putss << "\t" << putxs << std::endl;
+
+
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
+
     if (likely(!skipAccess)) {
 
         BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
 
-        if (strcmp(getName(), "llc-0") == 0) {
-            llc_stat_counter ++;
-            if(llc_stat_counter % 10000 == 0) {
-                llc_sum_full = bdi_array->getFullLinesNum();
-                llc_sum_all = bdi_array->getMaxLinesNum();
-
-                std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
-                std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
-                std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
-                std::cerr << "---------------------------------------------------------" << std::endl;
-                std::cerr << "---------------------------------------------------------" << std::endl;
-            }
-        }
+//        if (strcmp(getName(), "llc-0") == 0) {
+//            llc_stat_counter++;
+//            if (llc_stat_counter % 10000 == 0) {
+//                llc_sum_full = bdi_array->getFullLinesNum();
+//                llc_sum_all = bdi_array->getMaxLinesNum();
+//
+//                std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
+//                std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
+//                std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
+//                std::cerr << "---------------------------------------------------------" << std::endl;
+//                std::cerr << "---------------------------------------------------------" << std::endl;
+//            }
+//        }
 
         bool updateReplacement = (req.type == GETS) || (req.type == GETX);
         int32_t lineId = bdi_array->lookup(req.lineAddr, &req, updateReplacement);
@@ -75,9 +94,11 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 //Evictions are not in the critical path in any sane implementation -- we do not include their delays
                 //NOTE: We might be "evicting" an invalid line for all we know. Coherence controllers will know what to do
 
-                cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
-                                    respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
-                bdi_array->unsetCompressedSizes(evicted_lines[j]);
+                if(bdi_array->isFull(evicted_lines[j]) or (uint32_t) lineId == evicted_lines[j]){
+                    cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
+                                        respCycle); //1. if needed, send invalidates/downgrades to lower level //hereeeee
+                    bdi_array->unsetCompressedSizes(evicted_lines[j]);
+                }
             }
 
             gm_free(evicted_lines);
@@ -93,7 +114,9 @@ uint64_t BDICompressedCache::access(MemReq &req) {
 
         if (lookupLineId != -1) { // so the line was present in the cache in the first place.
             if (req.type == PUTS or req.type == PUTX) {
-                updateValues(req, respCycle, bdi_array, lookupLineId);
+                if (cc->isValid(lookupLineId)) {
+                    updateValues(req, respCycle, bdi_array, lookupLineId);
+                }
             } else if (req.type == GETS) {
                 if (cc->isValid(lookupLineId)) {
                     if (bdi_array->isCompressed(lookupLineId)) {
@@ -103,10 +126,9 @@ uint64_t BDICompressedCache::access(MemReq &req) {
                 } else {
                     updateValues(req, respCycle, bdi_array, lookupLineId);
                 }
-            } else if(req.type == GETX){
-                if (cc->isValid(lookupLineId)) {
+            } else if (req.type == GETX) {
+                if (cc->isGetXHit(lookupLineId)) {
                     if (bdi_array->isCompressed(lookupLineId)) {
-                        // if the line is compressed it has to decompressed before it is handed to lower levels.
                         respCycle += DecompressionLat;
                     }
                 }
@@ -183,10 +205,11 @@ void BDICompressedCache::updateValues(const MemReq &req, uint64_t respCycle, BDI
                                                         evicted_lines);
 
     for (uint32_t j = 0; j < eviction_count; ++j) {
-        cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
-                            respCycle); //1. if needed, send invalidates/downgrades to lower level //here !
-
-        bdi_array->unsetCompressedSizes(evicted_lines[j]);
+        if(bdi_array->isFull(evicted_lines[j])){ // ignoring the empty lines.
+            cc->processEviction(req, wbLineAddrs[j], wbLineValues[j], evicted_lines[j],
+                                respCycle); //1. if needed, send invalidates/downgrades to lower level //here !
+            bdi_array->unsetCompressedSizes(evicted_lines[j]);
+        }
     }
 
     gm_free(evicted_lines);

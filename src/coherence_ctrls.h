@@ -27,6 +27,7 @@
 #define COHERENCE_CTRLS_H_
 
 #include <bitset>
+#include <iostream>
 #include "constants.h"
 #include "g_std/g_string.h"
 #include "g_std/g_vector.h"
@@ -68,6 +69,8 @@ public:
     virtual uint32_t numSharers(uint32_t lineId) = 0;
 
     virtual bool isValid(uint32_t lineId) = 0;
+
+    virtual bool isGetXHit(uint32_t lineId){return true;}
 };
 
 
@@ -186,6 +189,10 @@ public:
     }
 
     //Could extend with isExclusive, isDirty, etc, but not needed for now.
+
+    inline bool isGetXHit(uint32_t lineId){
+        return array[lineId] != I && array[lineId] != S;
+    };
 
 private:
     uint32_t getParentId(Address lineAddr);
@@ -447,6 +454,10 @@ public:
     uint32_t numSharers(uint32_t lineId) { return tcc->numSharers(lineId); }
 
     bool isValid(uint32_t lineId) { return bcc->isValid(lineId); }
+
+    virtual bool isGetXHit(uint32_t lineId) override {
+        return bcc->isGetXHit(lineId);
+    }
 };
 
 // Terminal CC, i.e., without children --- accepts GETS/X, but not PUTS/X
