@@ -75,12 +75,6 @@ OOOCore::OOOCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name) : Core(_
     instrs = uops = bbls = approxInstrs = mispredBranches = 0;
 
     for (uint32_t i = 0; i < FWD_ENTRIES; i++) fwdArray[i].set((Address) (-1L), 0);
-
-    for (int j = 0; j < 256; ++j) {
-        loadValues[j] = new char[zinfo->lineSize];
-        storeValues[j] = new char[zinfo->lineSize];
-    }
-
 }
 
 void OOOCore::initStats(AggregateStat *parentStat) {
@@ -191,10 +185,7 @@ inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
 
     loadAddrs[currIdx] = addr;
     loadPCs[currIdx] = pc;
-
     loadSizes[currIdx] = size;
-    unsigned int lineSize = (1U << lineBits);
-    memcpy(loadValues[currIdx], value, lineSize);
 }
 
 void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
@@ -205,10 +196,7 @@ void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
 
     storeAddrs[currIdx] = addr;
     storePCs[currIdx] = pc;
-
     storeSizes[currIdx] = size;
-    unsigned int lineSize = (1U << lineBits);
-    memcpy(storeValues[currIdx], value, lineSize);
 }
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
@@ -222,7 +210,6 @@ void OOOCore::predFalseMemOp() {    //Kasraa: I heavily modified this function
     loadAddrs[currIdx] = -1L;
     loadPCs[currIdx] = -1L;
     loadSizes[currIdx] = -1L;
-
 }
 
 void OOOCore::branch(Address pc, bool taken, Address takenNpc, Address notTakenNpc) {
@@ -348,7 +335,6 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 Address addr = loadAddrs[loadsCurrIdx];
                 Address pc = loadPCs[loadsCurrIdx];
                 //Kasraa [End]
-                char* value = loadValues[loadsCurrIdx];
                 UINT32 size = loadSizes[loadsCurrIdx];
 
                 uint64_t reqSatisfiedCycle = dispatchCycle;
@@ -356,8 +342,13 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 //                    morteza << "load 0x" << setw(15) << std::hex << std::left << addr << " with index " << loadsCurrIdx << " ";
 //                    EmitMem(loadValues[loadsCurrIdx], size, addr & ((1U << lineBits) - 1));
 
+                    char *value = gm_malloc<char>(1U << lineBits);
+                    ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
+                    PIN_SafeCopy(value, (ADDRINT *) lineBegin, 1U << lineBits);
+
                     reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
 
+                    gm_free(value);
 
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
@@ -400,13 +391,18 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 Address addr = storeAddrs[storesCurrIdx];
                 Address pc = storePCs[storesCurrIdx];
                 //Kasraa [End]
-                char* value = storeValues[storesCurrIdx];
                 UINT32 size = storeSizes[storesCurrIdx];
 
 //                morteza << "stor 0x" << setw(15) << std::hex << std::left << addr << " ";
 //                EmitMem(value, size, addr & ((1U << lineBits) - 1));
 
+                char *value = gm_malloc<char>(1U << lineBits);
+                ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
+                PIN_SafeCopy(value, (ADDRINT *) lineBegin, 1U << lineBits);
+
                 uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+
+                gm_free(value);
 
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
@@ -516,7 +512,8 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
             uint64_t fetchLat = l1i->load(wrongPathAddr + lineSize * i,
                                           curCycle,
-                                          wrongPathAddr + lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
+                                          wrongPathAddr +
+                                          lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
                                           value, lineSize) - curCycle;
 
             delete[] value;
