@@ -139,7 +139,7 @@ public:
             //filterArray[idx].availCycle = curCycle; //do optimistic store-load forwarding
 //        }
 
-        // SMF : had to store the values in the caches even when the address exists.
+        // SMF : bypassing the filter cache to store the values in the arrays.
         return replace(vLineAddr, idx, false, curCycle, pc /*Kasraa*/, value, size, offset);
     }
 

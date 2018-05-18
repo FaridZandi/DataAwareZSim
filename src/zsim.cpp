@@ -295,7 +295,7 @@ IndirectLoadSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
               << " to address 0x" << setw(14) << std::left << s.addr + s.size - 1;
         EmitMem(s.value, s.size, s.addr & ((1 << lineBits) - 1));
         farid << std::endl;
-        if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
+        if (s.addr >> 6 != (s.addr + s.size - 1) >> 6)
             farid << "reading from multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
@@ -333,7 +333,7 @@ IndirectStoreSingleAfter(THREADID tid, ADDRINT pc /*Kasraa*/) {
               << " to address 0x" << setw(14) << std::left << s.addr + s.size - 1;
         EmitMem(s.value, s.size, s.addr & ((1 << lineBits) - 1));
         farid << std::endl;
-        if (s.addr >> 8 != (s.addr + s.size - 1) >> 8)
+        if (s.addr >> 6 != (s.addr + s.size - 1) >> 6)
             farid << "writing on multiple lines" << std::endl;
         PIN_ReleaseLock(&lock);
     }
