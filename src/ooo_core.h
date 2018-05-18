@@ -381,12 +381,10 @@ private:
     //Record load and store addresses
     Address loadAddrs[256];
     Address loadPCs[256];   //Kasraa
-    char* loadValues[256];
     UINT32 loadSizes[256];
 
     Address storeAddrs[256];
     Address storePCs[256];  //Kasraa
-    char* storeValues[256];
     UINT32 storeSizes[256];
 
     uint32_t loads;

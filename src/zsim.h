@@ -32,6 +32,9 @@
 #include "debug.h"
 #include "locks.h"
 #include "pad.h"
+#include "memory_hierarchy.h"
+#include "cache_arrays.h"
+#include "BDICompressedCacheArray.h"
 
 class Core;
 
@@ -211,6 +214,8 @@ extern uint64_t l2_sum_all;
 extern uint64_t l2_sum_full;
 extern uint64_t llc_sum_all;
 extern uint64_t llc_sum_full;
+
+extern std::vector<BDICompressedCacheArray*> BDICaches;
 
 extern GlobSimInfo *zinfo;
 

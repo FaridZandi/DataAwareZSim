@@ -75,12 +75,6 @@ OOOCore::OOOCore(FilterCache *_l1i, FilterCache *_l1d, g_string &_name) : Core(_
     instrs = uops = bbls = approxInstrs = mispredBranches = 0;
 
     for (uint32_t i = 0; i < FWD_ENTRIES; i++) fwdArray[i].set((Address) (-1L), 0);
-
-    for (int j = 0; j < 256; ++j) {
-        loadValues[j] = new char[zinfo->lineSize];
-        storeValues[j] = new char[zinfo->lineSize];
-    }
-
 }
 
 void OOOCore::initStats(AggregateStat *parentStat) {
@@ -143,46 +137,6 @@ InstrFuncPtrs OOOCore::GetFuncPtrs() {
     return {LoadFunc, StoreFunc, BblFunc, BranchFunc, PredLoadFunc, PredStoreFunc, FPTR_ANALYSIS, {0}};
 }
 
-//#include <fstream>
-//#include <iomanip>
-//std::ofstream morteza("trace3.txt");
-//
-//static VOID EmitMem(VOID *ea, INT32 size, int offset) {
-//    ea = (void*)((uintptr_t)ea + offset);
-//    morteza << " with size: " << std::dec << setw(3) << size << " with value ";
-//    switch (size) {
-//        case 0:
-//            cerr << "zero length data here" << std::endl;
-//            morteza << setw(1);
-//            break;
-//
-//        case 1:
-//            morteza << static_cast<UINT32>(*static_cast<UINT8 *>(ea));
-//            break;
-//
-//        case 2:
-//            morteza << *static_cast<UINT16 *>(ea);
-//            break;
-//
-//        case 4:
-//            morteza << *static_cast<UINT32 *>(ea);
-//            break;
-//
-//        case 8:
-//            morteza << *static_cast<UINT64 *>(ea);
-//            break;
-//
-//        default:
-//            morteza << setw(1) << "0x";
-//            for (INT32 i = 0; i < size; i++) {
-//                morteza << setfill('0') << setw(2) << static_cast<UINT32>(static_cast<UINT8 *>(ea)[i]);
-//            }
-//            morteza << std::setfill(' ');
-//            break;
-//    }
-//    morteza << std::endl;
-//}
-
 inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
                           UINT32 size) {  //Kasraa: I heavily modified this function
     uint32_t currIdx = loads;
@@ -191,10 +145,7 @@ inline void OOOCore::load(Address addr, Address pc /*Kasraa*/, void *value,
 
     loadAddrs[currIdx] = addr;
     loadPCs[currIdx] = pc;
-
     loadSizes[currIdx] = size;
-    unsigned int lineSize = (1U << lineBits);
-    memcpy(loadValues[currIdx], value, lineSize);
 }
 
 void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
@@ -205,10 +156,7 @@ void OOOCore::store(Address addr, Address pc /*Kasraa*/, void *value,
 
     storeAddrs[currIdx] = addr;
     storePCs[currIdx] = pc;
-
     storeSizes[currIdx] = size;
-    unsigned int lineSize = (1U << lineBits);
-    memcpy(storeValues[currIdx], value, lineSize);
 }
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
@@ -348,16 +296,17 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 Address addr = loadAddrs[loadsCurrIdx];
                 Address pc = loadPCs[loadsCurrIdx];
                 //Kasraa [End]
-                char* value = loadValues[loadsCurrIdx];
                 UINT32 size = loadSizes[loadsCurrIdx];
 
                 uint64_t reqSatisfiedCycle = dispatchCycle;
                 if (addr != ((Address) -1L)) {
-//                    morteza << "load 0x" << setw(15) << std::hex << std::left << addr << " with index " << loadsCurrIdx << " ";
-//                    EmitMem(loadValues[loadsCurrIdx], size, addr & ((1U << lineBits) - 1));
+                    char *value = gm_malloc<char>(1U << lineBits);
+                    ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
+                    PIN_SafeCopy(value, (ADDRINT *) lineBegin, 1U << lineBits);
 
                     reqSatisfiedCycle = l1d->load(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
 
+                    gm_free(value);
 
                     cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
                 }
@@ -400,13 +349,18 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                 Address addr = storeAddrs[storesCurrIdx];
                 Address pc = storePCs[storesCurrIdx];
                 //Kasraa [End]
-                char* value = storeValues[storesCurrIdx];
                 UINT32 size = storeSizes[storesCurrIdx];
 
 //                morteza << "stor 0x" << setw(15) << std::hex << std::left << addr << " ";
 //                EmitMem(value, size, addr & ((1U << lineBits) - 1));
 
+                char *value = gm_malloc<char>(1U << lineBits);
+                ADDRINT lineBegin = ((addr >> lineBits) | procMask) << lineBits;
+                PIN_SafeCopy(value, (ADDRINT *) lineBegin, 1U << lineBits);
+
                 uint64_t reqSatisfiedCycle = l1d->store(addr, dispatchCycle, pc /*Kasraa*/, value, size) + L1D_LAT;
+
+                gm_free(value);
 
                 cRec.record(curCycle, dispatchCycle, reqSatisfiedCycle);
 
@@ -510,7 +464,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
 
         for (uint32_t i = 0; i < 5 * 64 / lineSize; i++) {
 
-            char *value = new char[lineSize];
+            char *value = gm_malloc<char>(1U << lineBits);
             ADDRINT lineBegin = (((wrongPathAddr + lineSize * i) >> lineBits) | procMask) << lineBits;
             PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
@@ -519,7 +473,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                                           wrongPathAddr + lineSize * i, /*Kasraa: This is instruction cache and the PC is not required*/
                                           value, lineSize) - curCycle;
 
-            delete[] value;
+            gm_free(value);
 
             cRec.record(curCycle, curCycle, curCycle + fetchLat);
             uint64_t respCycle = reqCycle + fetchLat;
@@ -543,7 +497,7 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
         // We always call fetches with curCycle to avoid upsetting the weave
         // models (but we could move to a fetch-centric recorder to avoid this)
 
-        char *value = new char[lineSize];
+        char *value = gm_malloc<char>(1U << lineBits);
         ADDRINT lineBegin = ((fetchAddr >> lineBits) | procMask) << lineBits;
         PIN_SafeCopy(value, (ADDRINT *) lineBegin, lineSize);
 
@@ -551,7 +505,8 @@ inline void OOOCore::bbl(Address bblAddr, BblInfo *bblInfo) {
                                       curCycle,
                                       fetchAddr /*Kasraa: This is instruction cache and the PC is not required*/,
                                       value, lineSize) - curCycle;
-        delete[] value;
+
+        gm_free(value);
 
         cRec.record(curCycle, curCycle, curCycle + fetchLat);
         fetchCycle += fetchLat;

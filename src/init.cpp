@@ -264,6 +264,7 @@ BaseCache *BuildCacheBank(Config &config, const string &prefix, g_string &name, 
     } else if (arrayType == "DataAwareSetAssoc"){
         if(compression == "BDI"){
             array = new BDICompressedCacheArray(numLines, lineSize, ways, rp, hf);
+            BDICaches.push_back((BDICompressedCacheArray*)array);
         } else {
             array = new DataAwareSetAssocArray(numLines, lineSize, ways, rp, hf);
         }

@@ -52,14 +52,17 @@ uint64_t BDICompressedCache::access(MemReq &req) {
         BDICompressedCacheArray *bdi_array = (BDICompressedCacheArray *) array;
 
         llc_stat_counter++;
-        if (llc_stat_counter % 50000 == 0) {
-            llc_sum_full = bdi_array->getFullLinesNum();
-            llc_sum_all = bdi_array->getMaxLinesNum();
+        if (llc_stat_counter % 500000 == 0) {
+            uint64_t full_lines = 0;
+            uint64_t all_lines = 0;
 
-            std::cerr << "my name is " << getName() << std::endl;
-            std::cerr << "llc sum full :  " << llc_sum_full << std::endl;
-            std::cerr << "llc sum all  :  " << llc_sum_all  << std::endl;
-            std::cerr << "llc comp ratio:  " << (double) llc_sum_full / llc_sum_all << std::endl;
+            for (uint32_t i = 0; i < BDICaches.size(); ++i) {
+                full_lines += BDICaches[i]->getFullLinesNum();
+                all_lines += BDICaches[i]->getMaxLinesNum();
+            }
+            std::cerr << "llc sum full :  " << full_lines << std::endl;
+            std::cerr << "llc sum all  :  " << all_lines  << std::endl;
+            std::cerr << "llc comp ratio:  " << (double) full_lines / all_lines << std::endl;
             std::cerr << "---------------------------------------------------------" << std::endl;
             std::cerr << "---------------------------------------------------------" << std::endl;
         }
